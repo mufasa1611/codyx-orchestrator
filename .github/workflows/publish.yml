@@ -2,12 +2,6 @@ name: publish
 run-name: "${{ format('release {0}', inputs.bump) }}"
 
 on:
-  push:
-    branches:
-      - ci
-      - dev
-      - beta
-      - snapshot-*
   workflow_dispatch:
     inputs:
       bump:
@@ -47,7 +41,7 @@ jobs:
 
       - id: version
         run: |
-          ./script/version.ts
+          bun ./script/version.ts
         env:
           GH_TOKEN: ${{ github.token }}
           CODY_BUMP: ${{ inputs.bump }}
@@ -81,7 +75,7 @@ jobs:
       - name: Build
         id: build
         run: |
-          ./packages/codyx/script/build.ts ${{ (github.ref_name == 'beta' && '--sourcemaps') || '' }}
+          bun ./packages/codyx/script/build.ts ${{ (github.ref_name == 'beta' && '--sourcemaps') || '' }}
         env:
           CODY_VERSION: ${{ needs.version.outputs.version }}
           CODY_RELEASE: ${{ needs.version.outputs.release }}
@@ -470,7 +464,7 @@ jobs:
           git config --global user.name "cody"
           ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts || true
 
-      - run: ./script/publish.ts
+      - run: bun ./script/publish.ts
         env:
           CODY_VERSION: ${{ needs.version.outputs.version }}
           CODY_RELEASE: ${{ needs.version.outputs.release }}
