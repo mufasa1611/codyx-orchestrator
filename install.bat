@@ -2,19 +2,19 @@
 setlocal EnableExtensions
 
 if not defined CODY_BRANCH set "CODY_BRANCH=dev"
+if not defined CODY_NPM_TAG set "CODY_NPM_TAG=beta"
 
-set "INSTALLER_URL=https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/%CODY_BRANCH%/script/install.ps1"
-set "TEMP_INSTALLER=%TEMP%\codyx-install-%RANDOM%%RANDOM%.ps1"
+set "INSTALLER_URL=https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/%CODY_BRANCH%/script/install-npm.ps1"
+set "TEMP_INSTALLER=%TEMP%\codyx-npm-install-%RANDOM%%RANDOM%.ps1"
 set "CODY_TEMP_INSTALLER=%TEMP_INSTALLER%"
 
-echo [warn] This installer (root install.bat) is deprecated.
-echo [warn] Using the unified PowerShell installer:
-echo   powershell -NoProfile -ExecutionPolicy Bypass -Command "irm %INSTALLER_URL% ^| iex"
+echo [info] Installing codyx from npm. This does not clone the repository.
+echo [info] Package: codyx-ai@%CODY_NPM_TAG%
 echo.
 
 where powershell >nul 2>nul
 if errorlevel 1 (
-  echo [error] PowerShell is required to run the unified installer.
+  echo [error] PowerShell is required to run the npm installer.
   exit /b 1
 )
 
@@ -25,7 +25,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $installerArgs = @('-Branch', $env:CODY_BRANCH); if ($env:CODY_YES -eq '1') { $installerArgs += '-Yes' }; if ($env:CODY_NO_SCAN -eq '1') { $installerArgs += '-NoScan' }; if ($env:CODY_NO_PROXY -eq '1') { $installerArgs += '-NoProxy' }; if ($env:CODY_NO_BUILD -eq '1') { $installerArgs += '-NoBuild' }; if ($env:CODY_INSTALL_ROOT) { $installerArgs += @('-InstallRoot', $env:CODY_INSTALL_ROOT) }; & $env:CODY_TEMP_INSTALLER @installerArgs; exit $LASTEXITCODE }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $installerArgs = @('-Tag', $env:CODY_NPM_TAG); if ($env:CODY_NPM_VERSION) { $installerArgs = @('-Version', $env:CODY_NPM_VERSION) }; if ($env:CODY_NO_VERIFY -eq '1') { $installerArgs += '-NoVerify' }; if ($env:CODY_NO_LAUNCH -ne '1') { $installerArgs += '-Launch' }; & $env:CODY_TEMP_INSTALLER @installerArgs; exit $LASTEXITCODE }"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 del "%TEMP_INSTALLER%" >nul 2>nul

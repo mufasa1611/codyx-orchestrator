@@ -2,10 +2,22 @@
 
 ## Start The TUI
 
-Install the current beta npm package and launch the TUI:
+If Node.js/npm is already installed, install the current beta package and launch the TUI:
 
 ```powershell
 npm install -g codyx-ai@beta && codyx
+```
+
+If Node.js/npm is not installed on Windows, use the npm installer:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch
+```
+
+From CMD:
+
+```cmd
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
 ```
 
 After installation, the global command is:
@@ -14,7 +26,9 @@ After installation, the global command is:
 codyx
 ```
 
-Install with one command from PowerShell:
+The npm installer installs Node.js LTS with `winget` when possible, installs `codyx-ai`, and does not clone the repository.
+
+Use the source installer only when you want an editable checkout or source/server proxy setup:
 
 ```powershell
 irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex
@@ -23,17 +37,17 @@ irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/i
 Or from CMD:
 
 ```cmd
-curl -fsSL -o "%TEMP%\codyx-install.bat" https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.bat && "%TEMP%\codyx-install.bat"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex"
 ```
 
-The installer clones the repository, checks Git/Node.js/Bun (installing missing tools with winget when possible), runs bun install, and creates the global codyx command.
+The root `install.bat` path is npm-first. The source installer clones the repository, checks Git/Bun, runs `bun install`, and creates the source checkout global shim.
 
 If you prefer to clone manually:
 
 ```powershell
 git clone https://github.com/mufasa1611/codyx-orchestrator.git
 cd codyx-orchestrator
-.\install.bat
+.\script\install.ps1
 ```
 
 From the checkout directory:
@@ -79,10 +93,16 @@ codyx --help
 .\codyx.cmd debug agent operator
 ```
 
-If the global command is missing, reinstall the local shim:
+If an npm global command is missing, reinstall the npm package:
 
 ```powershell
-.\install.bat
+npm install -g codyx-ai@beta
+```
+
+If a source checkout shim is missing, reinstall the local shim from the checkout:
+
+```powershell
+.\script\install-codyx-global.ps1 -Root (Get-Location)
 ```
 
 ## Local Model Discovery

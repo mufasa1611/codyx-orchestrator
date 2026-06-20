@@ -6,13 +6,45 @@ import { Installation } from "@/installation"
 import { InstallationVersion } from "@cody/core/installation/version"
 import { Rpc } from "@/util/rpc"
 import { execSync } from "child_process"
+import fs from "fs"
+import path from "path"
 
 let _upgrading = false
-function currentBranch(): string {
+const GH_REPO = process.env.GH_REPO || "mufasa1611/codyx-orchestrator"
+
+function isCodyxRepoRoot(root: string) {
   try {
-    return execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", timeout: 3000 }).trim()
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as {
+      name?: string
+      repository?: { url?: string } | string
+    }
+    const repository = typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url
+    return pkg.name === "codyx-orchestrator" || repository?.includes(GH_REPO) === true
   } catch {
-    return "main"
+    return false
+  }
+}
+
+function sourceInstallRoot() {
+  if (process.env.CODY_INSTALL_ROOT && isCodyxRepoRoot(process.env.CODY_INSTALL_ROOT))
+    return process.env.CODY_INSTALL_ROOT
+}
+
+export function gitInstallRoot() {
+  const root = sourceInstallRoot()
+  if (root) return root
+  if (!process.env.CODY_PRO) return
+  try {
+    const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
+    if (repoRoot && isCodyxRepoRoot(repoRoot)) return repoRoot
+  } catch {}
+}
+
+function currentBranch(repoRoot: string): string {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", { cwd: repoRoot, encoding: "utf8", timeout: 3000 }).trim()
+  } catch {
+    return "dev"
   }
 }
 
@@ -25,11 +57,15 @@ function gitPullRestart(repoRoot: string) {
 
 async function codyProUpgrade() {
   try {
-    const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
+    const repoRoot = gitInstallRoot()
     if (!repoRoot) return
-    const branch = process.env.CODY_BRANCH || currentBranch()
+    const branch = process.env.CODY_BRANCH || currentBranch(repoRoot)
     execSync("git fetch origin " + branch + " --quiet", { cwd: repoRoot, encoding: "utf8", timeout: 15000 })
-    const behind = execSync("git rev-list --count HEAD..origin/" + branch, { cwd: repoRoot, encoding: "utf8", timeout: 5000 }).trim()
+    const behind = execSync("git rev-list --count HEAD..origin/" + branch, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 5000,
+    }).trim()
     if (behind === "0" || behind === "") return
 
     await Bus.publish(Installation.Event.UpdateAvailable, { version: "latest" })
@@ -46,7 +82,8 @@ async function codyProUpgrade() {
 
 export function gitUpgrade() {
   try {
-    const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
+    const repoRoot = gitInstallRoot()
+    if (!repoRoot) return
     gitPullRestart(repoRoot)
   } catch {
     // Best-effort
@@ -55,11 +92,15 @@ export function gitUpgrade() {
 
 export function checkForUpdates() {
   try {
-    const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
+    const repoRoot = gitInstallRoot()
     if (!repoRoot) return { updateAvailable: false }
-    const branch = process.env.CODY_BRANCH || currentBranch()
+    const branch = process.env.CODY_BRANCH || currentBranch(repoRoot)
     execSync("git fetch origin " + branch + " --quiet", { cwd: repoRoot, encoding: "utf8", timeout: 15000 })
-    const behind = execSync("git rev-list --count HEAD..origin/" + branch, { cwd: repoRoot, encoding: "utf8", timeout: 5000 }).trim()
+    const behind = execSync("git rev-list --count HEAD..origin/" + branch, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 5000,
+    }).trim()
     if (behind === "0" || behind === "") return { updateAvailable: false }
     return { updateAvailable: true }
   } catch (e) {
@@ -72,15 +113,8 @@ export async function upgrade() {
   const config = await AppRuntime.runPromise(Config.Service.use((cfg) => cfg.getGlobal()))
   if (config.autoupdate === false || Flag.CODY_DISABLE_AUTOUPDATE) return
 
-  // Auto-detect git-based installs
-  if (process.env.CODY_PRO) {
+  if (gitInstallRoot()) {
     return codyProUpgrade()
-  }
-  try {
-    execSync("git rev-parse --git-dir", { encoding: "utf8", timeout: 3000 })
-    return codyProUpgrade()
-  } catch {
-    // Not a git repo, fall through to npm/brew/scoop method
   }
 
   const method = await Installation.method()

@@ -17,33 +17,38 @@ everything through plugins, agents, and custom tools.
 
 ## Quick Start
 
-Install the current beta npm package and launch the TUI:
+If Node.js/npm is already installed, install the current beta package and launch the TUI:
 
 ```bash
 npm install -g codyx-ai@beta && codyx
 ```
 
-Full installer options:
-
-```bash
-# macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
-```
+If Node.js/npm is not installed on Windows, use the npm installer. It installs Node.js LTS with `winget` when possible, installs `codyx-ai@beta`, and launches `codyx`. It does not clone the repository.
 
 ```powershell
-# Windows PowerShell
-irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch
+```
+
+Windows Command Prompt:
+
+```cmd
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
+```
+
+Source/server installer options:
+
+```bash
+# macOS / Linux source checkout
+CODY_FORCE_SOURCE=1 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
 ```
 
 ```cmd
-:: Windows Command Prompt
-curl -fsSL -o "%TEMP%\codyx-install.bat" https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.bat && "%TEMP%\codyx-install.bat"
+:: Windows source checkout
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex"
 ```
 
-> The Windows installer sets up Git and [Bun](https://bun.sh) 1.3.13+ when possible,
-> pauses for email ownership verification, installs `codyx` for the current user, and
-> verifies the global command before finishing. A valid saved verification receipt lets
-> later runs continue automatically.
+> npm installs update with `npm update -g codyx-ai`. Source/server installs clone the repo,
+> use Git/Bun, and are only needed when you want an editable checkout or server/proxy setup.
 > Docker images are available for headless/server deployments.
 
 ---
@@ -346,11 +351,17 @@ bun install
 bun run dev
 ```
 
-### Global npm Shim
+### npm
 
 ```bash
-npm install -g codyx-ai
+npm install -g codyx-ai@beta
 codyx
+```
+
+### Windows Without Node.js
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta
 ```
 
 ---

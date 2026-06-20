@@ -1,44 +1,50 @@
 # codyx Install And Update Strategy
 
-## Local Install
+## Recommended User Install
 
-Install with one command from PowerShell:
+If Node.js/npm is already installed:
+
+```powershell
+npm install -g codyx-ai@beta && codyx
+```
+
+If Node.js/npm is not installed on Windows:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch
+```
+
+From CMD:
+
+```cmd
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
+```
+
+The npm installer installs Node.js LTS with `winget` when possible, installs `codyx-ai`, verifies the global `codyx` command, and can launch the TUI. It does not clone this repository, run `bun install`, build the web UI from source, or configure the source checkout proxy stack.
+
+## User Update Policy
+
+npm installs update through npm:
+
+```powershell
+npm update -g codyx-ai
+```
+
+For the current beta channel:
+
+```powershell
+npm install -g codyx-ai@beta
+```
+
+Inside codyx, `codyx upgrade` should detect npm installs as npm installs and must not run `git pull` in the user's current project repository.
+
+## Source/Developer Install
+
+Use the source installer only when you intentionally want an editable checkout or source/server setup:
 
 ```powershell
 irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex
 ```
-
-Or from CMD:
-
-```cmd
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex"
-```
-
-The Windows installer installs Git and Bun 1.3.13+ when needed, then pauses for
-email ownership verification before cloning the repository or continuing with
-the rest of installation. It explains what is collected, sends a six-digit code,
-and stores only a signed receipt under:
-
-```text
-%LOCALAPPDATA%\codyx-installer\verification.json
-```
-
-The local receipt contains no display name or email address. A valid receipt lets
-later runs continue automatically. `-Yes` does not bypass verification, and a
-noninteractive run without a valid receipt exits with instructions.
-
-After email verification succeeds, the service stores the registration and
-sends an operational notice with the display name, verified email, installation
-ID, installer version, platform, and verification time to the Codyx
-administrator. The notice never contains the verification code. This identifies
-successful users of the official Windows installer; it does not track manual
-clones or repository downloads.
-
-After verification, the installer clones the repository, runs `bun install`,
-builds the web UI, discovers optional local models, and verifies the global
-`codyx` command before finishing. The privacy notice is available at
-https://install.kingkung.men/privacy and deletion requests can be sent to
-`privacy@kingkung.men`.
 
 If you prefer to clone manually first:
 
@@ -48,59 +54,34 @@ cd codyx-orchestrator
 .\script\install.ps1
 ```
 
-If Git is not installed, the installer tries to install Git with `winget` before cloning.
-
-The checkout path is not fixed. On Windows, the global command installer records the current checkout path in shims under your user npm global bin folder, normally:
-
-```text
-%APPDATA%\npm\codyx.ps1
-%APPDATA%\npm\codyx.cmd
-```
-
-Both shims route to the `codyx.cmd` file in your checkout. The folder name is historical; npm itself is not required.
-
-macOS/Linux users can run:
+macOS/Linux source checkout:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
+CODY_FORCE_SOURCE=1 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
 ```
 
-The Unix installer writes the launcher to `~/.local/bin/codyx` and adds that
-directory to the current shell configuration when necessary.
+The source installer installs Git and Bun 1.3.13+ when needed, then pauses for email ownership verification before cloning the repository or continuing with the rest of installation. It explains what is collected, sends a six-digit code, and stores only a signed receipt under:
 
-## Start Command
-
-```powershell
-codyx
+```text
+%LOCALAPPDATA%\codyx-installer\verification.json
 ```
 
-Explicit operator launch:
+After verification, the source installer runs `bun install`, builds the web UI, discovers optional local models, and verifies the source checkout global shim. The privacy notice is available at https://install.kingkung.men/privacy and deletion requests can be sent to `privacy@kingkung.men`.
 
-```powershell
-codyx --agent operator
-```
+## Source Update Policy
 
-## Update Policy
-
-codyx updates through git from the local checkout. Use:
-
-```powershell
-codyx upgrade
-```
-
-To refresh dependencies and rebuild the installation, rerun the unified installer
-from the checkout:
+Source installs update through git from the codyx checkout:
 
 ```powershell
 git pull --ff-only
 .\script\install.ps1
 ```
 
-Updates use `git pull --ff-only`, so local divergent changes are not overwritten.
+Updates use `git pull --ff-only`, so local divergent changes are not overwritten. The source launcher exports `CODY_INSTALL_ROOT` so update logic can distinguish the codyx checkout from the user's project repository.
 
-## Reinstall Global Command
+## Reinstall Source Global Command
 
-If the global shim is missing or stale:
+If the source checkout global shim is missing or stale:
 
 ```powershell
 .\script\install-codyx-global.ps1 -Root (Get-Location)
@@ -117,5 +98,3 @@ Before tagging a codyx checkpoint:
 - Focused Cody tool smoke checks pass.
 - `bun run typecheck` passes.
 - Full test suite has either passed or has documented non-Cody failures.
-
-

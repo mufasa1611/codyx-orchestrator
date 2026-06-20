@@ -2,6 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
+set "CODY_INSTALL_ROOT=%ROOT%"
 set "BUN="
 
 where bun >nul 2>nul

@@ -13,9 +13,8 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import * as Sse from "effect/unstable/encoding/Sse"
 import { RootHttpApi } from "../api"
 import { GlobalUpgradeInput } from "../groups/global"
-import { checkForUpdates } from "@/cli/upgrade"
-import { exec, execSync } from "child_process"
-import path from "path"
+import { checkForUpdates, gitInstallRoot } from "@/cli/upgrade"
+import { exec } from "child_process"
 
 const log = Log.create({ service: "server" })
 
@@ -124,9 +123,9 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
             })
           ;(async () => {
             try {
-              const repoRoot = await execAsync("git rev-parse --show-toplevel", { timeout: 5000 })
+              const repoRoot = gitInstallRoot()
               if (!repoRoot) return
-              const branch = process.env.CODY_BRANCH || "main"
+              const branch = process.env.CODY_BRANCH || "dev"
 
               emitProgress("Fetching latest code...")
               await execAsync(`git fetch origin ${branch} --quiet`, { cwd: repoRoot, timeout: 15000 })
