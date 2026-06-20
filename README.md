@@ -17,15 +17,27 @@ everything through plugins, agents, and custom tools.
 
 ## Quick Start
 
+Install the current beta npm package and launch the TUI:
+
+```bash
+npm install -g codyx-ai@beta && codyx
+```
+
+Full installer options:
+
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
+```
 
+```powershell
 # Windows PowerShell
 irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex
+```
 
-# Launch the TUI
-codyx
+```cmd
+:: Windows Command Prompt
+curl -fsSL -o "%TEMP%\codyx-install.bat" https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.bat && "%TEMP%\codyx-install.bat"
 ```
 
 > The Windows installer sets up Git and [Bun](https://bun.sh) 1.3.13+ when possible,

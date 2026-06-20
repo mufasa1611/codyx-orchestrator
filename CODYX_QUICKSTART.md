@@ -2,7 +2,13 @@
 
 ## Start The TUI
 
-Global command:
+Install the current beta npm package and launch the TUI:
+
+```powershell
+npm install -g codyx-ai@beta && codyx
+```
+
+After installation, the global command is:
 
 ```powershell
 codyx
@@ -11,13 +17,13 @@ codyx
 Install with one command from PowerShell:
 
 ```powershell
-iwr https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.ps1 | iex
+irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex
 ```
 
 Or from CMD:
 
 ```cmd
-powershell -NoP -c "iwr https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.ps1 | iex"
+curl -fsSL -o "%TEMP%\codyx-install.bat" https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/install.bat && "%TEMP%\codyx-install.bat"
 ```
 
 The installer clones the repository, checks Git/Node.js/Bun (installing missing tools with winget when possible), runs bun install, and creates the global codyx command.
@@ -26,7 +32,7 @@ If you prefer to clone manually:
 
 ```powershell
 git clone https://github.com/mufasa1611/codyx-orchestrator.git
-cd codyx
+cd codyx-orchestrator
 .\install.bat
 ```
 
@@ -35,7 +41,6 @@ From the checkout directory:
 ```powershell
 .\codyx.cmd
 ```
-
 
 The fork config sets `operator` as the default primary agent, so this starts codyx in operator mode from the repo root.
 
@@ -109,5 +114,3 @@ Local model setup notes are in `CODYX_LOCAL_MODELS.md`.
 - The upstream `cody` entry point also works for testing upstream behavior.
 - The first launch may run a local database migration.
 - Keep dangerous infra actions permission-gated. codyx agents should inspect first and ask before mutating systems.
-
-
