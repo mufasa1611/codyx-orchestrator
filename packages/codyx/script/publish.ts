@@ -31,7 +31,15 @@ async function publish(dir: string, name: string, version: string) {
   )
   await $`bun pm pack`.cwd(dir)
   if (dryRun) return
-  await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir)
+  try {
+    await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir)
+  } catch (error) {
+    if (await published(name, version)) {
+      console.log(`published despite npm publish error ${name}@${version}`)
+      return
+    }
+    throw error
+  }
 }
 
 const binaries: Record<string, string> = {}
@@ -94,10 +102,14 @@ const tagFlags = tags.flatMap((t) => ["-t", t])
 if (!Script.preview && !npmOnly) {
   await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`
 
-  const arm64Sha = await $`sha256sum ./dist/${npmPackage}-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
+  const arm64Sha = await $`sha256sum ./dist/${npmPackage}-linux-arm64.tar.gz | cut -d' ' -f1`
+    .text()
+    .then((x) => x.trim())
   const x64Sha = await $`sha256sum ./dist/${npmPackage}-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
   const macX64Sha = await $`sha256sum ./dist/${npmPackage}-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
-  const macArm64Sha = await $`sha256sum ./dist/${npmPackage}-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
+  const macArm64Sha = await $`sha256sum ./dist/${npmPackage}-darwin-arm64.zip | cut -d' ' -f1`
+    .text()
+    .then((x) => x.trim())
 
   const [pkgver, _subver = ""] = Script.version.split(/(-.*)/, 2)
 
