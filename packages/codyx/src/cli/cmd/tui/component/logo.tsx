@@ -3,7 +3,7 @@ import { useRenderer } from "@opentui/solid"
 import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { useTheme, tint } from "@tui/context/theme"
 import * as Sound from "@tui/util/sound"
-import { codyPro, go, logo } from "@/cli/logo"
+import { go, logo } from "@/cli/logo"
 
 export type LogoShape = {
   left: string[]
@@ -303,7 +303,7 @@ function build(shape: LogoShape): LogoContext {
   return { LEFT, FULL, SPAN, MAP: mapGlyphs(FULL), shape }
 }
 
-const DEFAULT = build(process.env.CODY_PRO === "1" ? codyPro : logo)
+const DEFAULT = build(logo)
 const GO = build(go)
 
 function shimmer(x: number, y: number, frame: Frame, ctx: LogoContext) {
@@ -554,7 +554,7 @@ function buildIdleState(t: number, ctx: LogoContext): IdleState {
 
 export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = {}) {
   const ctx = props.shape ? build(props.shape) : DEFAULT
-  const showCredit = !props.shape && process.env.CODY_PRO === "1"
+  const showCredit = false
   const { theme } = useTheme()
   const renderer = useRenderer()
   const [rings, setRings] = createSignal<Ring[]>([])

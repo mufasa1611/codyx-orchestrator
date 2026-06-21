@@ -32,13 +32,12 @@ function getNetworkIPs() {
 export const WebCommand = effectCmd({
   command: "web",
   builder: (yargs) => withNetworkOptions(yargs),
-  describe:
-    "start codyx server and open web interface",
+  describe: "start codyx server and open web interface",
   // Server loads instances per-request via x-cody-directory header — no
   // ambient project InstanceContext needed at startup.
   instance: false,
   handler: Effect.fn("Cli.web")(function* (args) {
-    if (!Flag.CODY_SERVER_PASSWORD && process.env.CODY_PRO !== "1") {
+    if (!Flag.CODY_SERVER_PASSWORD) {
       UI.println(UI.Style.TEXT_WARNING_BOLD + "!  CODY_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = yield* resolveNetworkOptions(args)

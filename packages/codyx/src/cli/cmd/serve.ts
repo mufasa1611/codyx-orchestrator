@@ -12,14 +12,12 @@ export const ServeCommand = effectCmd({
   // need for an ambient project InstanceContext at startup.
   instance: false,
   handler: Effect.fn("Cli.serve")(function* (args) {
-    if (!Flag.CODY_SERVER_PASSWORD && process.env.CODY_PRO !== "1") {
+    if (!Flag.CODY_SERVER_PASSWORD) {
       console.log("Warning: CODY_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = yield* resolveNetworkOptions(args)
     const server = yield* Effect.promise(() => Server.listen(opts))
-    console.log(
-      `codyx server listening on http://${server.hostname}:${server.port}`,
-    )
+    console.log(`codyx server listening on http://${server.hostname}:${server.port}`)
 
     yield* Effect.never
   }),

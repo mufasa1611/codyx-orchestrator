@@ -662,11 +662,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
         name: "docs.open",
         title: "Open docs",
         run: () => {
-          open(
-            process.env.CODY_PRO === "1"
-              ? "https://github.com/mufasa1611/cody-pro"
-              : "https://github.com/mufasa1611/codyx-orchestrator",
-          ).catch(() => {})
+          open("https://github.com/mufasa1611/codyx-orchestrator").catch(() => {})
           dialog.clear()
         },
         category: "System",

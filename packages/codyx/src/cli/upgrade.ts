@@ -33,11 +33,6 @@ function sourceInstallRoot() {
 export function gitInstallRoot() {
   const root = sourceInstallRoot()
   if (root) return root
-  if (process.env.CODY_PRO !== "1") return
-  try {
-    const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
-    if (repoRoot && isCodyxRepoRoot(repoRoot)) return repoRoot
-  } catch {}
 }
 
 function currentBranch(repoRoot: string): string {
@@ -55,7 +50,7 @@ function gitPullRestart(repoRoot: string) {
   Rpc.emit("restart", {})
 }
 
-async function codyProUpgrade() {
+async function sourceUpgrade() {
   try {
     const repoRoot = gitInstallRoot()
     if (!repoRoot) return
@@ -76,7 +71,7 @@ async function codyProUpgrade() {
       gitPullRestart(repoRoot)
     }
   } catch (e) {
-    console.error("[upgrade] codyProUpgrade failed:", e instanceof Error ? e.message : String(e))
+    console.error("[upgrade] sourceUpgrade failed:", e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -114,7 +109,7 @@ export async function upgrade() {
   if (config.autoupdate === false || Flag.CODY_DISABLE_AUTOUPDATE) return
 
   if (gitInstallRoot()) {
-    return codyProUpgrade()
+    return sourceUpgrade()
   }
 
   const method = await Installation.method()
