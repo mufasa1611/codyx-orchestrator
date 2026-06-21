@@ -179,7 +179,10 @@ export function tui(input: {
                                             <PromptHistoryProvider>
                                               <PromptRefProvider>
                                                 <EditorContextProvider>
-                                                  <App onSnapshot={input.onSnapshot} onGitUpgrade={input.onGitUpgrade} />
+                                                  <App
+                                                    onSnapshot={input.onSnapshot}
+                                                    onGitUpgrade={input.onGitUpgrade}
+                                                  />
                                                 </EditorContextProvider>
                                               </PromptRefProvider>
                                             </PromptHistoryProvider>
@@ -430,13 +433,58 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
         slashName: "permissions",
         run: () => {
           const modeUrl = sdk.url + "/api/permissions/mode"
-          dialog.replace(() => <DialogSelect
-            title="Permission Level"
-            options={[
-              { title: "Restricted", description: "Read-only, no changes", value: "restricted", onSelect: async (d) => { d.clear(); try { await sdk.fetch(modeUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "restricted" }) }) } catch {} } },
-              { title: "Standard", description: "Ask before mutations (default)", value: "standard", onSelect: async (d) => { d.clear(); try { await sdk.fetch(modeUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "standard" }) }) } catch {} } },
-              { title: "Full", description: "Auto-allow all permissions (no prompting)", value: "full", onSelect: async (d) => { d.clear(); try { await sdk.fetch(modeUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "full" }) }) } catch {} } },
-            ]} />)
+          dialog.replace(() => (
+            <DialogSelect
+              title="Permission Level"
+              options={[
+                {
+                  title: "Restricted",
+                  description: "Read-only, no changes",
+                  value: "restricted",
+                  onSelect: async (d) => {
+                    d.clear()
+                    try {
+                      await sdk.fetch(modeUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mode: "restricted" }),
+                      })
+                    } catch {}
+                  },
+                },
+                {
+                  title: "Standard",
+                  description: "Ask before mutations (default)",
+                  value: "standard",
+                  onSelect: async (d) => {
+                    d.clear()
+                    try {
+                      await sdk.fetch(modeUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mode: "standard" }),
+                      })
+                    } catch {}
+                  },
+                },
+                {
+                  title: "Full",
+                  description: "Auto-allow all permissions (no prompting)",
+                  value: "full",
+                  onSelect: async (d) => {
+                    d.clear()
+                    try {
+                      await sdk.fetch(modeUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mode: "full" }),
+                      })
+                    } catch {}
+                  },
+                },
+              ]}
+            />
+          ))
         },
       },
       {
@@ -614,8 +662,11 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
         name: "docs.open",
         title: "Open docs",
         run: () => {
-          open(process.env.CODY_PRO === "0" ? "https://cody.ai/docs" : "https://github.com/mufasa1611/cody-pro")
-            .catch(() => {})
+          open(
+            process.env.CODY_PRO === "1"
+              ? "https://github.com/mufasa1611/cody-pro"
+              : "https://github.com/mufasa1611/codyx-orchestrator",
+          ).catch(() => {})
           dialog.clear()
         },
         category: "System",

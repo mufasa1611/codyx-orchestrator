@@ -3,7 +3,7 @@ import { useRenderer } from "@opentui/solid"
 import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { useTheme, tint } from "@tui/context/theme"
 import * as Sound from "@tui/util/sound"
-import { codyPro, codyProCredit, codyProCreditColor, go, logo } from "@/cli/logo"
+import { codyPro, go, logo } from "@/cli/logo"
 
 export type LogoShape = {
   left: string[]
@@ -88,7 +88,6 @@ const TAIL = 1.8
 const TRACE_IN = 200
 const GLOW_OUT = 1600
 const PEAK = RGBA.fromInts(255, 255, 255)
-const CODY_CREDIT_ORANGE = RGBA.fromHex(codyProCreditColor)
 
 type Ring = {
   x: number
@@ -304,7 +303,7 @@ function build(shape: LogoShape): LogoContext {
   return { LEFT, FULL, SPAN, MAP: mapGlyphs(FULL), shape }
 }
 
-const DEFAULT = build(process.env.CODY_PRO === "0" ? logo : codyPro)
+const DEFAULT = build(process.env.CODY_PRO === "1" ? codyPro : logo)
 const GO = build(go)
 
 function shimmer(x: number, y: number, frame: Frame, ctx: LogoContext) {
@@ -555,7 +554,7 @@ function buildIdleState(t: number, ctx: LogoContext): IdleState {
 
 export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = {}) {
   const ctx = props.shape ? build(props.shape) : DEFAULT
-  const showCredit = !props.shape && process.env.CODY_PRO !== "0"
+  const showCredit = !props.shape && process.env.CODY_PRO === "1"
   const { theme } = useTheme()
   const renderer = useRenderer()
   const [rings, setRings] = createSignal<Ring[]>([])
@@ -887,12 +886,16 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
           </box>
         )}
       </For>
-            {showCredit && (
+      {showCredit && (
         <box width={ctx.FULL[0]?.length ?? 0} alignItems="center" flexDirection="row" justifyContent="center">
           <text selectable={false}>multi Agent build by </text>
-          <text fg={RGBA.fromHex("#ff8c00")} attributes={TextAttributes.BOLD} selectable={false}>M.Farid</text>
+          <text fg={RGBA.fromHex("#ff8c00")} attributes={TextAttributes.BOLD} selectable={false}>
+            M.Farid
+          </text>
           <text selectable={false}> </text>
-          <text fg={RGBA.fromHex("#90ee90")} attributes={TextAttributes.BOLD} selectable={false}>(Mufasa)</text>
+          <text fg={RGBA.fromHex("#90ee90")} attributes={TextAttributes.BOLD} selectable={false}>
+            (Mufasa)
+          </text>
         </box>
       )}
     </box>

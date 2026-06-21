@@ -539,7 +539,7 @@ export const PublicApi = CodyHttpApi.annotateMerge(
   OpenApi.annotations({
     title: "codyx",
     version: "1.0.0",
-    description: process.env.CODY_PRO === "0" ? "cody api" : "codyx API",
+    description: "codyx API",
     transform: matchLegacyOpenApi,
   }),
 )

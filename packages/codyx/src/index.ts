@@ -57,7 +57,6 @@ import { DbCommand } from "./cli/cmd/db"
 import { UsersCommand } from "./cli/cmd/users"
 import { ProxyCommand } from "./cli/cmd/proxy"
 import path from "path"
-import { exec } from "child_process"
 import { Global } from "@cody/core/global"
 import { JsonMigration } from "@/storage/json-migration"
 import { Database } from "@/storage/db"
@@ -91,44 +90,6 @@ if (rawArgs.includes("--print-banner-only")) {
 
 // Remove meta-flags that are not yargs options
 const args = rawArgs.filter((a) => a !== "--no-banner" && a !== "--print-banner-only")
-
-function execAsync(cmd: string, opts: { cwd?: string; timeout?: number } = {}): Promise<string> {
-  return new Promise((resolve, reject) => {
-    exec(cmd, { cwd: opts.cwd, timeout: opts.timeout, encoding: "utf8" } as any, (err, stdout) => {
-      if (err) reject(err)
-      else resolve(String(stdout).trim())
-    })
-  })
-}
-
-// Auto-update at startup (skip for help/version/upgrade subcommands)
-if (
-  process.env.CODY_PRO !== "0" &&
-  !rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) &&
-  rawArgs[0] !== "upgrade"
-) {
-  tryAutoUpdateAsync().catch(() => {})
-}
-async function tryAutoUpdateAsync() {
-  const repoRoot = await execAsync("git rev-parse --show-toplevel", { timeout: 5000 })
-  if (!repoRoot) return
-  const branch = process.env.CODY_BRANCH || "main"
-  await execAsync(`git fetch origin ${branch} --quiet`, { cwd: repoRoot, timeout: 15000 })
-  const behind = await execAsync(`git rev-list --count HEAD..origin/${branch}`, { cwd: repoRoot, timeout: 5000 })
-  if (behind === "0" || behind === "") return
-  process.stderr.write("\n  \x1B[1mUpdating codyx...\x1B[22m\n")
-  await execAsync("git pull --ff-only", { cwd: repoRoot, timeout: 30000 })
-  try {
-    const changed = await execAsync("git diff HEAD@{1} --name-only", { cwd: repoRoot, timeout: 5000 })
-    if (changed.split("\n").some((f) => /^(package\.json|bun\.lock)$/.test(f.trim()))) {
-      await execAsync("bun install", { cwd: repoRoot, timeout: 120000 })
-    }
-  } catch {
-    await execAsync("bun install", { cwd: repoRoot, timeout: 120000 })
-  }
-  await execAsync("bun run --cwd packages/app build", { cwd: repoRoot, timeout: 120000 })
-  process.stderr.write("  \x1B[32mUpdate complete.\x1B[0m\n")
-}
 
 function show(out: string) {
   process.stderr.write(UI.logo() + EOL + EOL)

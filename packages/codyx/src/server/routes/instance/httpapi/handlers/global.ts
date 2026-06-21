@@ -98,8 +98,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const upgrade = Effect.fn("GlobalHttpApi.upgrade")(function* (ctx: { payload: typeof GlobalUpgradeInput.Type }) {
-      // For codyx, use git-based update
-      if (process.env.CODY_PRO) {
+      const repoRoot = gitInstallRoot()
+      if (repoRoot) {
         const target = ctx.payload.target || "latest"
 
         // Fire upgrade in background, return immediately so SSE can flush progress events
@@ -123,8 +123,6 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
             })
           ;(async () => {
             try {
-              const repoRoot = gitInstallRoot()
-              if (!repoRoot) return
               const branch = process.env.CODY_BRANCH || "dev"
 
               emitProgress("Fetching latest code...")

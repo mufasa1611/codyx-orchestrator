@@ -683,7 +683,7 @@ export const McpDebugCommand = effectCmd({
               protocolVersion: "2024-11-05",
               capabilities: {},
               clientInfo: {
-name: process.env.CODY_PRO === "0" ? "codyx-debug" : "codyx-debug",
+                name: "codyx-debug",
                 version: InstallationVersion,
               },
             },
@@ -728,7 +728,7 @@ name: process.env.CODY_PRO === "0" ? "codyx-debug" : "codyx-debug",
 
           try {
             const client = new Client({
-              name: process.env.CODY_PRO === "0" ? "codyx-debug" : "codyx-debug",
+              name: "codyx-debug",
               version: InstallationVersion,
             })
             await client.connect(transport)

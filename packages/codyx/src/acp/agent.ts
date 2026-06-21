@@ -538,10 +538,7 @@ export class Agent implements ACPAgent {
     log.info("initialize", { protocolVersion: params.protocolVersion })
 
     const authMethod: AuthMethod = {
-      description:
-        process.env.CODY_PRO === "0"
-          ? "Run `cody auth login` in the terminal"
-          : "Run `codyx auth login` in the terminal",
+      description: "Run `codyx auth login` in the terminal",
       name: "Login with codyx",
       id: "codyx-login",
     }

@@ -146,7 +146,7 @@ if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
   )
 )
 
-if not "%*"=="" (
+if not "%~1"=="" (
   call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts %*
   exit /b %ERRORLEVEL%
 )

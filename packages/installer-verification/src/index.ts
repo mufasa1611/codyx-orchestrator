@@ -32,7 +32,10 @@ const challengeSchema = z.object({
   platform: z.enum(["windows", "macos", "linux"]),
   machine_id: z.string().max(512).optional(),
 })
-const verifySchema = z.object({ code: z.string().regex(/^\d{6}$/) })
+const verifySchema = z.object({
+  code: z.string().regex(/^\d{6}$/),
+  machine_id: z.string().max(512).optional(),
+})
 const receiptSchema = z.object({
   install_id: z.string().uuid(),
   receipt: z.string().min(1).max(2048),
@@ -361,6 +364,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
   }
   const receiptId = row.id
   const expiresAt = now + RECEIPT_TTL_MS
+  const verifyMachineId = input.machine_id || row.machine_id
   await db.batch([
     db.prepare("UPDATE challenge SET verified_at = ? WHERE id = ? AND verified_at IS NULL").bind(now, row.id),
     db
@@ -389,7 +393,7 @@ app.post("/v1/challenges/:id/verify", async (context) => {
         now,
         now,
         now + RETENTION_MS,
-        row.machine_id ?? null,
+        verifyMachineId ?? null,
       ),
     db
       .prepare("INSERT INTO receipt (id, install_id, issued_at, expires_at) VALUES (?, ?, ?, ?)")

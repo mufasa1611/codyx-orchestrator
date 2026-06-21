@@ -498,7 +498,7 @@ if (-not $NoProxy) {
 CODY_PROXY_ENABLED=0
 HTTPS_PROXY=http://localhost:9999
 HTTP_PROXY=http://localhost:9999
-NO_PROXY=localhost,127.0.0.1,::1
+NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 "@ | Set-Content -Encoding ASCII -Path $envFile
     Write-Ok ".env.proxy created (proxy disabled by default)."
     Write-Warn "To enable: edit .env.proxy and set CODY_PROXY_ENABLED=1"

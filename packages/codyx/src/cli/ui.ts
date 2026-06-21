@@ -1,7 +1,7 @@
 import z from "zod"
 import { EOL } from "os"
 import { NamedError } from "@cody/core/util/error"
-import { codyPro, mufasaBanner, logo as cody } from "./logo"
+import { mufasaBanner, logo as cody } from "./logo"
 
 export const CancelledError = NamedError.create("UICancelledError", z.void())
 
@@ -42,7 +42,7 @@ export function empty() {
 }
 
 export function logo(pad?: string) {
-  const glyphs = process.env.CODY_PRO === "0" ? cody : codyPro
+  const glyphs = cody
   const result: string[] = []
   const reset = "\x1b[0m"
   const left = {

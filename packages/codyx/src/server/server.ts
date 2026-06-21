@@ -50,7 +50,7 @@ export type Listener = {
 
 type ServerApp = {
   fetch(request: Request): Response | Promise<Response>
-  request(input: string | URL | Request, init?: RequestInit): Response | Promise<Response>    
+  request(input: string | URL | Request, init?: RequestInit): Response | Promise<Response>
 }
 
 type ListenOptions = CorsOptions & {
@@ -171,7 +171,7 @@ export async function openapiHono() {
       info: {
         title: "codyx",
         version: "1.0.0",
-        description: process.env.CODY_PRO === "0" ? "cody api" : "Cody Pro API",
+        description: "codyx API",
       },
       openapi: "3.1.1",
     },

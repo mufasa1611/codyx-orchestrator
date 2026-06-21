@@ -33,7 +33,7 @@ function sourceInstallRoot() {
 export function gitInstallRoot() {
   const root = sourceInstallRoot()
   if (root) return root
-  if (!process.env.CODY_PRO) return
+  if (process.env.CODY_PRO !== "1") return
   try {
     const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8", timeout: 5000 }).trim()
     if (repoRoot && isCodyxRepoRoot(repoRoot)) return repoRoot
