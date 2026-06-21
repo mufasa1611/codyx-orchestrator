@@ -106,6 +106,37 @@ describe("installer verification service", () => {
     expect(notice).toContain("Verification codes are never included")
   })
 
+  test("serves and stores feedback", async () => {
+    const page = await request("/feedback?name=Test%20User&email=test%40example.com")
+    expect(page.status).toBe(200)
+    const html = await page.text()
+    expect(html).toContain("Send Feedback")
+    expect(html).toContain("Test User")
+    expect(html).toContain("test@example.com")
+
+    const response = await request("/v1/feedback", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Test User",
+        email: "test@example.com",
+        message: "The TUI feedback link works.",
+      }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toEqual({ status: "ok" })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const feedback = await db
+      .prepare("SELECT display_name, email, message FROM feedback WHERE email = ?")
+      .bind("test@example.com")
+      .first<{ display_name: string; email: string; message: string }>()
+    expect(feedback).toMatchObject({
+      display_name: "Test User",
+      email: "test@example.com",
+      message: "The TUI feedback link works.",
+    })
+  })
+
   test("issues a receipt, validates it, and prevents challenge replay", async () => {
     const created = await createChallenge()
     const verified = await verifyChallenge(created.response.challenge_id)
@@ -119,10 +150,18 @@ describe("installer verification service", () => {
         receipt: result.receipt,
         installer_version: "1.14.42",
         platform: "windows",
+        machine_id: "machine-after-install",
       }),
     })
     expect(valid.status).toBe(200)
     expect((await valid.json()) as { valid: boolean }).toMatchObject({ valid: true })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const registration = await db
+      .prepare("SELECT machine_id FROM registration WHERE install_id = ?")
+      .bind(created.body.install_id)
+      .first<{ machine_id: string }>()
+    expect(registration?.machine_id).toBe("machine-after-install")
 
     const replay = await verifyChallenge(created.response.challenge_id)
     expect(replay.status).toBe(409)

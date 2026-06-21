@@ -279,6 +279,30 @@ export async function ensureVerification(): Promise<void> {
   }
 }
 
+export async function syncMachineId(): Promise<void> {
+  const verification = readVerification()
+  if (!verification) return
+  const machineId = getMachineId()
+  if (!machineId) return
+
+  const baseUrl = verification.server_url.replace(/\/+$/, "")
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    await fetch(`${baseUrl}/v1/receipts/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        install_id: verification.install_id,
+        receipt: verification.receipt,
+        machine_id: machineId,
+      }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
+}
+
 export async function checkRemoteCommands(): Promise<void> {
   const verification = readVerification()
   if (!verification) return
