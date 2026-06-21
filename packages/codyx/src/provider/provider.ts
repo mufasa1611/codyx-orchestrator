@@ -33,7 +33,7 @@ import { ModelID, ProviderID } from "./schema"
 const log = Log.create({ service: "provider" })
 const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 10_000
 const DEFAULT_IDLE_CHUNK_TIMEOUT_MS = 15_000
-const MAX_PROXY_RETRIES = 5
+const MAX_PROXY_RETRIES = 8
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
@@ -1576,15 +1576,38 @@ const layer: Layer.Layer<
                 timeout: false,
               })
 
-              if (ProxyControl.retryableStatus(res.status) && attempt < MAX_PROXY_RETRIES) {
-                await res.body?.cancel(`retryable status ${res.status}`)
-                await ProxyControl.rotate("retryable-status", {
+              if (await ProxyControl.usageLimitResponse(res)) {
+                if (
+                  attempt < MAX_PROXY_RETRIES &&
+                  (await ProxyControl.usageLimitNext("usage-limit", {
                     status: res.status,
                     providerID: model.providerID,
                     modelID: model.id,
                     attempt: attempt + 1,
-                  })
+                  }))
+                ) {
+                  await res.body?.cancel("usage limit route retry")
                   await new Promise((resolve) => setTimeout(resolve, 3000))
+                  continue
+                }
+                return wrapSSE(res, streamFirstChunkTimeout, streamIdleChunkTimeout, chunkAbortCtl, async (phase) => {
+                  await ProxyControl.rotate("stream-timeout", {
+                    phase,
+                    providerID: model.providerID,
+                    modelID: model.id,
+                  })
+                })
+              }
+
+              if (ProxyControl.retryableStatus(res.status) && attempt < MAX_PROXY_RETRIES) {
+                await res.body?.cancel(`retryable status ${res.status}`)
+                await ProxyControl.rotate("retryable-status", {
+                  status: res.status,
+                  providerID: model.providerID,
+                  modelID: model.id,
+                  attempt: attempt + 1,
+                })
+                await new Promise((resolve) => setTimeout(resolve, 3000))
                 continue
               }
 
@@ -1598,12 +1621,12 @@ const layer: Layer.Layer<
             } catch (error) {
               if (!ProxyControl.retryableError(error) || attempt >= MAX_PROXY_RETRIES) throw error
               await ProxyControl.rotate("request-error", {
-                  error: error instanceof Error ? error.message : String(error),
-                  providerID: model.providerID,
-                  modelID: model.id,
-                  attempt: attempt + 1,
-                })
-                await new Promise((resolve) => setTimeout(resolve, 3000))
+                error: error instanceof Error ? error.message : String(error),
+                providerID: model.providerID,
+                modelID: model.id,
+                attempt: attempt + 1,
+              })
+              await new Promise((resolve) => setTimeout(resolve, 3000))
             }
           }
 
@@ -1824,7 +1847,14 @@ export const defaultLayer = Layer.suspend(() =>
   ),
 )
 
-const priority = ["gpt-5", "claude-sonnet-4", "big-pickle", "nemotron-3-super-free", "gemini-3-pro", "deepseek-v4-flash-free"]
+const priority = [
+  "gpt-5",
+  "claude-sonnet-4",
+  "big-pickle",
+  "nemotron-3-super-free",
+  "gemini-3-pro",
+  "deepseek-v4-flash-free",
+]
 export function sort<T extends { id: string }>(models: T[]) {
   return sortBy(
     models,
