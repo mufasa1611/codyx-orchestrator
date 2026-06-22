@@ -14,7 +14,9 @@ const cody = path.resolve(dir, "../../codyx")
 
 // `bun dev generate` now derives the spec from the Effect HttpApi contract by
 // default; pass `--hono` to fall back to the legacy Hono spec for parity diffs.
-if (openapiSource === "httpapi") {
+if (process.env.CODY_SDK_OPENAPI_FILE) {
+  await Bun.write(path.join(dir, "openapi.json"), Bun.file(process.env.CODY_SDK_OPENAPI_FILE))
+} else if (openapiSource === "httpapi") {
   await $`bun dev generate > ${dir}/openapi.json`.cwd(cody)
 } else {
   await $`bun dev generate --hono > ${dir}/openapi.json`.cwd(cody)

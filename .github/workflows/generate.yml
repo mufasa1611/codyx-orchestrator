@@ -26,12 +26,14 @@ jobs:
           cody-app-id: ${{ vars.CODY_APP_ID }}
           cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
 
-      - name: Build JS SDK
-        run: bun ./packages/sdk/js/script/build.ts
-
       - name: Generate OpenAPI
         run: bun dev generate > ../sdk/openapi.json
         working-directory: packages/codyx
+
+      - name: Build JS SDK
+        run: bun ./packages/sdk/js/script/build.ts
+        env:
+          CODY_SDK_OPENAPI_FILE: ${{ github.workspace }}/packages/sdk/openapi.json
 
       - name: Format generated output
         run: bun prettier --write packages/sdk/openapi.json packages/sdk/js/src/gen packages/sdk/js/src/v2
