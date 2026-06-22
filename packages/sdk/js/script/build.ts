@@ -17,9 +17,9 @@ const cody = path.resolve(dir, "../../codyx")
 if (process.env.CODY_SDK_OPENAPI_FILE) {
   await Bun.write(path.join(dir, "openapi.json"), Bun.file(process.env.CODY_SDK_OPENAPI_FILE))
 } else if (openapiSource === "httpapi") {
-  await $`bun dev generate > ${dir}/openapi.json`.cwd(cody)
+  await $`bun script/openapi.ts > ${dir}/openapi.json`.cwd(cody)
 } else {
-  await $`bun dev generate --hono > ${dir}/openapi.json`.cwd(cody)
+  await $`bun script/openapi.ts --hono > ${dir}/openapi.json`.cwd(cody)
 }
 
 await createClient({

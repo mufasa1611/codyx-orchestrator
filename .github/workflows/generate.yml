@@ -27,7 +27,7 @@ jobs:
           cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
 
       - name: Generate OpenAPI
-        run: bun dev generate > ../sdk/openapi.json
+        run: bun script/openapi.ts > ../sdk/openapi.json
         working-directory: packages/codyx
 
       - name: Build JS SDK

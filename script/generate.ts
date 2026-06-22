@@ -3,7 +3,7 @@
 import { $ } from "bun"
 import path from "path"
 
-await $`bun dev generate > ../sdk/openapi.json`.cwd("packages/codyx")
+await $`bun script/openapi.ts > ../sdk/openapi.json`.cwd("packages/codyx")
 
 await $`bun ./packages/sdk/js/script/build.ts`.env({
   ...process.env,
