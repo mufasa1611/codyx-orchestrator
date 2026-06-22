@@ -4,6 +4,9 @@
   "globalPassThroughEnv": ["CI", "CODY_DISABLE_SHARE"],
   "tasks": {
     "typecheck": {},
+    "test:ci": {
+      "outputs": [".artifacts/**"]
+    },
     "build": {
       "dependsOn": [],
       "outputs": ["dist/**"]

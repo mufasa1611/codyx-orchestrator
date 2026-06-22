@@ -65,7 +65,7 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Run unit tests
-        run: bun turbo test:ci
+        run: bun turbo test:ci --filter=@cody/app --filter=@cody/codyx --filter=@cody/core --filter=@cody/ui
         env:
           CODY_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
 
