@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "cody",
+    "title": "codyx",
     "version": "1.0.0",
-    "description": "cody api"
+    "description": "codyx API"
   },
   "paths": {
     "/auth/{providerID}": {
@@ -220,7 +220,7 @@
             }
           }
         },
-        "description": "Get health information about the Cody server.",
+        "description": "Get health information about the codyx server.",
         "summary": "Get health",
         "x-codeSamples": [
           {
@@ -247,7 +247,7 @@
             }
           }
         },
-        "description": "Subscribe to global events from the Cody system using server-sent events.",
+        "description": "Subscribe to global events from the codyx system using server-sent events.",
         "summary": "Get global events",
         "x-codeSamples": [
           {
@@ -274,7 +274,7 @@
             }
           }
         },
-        "description": "Retrieve the current global Cody configuration settings and preferences.",
+        "description": "Retrieve the current global codyx configuration settings and preferences.",
         "summary": "Get global configuration",
         "x-codeSamples": [
           {
@@ -309,7 +309,7 @@
             }
           }
         },
-        "description": "Update global Cody configuration settings and preferences.",
+        "description": "Update global codyx configuration settings and preferences.",
         "summary": "Update global configuration",
         "requestBody": {
           "content": {
@@ -346,7 +346,7 @@
             }
           }
         },
-        "description": "Clean up and dispose all Cody instances, releasing all resources.",
+        "description": "Clean up and dispose all codyx instances, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -413,8 +413,8 @@
             }
           }
         },
-        "description": "Upgrade cody to the specified version or latest if not specified.",
-        "summary": "Upgrade cody",
+        "description": "Upgrade codyx to the specified version or latest if not specified.",
+        "summary": "Upgrade codyx",
         "requestBody": {
           "content": {
             "application/json": {
@@ -434,6 +434,41 @@
           {
             "lang": "js",
             "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.global.upgrade({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/git-check": {
+      "post": {
+        "tags": ["global"],
+        "operationId": "global.gitCheck",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Git update check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updateAvailable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["updateAvailable"],
+                  "additionalProperties": false,
+                  "description": "Git update check result"
+                }
+              }
+            }
+          }
+        },
+        "description": "Check if git-based updates are available.",
+        "summary": "Check for updates",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.global.gitCheck({\n  ...\n})"
           }
         ]
       }
@@ -482,6 +517,640 @@
         ]
       }
     },
+    "/agent/pair": {
+      "post": {
+        "tags": ["agent"],
+        "operationId": "agent.createPairingCode",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pairing code created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["code", "expiresAt"],
+                  "additionalProperties": false,
+                  "description": "Pairing code created"
+                }
+              }
+            }
+          }
+        },
+        "description": "Generate a new one-time pairing code for remote PC connection.",
+        "summary": "Create pairing code",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.createPairingCode({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/status": {
+      "get": {
+        "tags": ["agent"],
+        "operationId": "agent.status",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent connection status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "pairedAt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "remotePlatform": {
+                      "type": "string"
+                    },
+                    "remoteHostname": {
+                      "type": "string"
+                    },
+                    "activeCommands": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "lastPong": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["connected"],
+                  "additionalProperties": false,
+                  "description": "Agent connection status"
+                }
+              }
+            }
+          }
+        },
+        "description": "Check if a remote PC agent is currently connected.",
+        "summary": "Get agent connection status",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.status({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/fs/list": {
+      "get": {
+        "tags": ["agent"],
+        "operationId": "agent.fs.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory listing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": ["file", "directory"]
+                          },
+                          "size": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "modifiedAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["name", "path", "type"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["files"],
+                  "additionalProperties": false,
+                  "description": "Directory listing"
+                }
+              }
+            }
+          }
+        },
+        "description": "List files and directories on the connected remote PC.",
+        "summary": "List remote directory",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.fs.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/fs/read": {
+      "get": {
+        "tags": ["agent"],
+        "operationId": "agent.fs.read",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "encoding": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["content"],
+                  "additionalProperties": false,
+                  "description": "File content"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read a file on the connected remote PC.",
+        "summary": "Read remote file",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.fs.read({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/fs/write": {
+      "post": {
+        "tags": ["agent"],
+        "operationId": "agent.fs.write",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Write result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["success"],
+                  "additionalProperties": false,
+                  "description": "Write result"
+                }
+              }
+            }
+          }
+        },
+        "description": "Write content to a file on the connected remote PC.",
+        "summary": "Write remote file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "encoding": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.fs.write({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/exec": {
+      "post": {
+        "tags": ["agent"],
+        "operationId": "agent.exec",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Command result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stdout": {
+                      "type": "string"
+                    },
+                    "stderr": {
+                      "type": "string"
+                    },
+                    "exitCode": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["stdout", "stderr", "exitCode"],
+                  "additionalProperties": false,
+                  "description": "Command result"
+                }
+              }
+            }
+          }
+        },
+        "description": "Execute a shell command on the connected remote PC.",
+        "summary": "Execute remote command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string"
+                  }
+                },
+                "required": ["command"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.exec({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agent/disconnect": {
+      "post": {
+        "tags": ["agent"],
+        "operationId": "agent.disconnect",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnect result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "disconnected": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["disconnected"],
+                  "additionalProperties": false,
+                  "description": "Disconnect result"
+                }
+              }
+            }
+          }
+        },
+        "description": "Disconnect the currently connected remote PC agent.",
+        "summary": "Disconnect agent",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.agent.disconnect({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/config": {
       "get": {
         "tags": ["config"],
@@ -516,7 +1185,7 @@
             }
           }
         },
-        "description": "Retrieve the current Cody configuration settings and preferences.",
+        "description": "Retrieve the current codyx configuration settings and preferences.",
         "summary": "Get configuration",
         "x-codeSamples": [
           {
@@ -568,7 +1237,7 @@
             }
           }
         },
-        "description": "Update Cody configuration settings and preferences.",
+        "description": "Update codyx configuration settings and preferences.",
         "summary": "Update configuration",
         "requestBody": {
           "content": {
@@ -804,7 +1473,7 @@
             }
           }
         },
-        "description": "Persist a new active Console account/org selection for the current local Cody state.",
+        "description": "Persist a new active Console account/org selection for the current local codyx state.",
         "summary": "Switch active Console org",
         "requestBody": {
           "content": {
@@ -1294,7 +1963,7 @@
             }
           }
         },
-        "description": "Get a list of all Cody sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
+        "description": "Get a list of all codyx sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -1799,7 +2468,7 @@
             }
           }
         },
-        "description": "Clean up and dispose the current Cody instance, releasing all resources.",
+        "description": "Clean up and dispose the current codyx instance, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -1843,7 +2512,7 @@
             }
           }
         },
-        "description": "Retrieve the current working directory and related path information for the Cody instance.",
+        "description": "Retrieve the current working directory and related path information for the codyx instance.",
         "summary": "Get paths",
         "x-codeSamples": [
           {
@@ -2162,7 +2831,7 @@
             }
           }
         },
-        "description": "Get a list of all available commands in the Cody system.",
+        "description": "Get a list of all available commands in the codyx system.",
         "summary": "List commands",
         "x-codeSamples": [
           {
@@ -2210,7 +2879,7 @@
             }
           }
         },
-        "description": "Get a list of all available AI agents in the Cody system.",
+        "description": "Get a list of all available AI agents in the codyx system.",
         "summary": "List agents",
         "x-codeSamples": [
           {
@@ -2274,7 +2943,7 @@
             }
           }
         },
-        "description": "Get a list of all available skills in the Cody system.",
+        "description": "Get a list of all available skills in the codyx system.",
         "summary": "List skills",
         "x-codeSamples": [
           {
@@ -2964,12 +3633,64 @@
             }
           }
         },
-        "description": "Get a list of projects that have been opened with Cody.",
+        "description": "Get a list of projects that have been opened with codyx.",
         "summary": "List all projects",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.project.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["project"],
+        "operationId": "project.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a new project directory on the server filesystem and return the project info.",
+        "summary": "Create a project",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.project.create({\n  ...\n})"
           }
         ]
       }
@@ -3008,7 +3729,7 @@
             }
           }
         },
-        "description": "Retrieve the currently active project that Cody is working with.",
+        "description": "Retrieve the currently active project that codyx is working with.",
         "summary": "Get current project",
         "x-codeSamples": [
           {
@@ -3273,7 +3994,7 @@
             }
           }
         },
-        "description": "Get a list of all active pseudo-terminal (PTY) sessions managed by Cody.",
+        "description": "Get a list of all active pseudo-terminal (PTY) sessions managed by codyx.",
         "summary": "List PTY sessions",
         "x-codeSamples": [
           {
@@ -4027,6 +4748,112 @@
         ]
       }
     },
+    "/permission/mode": {
+      "post": {
+        "tags": ["permission"],
+        "operationId": "permission.setMode",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mode set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Mode set"
+                }
+              }
+            }
+          }
+        },
+        "description": "Override permission level. In 'full' mode all non-system file permissions are auto-approved.",
+        "summary": "Set permission mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["restricted", "standard", "full"]
+                  }
+                },
+                "required": ["mode"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.permission.setMode({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["permission"],
+        "operationId": "permission.getMode",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current permission mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["restricted", "standard", "full"],
+                  "description": "Current permission mode"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve the current permission mode setting.",
+        "summary": "Get current permission mode",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createCodyClient } from \"@cody/sdk\n\nconst client = createCodyClient()\nawait client.permission.getMode({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/provider": {
       "get": {
         "tags": ["provider"],
@@ -4408,7 +5235,7 @@
             }
           }
         },
-        "description": "Get a list of all Cody sessions, sorted by most recently updated.",
+        "description": "Get a list of all codyx sessions, sorted by most recently updated.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -4460,7 +5287,7 @@
             }
           }
         },
-        "description": "Create a new Cody session for interacting with AI assistants and managing conversations.",
+        "description": "Create a new codyx session for interacting with AI assistants and managing conversations.",
         "summary": "Create session",
         "requestBody": {
           "content": {
@@ -4469,6 +5296,9 @@
                 "type": "object",
                 "properties": {
                   "parentID": {
+                    "type": "string"
+                  },
+                  "userID": {
                     "type": "string"
                   },
                   "title": {
@@ -4634,7 +5464,7 @@
             }
           }
         },
-        "description": "Retrieve detailed information about a specific Cody session.",
+        "description": "Retrieve detailed information about a specific codyx session.",
         "summary": "Get session",
         "x-codeSamples": [
           {
@@ -8739,6 +9569,24 @@
       "Event": {
         "anyOf": [
           {
+            "$ref": "#/components/schemas/Event.tui.prompt.append"
+          },
+          {
+            "$ref": "#/components/schemas/Event.tui.command.execute"
+          },
+          {
+            "$ref": "#/components/schemas/EventTuiToastShow1"
+          },
+          {
+            "$ref": "#/components/schemas/Event.tui.session.select"
+          },
+          {
+            "$ref": "#/components/schemas/EventServerConnected"
+          },
+          {
+            "$ref": "#/components/schemas/EventGlobalDisposed"
+          },
+          {
             "$ref": "#/components/schemas/EventServerInstanceDisposed"
           },
           {
@@ -8775,6 +9623,9 @@
             "$ref": "#/components/schemas/EventInstallationUpdate-available"
           },
           {
+            "$ref": "#/components/schemas/EventUpdateProgress"
+          },
+          {
             "$ref": "#/components/schemas/EventQuestionAsked"
           },
           {
@@ -8794,18 +9645,6 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionCompacted"
-          },
-          {
-            "$ref": "#/components/schemas/Event.tui.prompt.append"
-          },
-          {
-            "$ref": "#/components/schemas/Event.tui.command.execute"
-          },
-          {
-            "$ref": "#/components/schemas/EventTuiToastShow1"
-          },
-          {
-            "$ref": "#/components/schemas/Event.tui.session.select"
           },
           {
             "$ref": "#/components/schemas/EventMcpToolsChanged"
@@ -8947,12 +9786,6 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionNextCompactionEnded"
-          },
-          {
-            "$ref": "#/components/schemas/EventServerConnected"
-          },
-          {
-            "$ref": "#/components/schemas/EventGlobalDisposed"
           }
         ]
       },
@@ -9032,6 +9865,139 @@
             "$ref": "#/components/schemas/WellKnownAuth"
           }
         ]
+      },
+      "Event.tui.prompt.append": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tui.prompt.append"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": ["text"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "Event.tui.command.execute": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tui.command.execute"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "session.list",
+                      "session.new",
+                      "session.share",
+                      "session.interrupt",
+                      "session.compact",
+                      "session.page.up",
+                      "session.page.down",
+                      "session.line.up",
+                      "session.line.down",
+                      "session.half.page.up",
+                      "session.half.page.down",
+                      "session.first",
+                      "session.last",
+                      "prompt.clear",
+                      "prompt.submit",
+                      "agent.cycle"
+                    ]
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "required": ["command"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "Event.tui.toast.show": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tui.toast.show"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "variant": {
+                "type": "string",
+                "enum": ["info", "success", "warning", "error"]
+              },
+              "duration": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": ["message", "variant"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "Event.tui.session.select": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tui.session.select"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "description": "Session ID to navigate to"
+              }
+            },
+            "required": ["sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
       },
       "PermissionRequest": {
         "type": "object",
@@ -9483,139 +10449,6 @@
             "additionalProperties": false
           }
         ]
-      },
-      "Event.tui.prompt.append": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["tui.prompt.append"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "text": {
-                "type": "string"
-              }
-            },
-            "required": ["text"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "Event.tui.command.execute": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["tui.command.execute"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "command": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "session.list",
-                      "session.new",
-                      "session.share",
-                      "session.interrupt",
-                      "session.compact",
-                      "session.page.up",
-                      "session.page.down",
-                      "session.line.up",
-                      "session.line.down",
-                      "session.half.page.up",
-                      "session.half.page.down",
-                      "session.first",
-                      "session.last",
-                      "prompt.clear",
-                      "prompt.submit",
-                      "agent.cycle"
-                    ]
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              }
-            },
-            "required": ["command"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "Event.tui.toast.show": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["tui.toast.show"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              },
-              "variant": {
-                "type": "string",
-                "enum": ["info", "success", "warning", "error"]
-              },
-              "duration": {
-                "type": "integer",
-                "exclusiveMinimum": 0
-              }
-            },
-            "required": ["message", "variant"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "Event.tui.session.select": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["tui.session.select"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "description": "Session ID to navigate to"
-              }
-            },
-            "required": ["sessionID"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
       },
       "Project": {
         "type": "object",
@@ -10803,6 +11636,9 @@
           "projectID": {
             "type": "string"
           },
+          "userID": {
+            "type": "string"
+          },
           "workspaceID": {
             "type": "string"
           },
@@ -10960,6 +11796,24 @@
           "payload": {
             "anyOf": [
               {
+                "$ref": "#/components/schemas/Event.tui.prompt.append"
+              },
+              {
+                "$ref": "#/components/schemas/Event.tui.command.execute"
+              },
+              {
+                "$ref": "#/components/schemas/Event.tui.toast.show"
+              },
+              {
+                "$ref": "#/components/schemas/Event.tui.session.select"
+              },
+              {
+                "$ref": "#/components/schemas/EventServerConnected"
+              },
+              {
+                "$ref": "#/components/schemas/EventGlobalDisposed"
+              },
+              {
                 "$ref": "#/components/schemas/EventServerInstanceDisposed"
               },
               {
@@ -10996,6 +11850,9 @@
                 "$ref": "#/components/schemas/EventInstallationUpdate-available"
               },
               {
+                "$ref": "#/components/schemas/EventUpdateProgress"
+              },
+              {
                 "$ref": "#/components/schemas/EventQuestionAsked"
               },
               {
@@ -11015,18 +11872,6 @@
               },
               {
                 "$ref": "#/components/schemas/EventSessionCompacted"
-              },
-              {
-                "$ref": "#/components/schemas/Event.tui.prompt.append"
-              },
-              {
-                "$ref": "#/components/schemas/Event.tui.command.execute"
-              },
-              {
-                "$ref": "#/components/schemas/Event.tui.toast.show"
-              },
-              {
-                "$ref": "#/components/schemas/Event.tui.session.select"
               },
               {
                 "$ref": "#/components/schemas/EventMcpToolsChanged"
@@ -11170,12 +12015,6 @@
                 "$ref": "#/components/schemas/EventSessionNextCompactionEnded"
               },
               {
-                "$ref": "#/components/schemas/EventServerConnected"
-              },
-              {
-                "$ref": "#/components/schemas/EventGlobalDisposed"
-              },
-              {
                 "$ref": "#/components/schemas/SyncEventMessageUpdated"
               },
               {
@@ -11309,7 +12148,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Server configuration for cody serve and web commands"
+        "description": "Server configuration for codyx serve and web commands"
       },
       "PermissionActionConfig": {
         "type": "string",
@@ -11517,7 +12356,11 @@
                     "enum": [false]
                   }
                 ],
-                "description": "Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout."
+                "description": "Optional timeout in milliseconds for provider fetch requests. Disabled by default because some streaming providers do not send response headers quickly. Set to false to disable timeout."
+              },
+              "firstChunkTimeout": {
+                "type": "integer",
+                "exclusiveMinimum": 0
               },
               "chunkTimeout": {
                 "type": "integer",
@@ -12569,6 +13412,9 @@
             "type": "string"
           },
           "projectID": {
+            "type": "string"
+          },
+          "userID": {
             "type": "string"
           },
           "workspaceID": {
@@ -15540,6 +16386,42 @@
         "required": ["type", "name", "id", "seq", "aggregateID", "data"],
         "additionalProperties": false
       },
+      "EventServerConnected": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["server.connected"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventGlobalDisposed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["global.disposed"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventServerInstanceDisposed": {
         "type": "object",
         "properties": {
@@ -15865,6 +16747,30 @@
               }
             },
             "required": ["version"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventUpdateProgress": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["update.progress"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
             "additionalProperties": false
           }
         },
@@ -17663,42 +18569,6 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
-      "EventServerConnected": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["server.connected"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {}
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventGlobalDisposed": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["global.disposed"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {}
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
       "SessionInfo": {
         "type": "object",
         "properties": {
@@ -18404,6 +19274,10 @@
     {
       "name": "event",
       "description": "Instance event stream route."
+    },
+    {
+      "name": "agent",
+      "description": "Remote PC agent connection endpoints."
     },
     {
       "name": "config",
