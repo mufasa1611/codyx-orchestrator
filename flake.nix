@@ -1,4 +1,4 @@
-﻿{
+{
   description = "Cody development flake";
 
   inputs = {
