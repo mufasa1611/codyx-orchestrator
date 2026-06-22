@@ -26,7 +26,7 @@ jobs:
           cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
 
       - name: Generate
-        run: ./script/generate.ts
+        run: bun ./script/generate.ts
 
       - name: Commit and push
         run: |
@@ -43,7 +43,7 @@ jobs:
           #   echo "Failed to push generated code."
           #   echo "Please run locally and push:"
           #   echo ""
-          #   echo "  ./script/generate.ts"
+          #   echo "  bun ./script/generate.ts"
           #   echo "  git add -A && git commit -m \"chore: generate\" && git push"
           #   echo ""
           #   echo "============================================"
