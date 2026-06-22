@@ -2,7 +2,7 @@ import { spyOn } from "bun:test"
 import path from "path"
 import type { KeyEvent, Renderable } from "@opentui/core"
 import { resolveBindingSections, type BindingSectionsConfig } from "@opentui/keymap/extras"
-import { TuiConfig } from "../../src/cli/cmd/tui/config/tui"
+import * as TuiConfig from "../../src/cli/cmd/tui/config/tui"
 import { LegacyKeymapTransform } from "../../src/cli/cmd/tui/config/legacy-keymap-transform"
 import { ConfigKeybinds } from "../../src/config/keybinds"
 import {

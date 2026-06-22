@@ -1,5 +1,3 @@
-export * as TuiConfig from "./tui"
-
 import type z from "zod"
 import type { KeyEvent, Renderable } from "@opentui/core"
 import { resolveBindingSections, type BindingSectionsConfig } from "@opentui/keymap/extras"

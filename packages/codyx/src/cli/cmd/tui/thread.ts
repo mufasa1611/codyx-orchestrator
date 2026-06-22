@@ -14,13 +14,8 @@ import type { EventSource } from "./context/sdk"
 import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { writeHeapSnapshot } from "v8"
 import { execSync } from "child_process"
-import { TuiConfig } from "./config/tui"
-import {
-  CODY_PROCESS_ROLE,
-  CODY_RUN_ID,
-  ensureRunID,
-  sanitizedProcessEnv,
-} from "@cody/core/util/cody-process"
+import * as TuiConfig from "./config/tui"
+import { CODY_PROCESS_ROLE, CODY_RUN_ID, ensureRunID, sanitizedProcessEnv } from "@cody/core/util/cody-process"
 import { validateSession } from "./validate-session"
 
 declare global {
@@ -193,11 +188,19 @@ export const TuiThreadCommand = cmd({
         restarting = true
         UI.println("Restarting to apply update...")
         await stop()
-        execSync(process.execPath + " " + process.argv.slice(1).map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" "), {
-          cwd: cwd,
-          stdio: "inherit",
-          timeout: 30000,
-        })
+        execSync(
+          process.execPath +
+            " " +
+            process.argv
+              .slice(1)
+              .map((a) => (a.includes(" ") ? `"${a}"` : a))
+              .join(" "),
+          {
+            cwd: cwd,
+            stdio: "inherit",
+            timeout: 30000,
+          },
+        )
         process.exit(0)
       })
 
@@ -251,7 +254,9 @@ export const TuiThreadCommand = cmd({
             const server = await client.call("snapshot", undefined)
             return [tui, server]
           },
-          onGitUpgrade: () => { client.call("gitUpgrade", undefined) },
+          onGitUpgrade: () => {
+            client.call("gitUpgrade", undefined)
+          },
           config,
           directory: cwd,
           fetch: transport.fetch,

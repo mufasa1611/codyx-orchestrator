@@ -10,7 +10,7 @@ import path from "path"
 import { createClient } from "@hey-api/openapi-ts"
 
 const openapiSource = process.env.CODY_SDK_OPENAPI === "hono" ? "hono" : "httpapi"
-const cody = path.resolve(dir, "../../cody")
+const cody = path.resolve(dir, "../../codyx")
 
 // `bun dev generate` now derives the spec from the Effect HttpApi contract by
 // default; pass `--hono` to fall back to the legacy Hono spec for parity diffs.

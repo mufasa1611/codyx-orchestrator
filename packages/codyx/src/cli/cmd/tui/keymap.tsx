@@ -12,7 +12,7 @@ import {
   useKeymapSelector,
 } from "@opentui/keymap/solid"
 import type { Accessor } from "solid-js"
-import type { TuiConfig } from "./config/tui"
+import type * as TuiConfig from "./config/tui"
 import { useTuiConfig } from "./context/tui-config"
 
 export const LEADER_TOKEN = "leader"

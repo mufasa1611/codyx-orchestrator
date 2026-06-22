@@ -1,5 +1,5 @@
 import { Layer } from "effect"
-import { TuiConfig } from "./config/tui"
+import * as TuiConfig from "./config/tui"
 import { Npm } from "@cody/core/npm"
 import { Observability } from "@cody/core/effect/observability"
 

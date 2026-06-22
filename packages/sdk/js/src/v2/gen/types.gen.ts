@@ -5,6 +5,12 @@ export type ClientOptions = {
 }
 
 export type Event =
+  | EventTuiPromptAppend
+  | EventTuiCommandExecute
+  | EventTuiToastShow1
+  | EventTuiSessionSelect
+  | EventServerConnected
+  | EventGlobalDisposed
   | EventServerInstanceDisposed
   | EventFileEdited
   | EventFileWatcherUpdated
@@ -17,6 +23,7 @@ export type Event =
   | EventSessionError
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
+  | EventUpdateProgress
   | EventQuestionAsked
   | EventQuestionReplied
   | EventQuestionRejected
@@ -24,10 +31,6 @@ export type Event =
   | EventSessionStatus
   | EventSessionIdle
   | EventSessionCompacted
-  | EventTuiPromptAppend
-  | EventTuiCommandExecute
-  | EventTuiToastShow1
-  | EventTuiSessionSelect
   | EventMcpToolsChanged
   | EventMcpBrowserOpenFailed
   | EventCommandExecuted
@@ -75,8 +78,6 @@ export type Event =
   | EventSessionNextCompactionStarted
   | EventSessionNextCompactionDelta
   | EventSessionNextCompactionEnded
-  | EventServerConnected
-  | EventGlobalDisposed
 
 export type OAuth = {
   type: "oauth"
@@ -102,6 +103,61 @@ export type WellKnownAuth = {
 }
 
 export type Auth = OAuth | ApiAuth | WellKnownAuth
+
+export type EventTuiPromptAppend = {
+  id: string
+  type: "tui.prompt.append"
+  properties: {
+    text: string
+  }
+}
+
+export type EventTuiCommandExecute = {
+  id: string
+  type: "tui.command.execute"
+  properties: {
+    command:
+      | "session.list"
+      | "session.new"
+      | "session.share"
+      | "session.interrupt"
+      | "session.compact"
+      | "session.page.up"
+      | "session.page.down"
+      | "session.line.up"
+      | "session.line.down"
+      | "session.half.page.up"
+      | "session.half.page.down"
+      | "session.first"
+      | "session.last"
+      | "prompt.clear"
+      | "prompt.submit"
+      | "agent.cycle"
+      | string
+  }
+}
+
+export type EventTuiToastShow = {
+  id: string
+  type: "tui.toast.show"
+  properties: {
+    title?: string
+    message: string
+    variant: "info" | "success" | "warning" | "error"
+    duration?: number
+  }
+}
+
+export type EventTuiSessionSelect = {
+  id: string
+  type: "tui.session.select"
+  properties: {
+    /**
+     * Session ID to navigate to
+     */
+    sessionID: string
+  }
+}
 
 export type PermissionRequest = {
   id: string
@@ -279,61 +335,6 @@ export type SessionStatus =
   | {
       type: "busy"
     }
-
-export type EventTuiPromptAppend = {
-  id: string
-  type: "tui.prompt.append"
-  properties: {
-    text: string
-  }
-}
-
-export type EventTuiCommandExecute = {
-  id: string
-  type: "tui.command.execute"
-  properties: {
-    command:
-      | "session.list"
-      | "session.new"
-      | "session.share"
-      | "session.interrupt"
-      | "session.compact"
-      | "session.page.up"
-      | "session.page.down"
-      | "session.line.up"
-      | "session.line.down"
-      | "session.half.page.up"
-      | "session.half.page.down"
-      | "session.first"
-      | "session.last"
-      | "prompt.clear"
-      | "prompt.submit"
-      | "agent.cycle"
-      | string
-  }
-}
-
-export type EventTuiToastShow = {
-  id: string
-  type: "tui.toast.show"
-  properties: {
-    title?: string
-    message: string
-    variant: "info" | "success" | "warning" | "error"
-    duration?: number
-  }
-}
-
-export type EventTuiSessionSelect = {
-  id: string
-  type: "tui.session.select"
-  properties: {
-    /**
-     * Session ID to navigate to
-     */
-    sessionID: string
-  }
-}
 
 export type Project = {
   id: string
@@ -731,6 +732,7 @@ export type Session = {
   id: string
   slug: string
   projectID: string
+  userID?: string
   workspaceID?: string
   directory: string
   path?: string
@@ -778,6 +780,12 @@ export type GlobalEvent = {
   project?: string
   workspace?: string
   payload:
+    | EventTuiPromptAppend
+    | EventTuiCommandExecute
+    | EventTuiToastShow
+    | EventTuiSessionSelect
+    | EventServerConnected
+    | EventGlobalDisposed
     | EventServerInstanceDisposed
     | EventFileEdited
     | EventFileWatcherUpdated
@@ -790,6 +798,7 @@ export type GlobalEvent = {
     | EventSessionError
     | EventInstallationUpdated
     | EventInstallationUpdateAvailable
+    | EventUpdateProgress
     | EventQuestionAsked
     | EventQuestionReplied
     | EventQuestionRejected
@@ -797,10 +806,6 @@ export type GlobalEvent = {
     | EventSessionStatus
     | EventSessionIdle
     | EventSessionCompacted
-    | EventTuiPromptAppend
-    | EventTuiCommandExecute
-    | EventTuiToastShow
-    | EventTuiSessionSelect
     | EventMcpToolsChanged
     | EventMcpBrowserOpenFailed
     | EventCommandExecuted
@@ -848,8 +853,6 @@ export type GlobalEvent = {
     | EventSessionNextCompactionStarted
     | EventSessionNextCompactionDelta
     | EventSessionNextCompactionEnded
-    | EventServerConnected
-    | EventGlobalDisposed
     | SyncEventMessageUpdated
     | SyncEventMessageRemoved
     | SyncEventMessagePartUpdated
@@ -891,7 +894,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for cody serve and web commands
+ * Server configuration for codyx serve and web commands
  */
 export type ServerConfig = {
   port?: number
@@ -994,9 +997,10 @@ export type ProviderConfig = {
     enterpriseUrl?: string
     setCacheKey?: boolean
     /**
-     * Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.
+     * Optional timeout in milliseconds for provider fetch requests. Disabled by default because some streaming providers do not send response headers quickly. Set to false to disable timeout.
      */
     timeout?: number | false
+    firstChunkTimeout?: number
     chunkTimeout?: number
     [key: string]: unknown | string | boolean | number | false | number | undefined
   }
@@ -1378,6 +1382,7 @@ export type GlobalSession = {
   id: string
   slug: string
   projectID: string
+  userID?: string
   workspaceID?: string
   directory: string
   path?: string
@@ -2289,6 +2294,22 @@ export type SyncEventSessionNextCompactionEnded = {
   }
 }
 
+export type EventServerConnected = {
+  id: string
+  type: "server.connected"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
+export type EventGlobalDisposed = {
+  id: string
+  type: "global.disposed"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
 export type EventServerInstanceDisposed = {
   id: string
   type: "server.instance.disposed"
@@ -2397,6 +2418,14 @@ export type EventInstallationUpdateAvailable = {
   type: "installation.update-available"
   properties: {
     version: string
+  }
+}
+
+export type EventUpdateProgress = {
+  id: string
+  type: "update.progress"
+  properties: {
+    message: string
   }
 }
 
@@ -3003,22 +3032,6 @@ export type EventSessionNextCompactionEnded = {
   }
 }
 
-export type EventServerConnected = {
-  id: string
-  type: "server.connected"
-  properties: {
-    [key: string]: unknown
-  }
-}
-
-export type EventGlobalDisposed = {
-  id: string
-  type: "global.disposed"
-  properties: {
-    [key: string]: unknown
-  }
-}
-
 export type SessionInfo = {
   id: string
   parentID?: string
@@ -3487,6 +3500,24 @@ export type GlobalUpgradeResponses = {
 
 export type GlobalUpgradeResponse = GlobalUpgradeResponses[keyof GlobalUpgradeResponses]
 
+export type GlobalGitCheckData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/git-check"
+}
+
+export type GlobalGitCheckResponses = {
+  /**
+   * Git update check result
+   */
+  200: {
+    updateAvailable: boolean
+  }
+}
+
+export type GlobalGitCheckResponse = GlobalGitCheckResponses[keyof GlobalGitCheckResponses]
+
 export type EventSubscribeData = {
   body?: never
   path?: never
@@ -3505,6 +3536,178 @@ export type EventSubscribeResponses = {
 }
 
 export type EventSubscribeResponse = EventSubscribeResponses[keyof EventSubscribeResponses]
+
+export type AgentCreatePairingCodeData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agent/pair"
+}
+
+export type AgentCreatePairingCodeResponses = {
+  /**
+   * Pairing code created
+   */
+  200: {
+    code: string
+    expiresAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type AgentCreatePairingCodeResponse = AgentCreatePairingCodeResponses[keyof AgentCreatePairingCodeResponses]
+
+export type AgentStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agent/status"
+}
+
+export type AgentStatusResponses = {
+  /**
+   * Agent connection status
+   */
+  200: {
+    connected: boolean
+    code?: string
+    pairedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    remotePlatform?: string
+    remoteHostname?: string
+    activeCommands?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    lastPong?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type AgentStatusResponse = AgentStatusResponses[keyof AgentStatusResponses]
+
+export type AgentFsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    path?: string
+  }
+  url: "/agent/fs/list"
+}
+
+export type AgentFsListResponses = {
+  /**
+   * Directory listing
+   */
+  200: {
+    files: Array<{
+      name: string
+      path: string
+      type: "file" | "directory"
+      size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      modifiedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+}
+
+export type AgentFsListResponse = AgentFsListResponses[keyof AgentFsListResponses]
+
+export type AgentFsReadData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    path: string
+  }
+  url: "/agent/fs/read"
+}
+
+export type AgentFsReadResponses = {
+  /**
+   * File content
+   */
+  200: {
+    content: string
+    encoding?: string
+  }
+}
+
+export type AgentFsReadResponse = AgentFsReadResponses[keyof AgentFsReadResponses]
+
+export type AgentFsWriteData = {
+  body?: {
+    path: string
+    content: string
+    encoding?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agent/fs/write"
+}
+
+export type AgentFsWriteResponses = {
+  /**
+   * Write result
+   */
+  200: {
+    success: boolean
+  }
+}
+
+export type AgentFsWriteResponse = AgentFsWriteResponses[keyof AgentFsWriteResponses]
+
+export type AgentExecData = {
+  body?: {
+    command: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agent/exec"
+}
+
+export type AgentExecResponses = {
+  /**
+   * Command result
+   */
+  200: {
+    stdout: string
+    stderr: string
+    exitCode: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type AgentExecResponse = AgentExecResponses[keyof AgentExecResponses]
+
+export type AgentDisconnectData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agent/disconnect"
+}
+
+export type AgentDisconnectResponses = {
+  /**
+   * Disconnect result
+   */
+  200: {
+    disconnected: boolean
+  }
+}
+
+export type AgentDisconnectResponse = AgentDisconnectResponses[keyof AgentDisconnectResponses]
 
 export type ConfigGetData = {
   body?: never
@@ -4495,6 +4698,34 @@ export type ProjectListResponses = {
 
 export type ProjectListResponse = ProjectListResponses[keyof ProjectListResponses]
 
+export type ProjectCreateData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/project"
+}
+
+export type ProjectCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ProjectCreateError = ProjectCreateErrors[keyof ProjectCreateErrors]
+
+export type ProjectCreateResponses = {
+  /**
+   * Created project
+   */
+  200: Project
+}
+
+export type ProjectCreateResponse = ProjectCreateResponses[keyof ProjectCreateResponses]
+
 export type ProjectCurrentData = {
   body?: never
   path?: never
@@ -4532,27 +4763,6 @@ export type ProjectInitGitResponses = {
 }
 
 export type ProjectInitGitResponse = ProjectInitGitResponses[keyof ProjectInitGitResponses]
-
-export type ProjectCreateData = {
-  body?: {
-    directory: string
-  }
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/project"
-}
-
-export type ProjectCreateResponses = {
-  /**
-   * Created project
-   */
-  200: Project
-}
-
-export type ProjectCreateResponse = ProjectCreateResponses[keyof ProjectCreateResponses]
 
 export type ProjectUpdateData = {
   body?: {
@@ -4960,28 +5170,45 @@ export type PermissionReplyResponses = {
 
 export type PermissionReplyResponse = PermissionReplyResponses[keyof PermissionReplyResponses]
 
+export type PermissionGetModeData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/permission/mode"
+}
+
+export type PermissionGetModeResponses = {
+  /**
+   * Current permission mode
+   */
+  200: "restricted" | "standard" | "full"
+}
+
+export type PermissionGetModeResponse = PermissionGetModeResponses[keyof PermissionGetModeResponses]
+
 export type PermissionSetModeData = {
   body?: {
     mode: "restricted" | "standard" | "full"
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
   }
   url: "/permission/mode"
 }
 
 export type PermissionSetModeResponses = {
+  /**
+   * Mode set
+   */
   200: boolean
 }
 
 export type PermissionSetModeResponse = PermissionSetModeResponses[keyof PermissionSetModeResponses]
-
-export type PermissionGetModeData = {
-  url: "/permission/mode"
-}
-
-export type PermissionGetModeResponses = {
-  200: "restricted" | "standard" | "full"
-}
-
-export type PermissionGetModeResponse = PermissionGetModeResponses[keyof PermissionGetModeResponses]
 
 export type ProviderListData = {
   body?: never
@@ -5131,6 +5358,7 @@ export type SessionListResponse = SessionListResponses[keyof SessionListResponse
 export type SessionCreateData = {
   body?: {
     parentID?: string
+    userID?: string
     title?: string
     agent?: string
     model?: {

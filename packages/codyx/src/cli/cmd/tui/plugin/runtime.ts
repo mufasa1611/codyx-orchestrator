@@ -13,7 +13,7 @@ import {
 } from "@cody/plugin/tui"
 import path from "path"
 import { fileURLToPath } from "url"
-import { TuiConfig } from "@/cli/cmd/tui/config/tui"
+import * as TuiConfig from "@/cli/cmd/tui/config/tui"
 import * as Log from "@cody/core/util/log"
 import { errorData, errorMessage } from "@/util/error"
 import { isRecord } from "@/util/record"
@@ -209,9 +209,7 @@ function createThemeInstaller(
     const name = path.basename(src, path.extname(src))
     const source_dir = path.dirname(meta.source)
     const local_dir =
-      path.basename(source_dir) === ".cody"
-        ? path.join(source_dir, "themes")
-        : path.join(source_dir, ".cody", "themes")
+      path.basename(source_dir) === ".cody" ? path.join(source_dir, "themes") : path.join(source_dir, ".cody", "themes")
     const dest_dir = meta.scope === "local" ? local_dir : path.join(Global.Path.config, "themes")
     const dest = path.join(dest_dir, `${name}.json`)
     const stat = await Filesystem.statAsync(src)

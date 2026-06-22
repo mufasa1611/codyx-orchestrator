@@ -3,7 +3,14 @@
 import { client } from "./client.gen.js"
 import { buildClientParams, type Client, type Options as Options2, type TDataShape } from "./client/index.js"
 import type {
+  AgentCreatePairingCodeResponses,
+  AgentDisconnectResponses,
+  AgentExecResponses,
+  AgentFsListResponses,
+  AgentFsReadResponses,
+  AgentFsWriteResponses,
   AgentPartInput,
+  AgentStatusResponses,
   AppAgentsResponses,
   AppLogErrors,
   AppLogResponses,
@@ -53,6 +60,7 @@ import type {
   GlobalConfigUpdateResponses,
   GlobalDisposeResponses,
   GlobalEventResponses,
+  GlobalGitCheckResponses,
   GlobalHealthResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
@@ -80,16 +88,17 @@ import type {
   PartUpdateErrors,
   PartUpdateResponses,
   PathGetResponses,
+  PermissionGetModeResponses,
   PermissionListResponses,
   PermissionReplyErrors,
   PermissionReplyResponses,
   PermissionRespondErrors,
   PermissionRespondResponses,
-  PermissionSetModeResponses,
-  PermissionGetModeResponses,
   PermissionRuleset,
-  ProjectCurrentResponses,
+  PermissionSetModeResponses,
+  ProjectCreateErrors,
   ProjectCreateResponses,
+  ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
   ProjectUpdateErrors,
@@ -372,7 +381,7 @@ export class App extends HeyApiClient {
   /**
    * List agents
    *
-   * Get a list of all available AI agents in the Cody system.
+   * Get a list of all available AI agents in the codyx system.
    */
   public agents<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -402,7 +411,7 @@ export class App extends HeyApiClient {
   /**
    * List skills
    *
-   * Get a list of all available skills in the Cody system.
+   * Get a list of all available skills in the codyx system.
    */
   public skills<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -434,7 +443,7 @@ export class Config extends HeyApiClient {
   /**
    * Get global configuration
    *
-   * Retrieve the current global Cody configuration settings and preferences.
+   * Retrieve the current global codyx configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalConfigGetResponses, unknown, ThrowOnError>({
@@ -446,7 +455,7 @@ export class Config extends HeyApiClient {
   /**
    * Update global configuration
    *
-   * Update global Cody configuration settings and preferences.
+   * Update global codyx configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -472,7 +481,7 @@ export class Global extends HeyApiClient {
   /**
    * Get health
    *
-   * Get health information about the Cody server.
+   * Get health information about the codyx server.
    */
   public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalHealthResponses, unknown, ThrowOnError>({
@@ -484,7 +493,7 @@ export class Global extends HeyApiClient {
   /**
    * Get global events
    *
-   * Subscribe to global events from the Cody system using server-sent events.
+   * Subscribe to global events from the codyx system using server-sent events.
    */
   public event<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).sse.get<GlobalEventResponses, unknown, ThrowOnError>({
@@ -496,7 +505,7 @@ export class Global extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose all Cody instances, releasing all resources.
+   * Clean up and dispose all codyx instances, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).post<GlobalDisposeResponses, unknown, ThrowOnError>({
@@ -506,9 +515,9 @@ export class Global extends HeyApiClient {
   }
 
   /**
-   * Upgrade cody
+   * Upgrade codyx
    *
-   * Upgrade cody to the specified version or latest if not specified.
+   * Upgrade codyx to the specified version or latest if not specified.
    */
   public upgrade<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -526,6 +535,18 @@ export class Global extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Check for updates
+   *
+   * Check if git-based updates are available.
+   */
+  public gitCheck<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).post<GlobalGitCheckResponses, unknown, ThrowOnError>({
+      url: "/global/git-check",
+      ...options,
     })
   }
 
@@ -567,11 +588,252 @@ export class Event extends HeyApiClient {
   }
 }
 
+export class Fs extends HeyApiClient {
+  /**
+   * List remote directory
+   *
+   * List files and directories on the connected remote PC.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AgentFsListResponses, unknown, ThrowOnError>({
+      url: "/agent/fs/list",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Read remote file
+   *
+   * Read a file on the connected remote PC.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      path: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AgentFsReadResponses, unknown, ThrowOnError>({
+      url: "/agent/fs/read",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Write remote file
+   *
+   * Write content to a file on the connected remote PC.
+   */
+  public write<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      content?: string
+      encoding?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "content" },
+            { in: "body", key: "encoding" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AgentFsWriteResponses, unknown, ThrowOnError>({
+      url: "/agent/fs/write",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Agent extends HeyApiClient {
+  /**
+   * Create pairing code
+   *
+   * Generate a new one-time pairing code for remote PC connection.
+   */
+  public createPairingCode<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AgentCreatePairingCodeResponses, unknown, ThrowOnError>({
+      url: "/agent/pair",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get agent connection status
+   *
+   * Check if a remote PC agent is currently connected.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AgentStatusResponses, unknown, ThrowOnError>({
+      url: "/agent/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Execute remote command
+   *
+   * Execute a shell command on the connected remote PC.
+   */
+  public exec<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      command?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "command" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AgentExecResponses, unknown, ThrowOnError>({
+      url: "/agent/exec",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Disconnect agent
+   *
+   * Disconnect the currently connected remote PC agent.
+   */
+  public disconnect<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AgentDisconnectResponses, unknown, ThrowOnError>({
+      url: "/agent/disconnect",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _fs?: Fs
+  get fs(): Fs {
+    return (this._fs ??= new Fs({ client: this.client }))
+  }
+}
+
 export class Config2 extends HeyApiClient {
   /**
    * Get configuration
    *
-   * Retrieve the current Cody configuration settings and preferences.
+   * Retrieve the current codyx configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -601,7 +863,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Update configuration
    *
-   * Update Cody configuration settings and preferences.
+   * Update codyx configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -730,7 +992,7 @@ export class Console extends HeyApiClient {
   /**
    * Switch active Console org
    *
-   * Persist a new active Console account/org selection for the current local Cody state.
+   * Persist a new active Console account/org selection for the current local codyx state.
    */
   public switchOrg<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -771,7 +1033,7 @@ export class Session extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all Cody sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
+   * Get a list of all codyx sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1535,7 +1797,7 @@ export class Instance extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose the current Cody instance, releasing all resources.
+   * Clean up and dispose the current codyx instance, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1567,7 +1829,7 @@ export class Path extends HeyApiClient {
   /**
    * Get paths
    *
-   * Retrieve the current working directory and related path information for the Cody instance.
+   * Retrieve the current working directory and related path information for the codyx instance.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1767,7 +2029,7 @@ export class Command extends HeyApiClient {
   /**
    * List commands
    *
-   * Get a list of all available commands in the Cody system.
+   * Get a list of all available commands in the codyx system.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2138,7 +2400,7 @@ export class Project extends HeyApiClient {
   /**
    * List all projects
    *
-   * Get a list of projects that have been opened with Cody.
+   * Get a list of projects that have been opened with codyx.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2166,9 +2428,39 @@ export class Project extends HeyApiClient {
   }
 
   /**
+   * Create a project
+   *
+   * Create a new project directory on the server filesystem and return the project info.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProjectCreateResponses, ProjectCreateErrors, ThrowOnError>({
+      url: "/project",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get current project
    *
-   * Retrieve the currently active project that Cody is working with.
+   * Retrieve the currently active project that codyx is working with.
    */
   public current<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2276,29 +2568,6 @@ export class Project extends HeyApiClient {
       },
     })
   }
-
-  /**
-   * Create a project
-   *
-   * Create a new project directory on the server filesystem and return the project info.
-   */
-  public create<ThrowOnError extends boolean = false>(
-    parameters: {
-      directory: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    return (options?.client ?? this.client).post<ProjectCreateResponses, unknown, ThrowOnError>({
-      url: "/project",
-      ...options,
-      body: JSON.stringify({ directory: parameters.directory }),
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    })
-  }
-
 }
 
 export class Pty extends HeyApiClient {
@@ -2335,7 +2604,7 @@ export class Pty extends HeyApiClient {
   /**
    * List PTY sessions
    *
-   * Get a list of all active pseudo-terminal (PTY) sessions managed by Cody.
+   * Get a list of all active pseudo-terminal (PTY) sessions managed by codyx.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2757,29 +3026,70 @@ export class Permission extends HeyApiClient {
     })
   }
 
-  public setMode<ThrowOnError extends boolean = false>(
-    parameters: {
-      mode: "restricted" | "standard" | "full"
+  /**
+   * Get current permission mode
+   *
+   * Retrieve the current permission mode setting.
+   */
+  public getMode<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    return (options?.client ?? this.client).post<PermissionSetModeResponses, unknown, ThrowOnError>({
-      url: "/permission/mode",
-      ...options,
-      body: JSON.stringify({ mode: parameters.mode }),
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    })
-  }
-
-  public getMode<ThrowOnError extends boolean = false>(
-    options?: Options<never, ThrowOnError>,
-  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<PermissionGetModeResponses, unknown, ThrowOnError>({
       url: "/permission/mode",
       ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Set permission mode
+   *
+   * Override permission level. In 'full' mode all non-system file permissions are auto-approved.
+   */
+  public setMode<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      mode?: "restricted" | "standard" | "full"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "mode" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PermissionSetModeResponses, unknown, ThrowOnError>({
+      url: "/permission/mode",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
@@ -2992,7 +3302,7 @@ export class Session2 extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all Cody sessions, sorted by most recently updated.
+   * Get a list of all codyx sessions, sorted by most recently updated.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -3034,13 +3344,14 @@ export class Session2 extends HeyApiClient {
   /**
    * Create session
    *
-   * Create a new Cody session for interacting with AI assistants and managing conversations.
+   * Create a new codyx session for interacting with AI assistants and managing conversations.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
       workspace?: string
       parentID?: string
+      userID?: string
       title?: string
       agent?: string
       model?: {
@@ -3061,6 +3372,7 @@ export class Session2 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "parentID" },
+            { in: "body", key: "userID" },
             { in: "body", key: "title" },
             { in: "body", key: "agent" },
             { in: "body", key: "model" },
@@ -3147,7 +3459,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Get session
    *
-   * Retrieve detailed information about a specific Cody session.
+   * Retrieve detailed information about a specific codyx session.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters: {
@@ -4876,6 +5188,11 @@ export class CodyClient extends HeyApiClient {
   private _event?: Event
   get event(): Event {
     return (this._event ??= new Event({ client: this.client }))
+  }
+
+  private _agent?: Agent
+  get agent(): Agent {
+    return (this._agent ??= new Agent({ client: this.client }))
   }
 
   private _config?: Config2

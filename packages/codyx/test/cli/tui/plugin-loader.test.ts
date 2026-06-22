@@ -7,7 +7,7 @@ import { tmpdir } from "../../fixture/fixture"
 import { createTuiPluginApi } from "../../fixture/tui-plugin"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import { Global } from "@cody/core/global"
-import { TuiConfig } from "../../../src/cli/cmd/tui/config/tui"
+import * as TuiConfig from "../../../src/cli/cmd/tui/config/tui"
 import { Filesystem } from "@/util/filesystem"
 
 const { allThemes, addTheme } = await import("../../../src/cli/cmd/tui/context/theme")
