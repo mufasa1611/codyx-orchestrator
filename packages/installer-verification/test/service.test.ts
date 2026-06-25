@@ -113,6 +113,8 @@ describe("installer verification service", () => {
     expect(html).toContain("Send Feedback")
     expect(html).toContain("Test User")
     expect(html).toContain("test@example.com")
+    expect(html).toContain('name="name" maxlength="100" placeholder="Your name" required')
+    expect(html).toContain('name="email" maxlength="254" placeholder="you@example.com" required')
 
     const response = await request("/v1/feedback", {
       method: "POST",
@@ -135,6 +137,30 @@ describe("installer verification service", () => {
       email: "test@example.com",
       message: "The TUI feedback link works.",
     })
+  })
+
+  test("requires feedback name and email", async () => {
+    const missingName = await request("/v1/feedback", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "",
+        email: "test@example.com",
+        message: "This should not submit.",
+      }),
+    })
+    expect(missingName.status).toBe(400)
+    expect((await missingName.json()) as { error: string }).toMatchObject({ error: "invalid_request" })
+
+    const missingEmail = await request("/v1/feedback", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Test User",
+        email: "",
+        message: "This should not submit.",
+      }),
+    })
+    expect(missingEmail.status).toBe(400)
+    expect((await missingEmail.json()) as { error: string }).toMatchObject({ error: "invalid_request" })
   })
 
   test("issues a receipt, validates it, and prevents challenge replay", async () => {

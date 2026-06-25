@@ -17,13 +17,21 @@ everything through plugins, agents, and custom tools.
 
 ## Quick Start
 
-If Node.js/npm is already installed, install the current beta package and launch the TUI:
+### Node.js/npm Already Installed
+
+Install the current beta package and launch the TUI:
 
 ```bash
 npm install -g codyx-ai@beta && codyx
 ```
 
-If Node.js/npm is not installed on Windows, use the npm installer. It installs Node.js LTS with `winget` when possible, installs `codyx-ai@beta`, and launches `codyx`. It does not clone the repository.
+### Windows Without Node.js/npm
+
+Use the Windows npm installer. It installs Node.js LTS with `winget` when possible,
+installs `codyx-ai@beta`, verifies the global `codyx` command, and launches the TUI.
+It asks the user to accept the MIT license first. If cleanup is triggered, it removes only
+Codyx traces and prerequisites this installer recorded as Codyx-installed; pre-existing
+Git, Bun, Node.js, and cloudflared installs are left alone. This path does not clone the repository.
 
 ```powershell
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch
@@ -35,21 +43,30 @@ Windows Command Prompt:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
 ```
 
-Source/server installer options:
+### Source/Server Installs
+
+Use these only when you need an editable checkout, a server/proxy setup, or source-level
+development. Source installs use Git and Bun, and they clone this repository.
+
+macOS/Linux:
 
 ```bash
-# macOS / Linux source checkout
 CODY_FORCE_SOURCE=1 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
 ```
 
+Windows:
+
 ```cmd
-:: Windows source checkout
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex"
 ```
 
-> npm installs update with `npm update -g codyx-ai`. Source/server installs clone the repo,
+> Beta npm installs update with `npm install -g codyx-ai@beta`. Source/server installs clone the repo,
 > use Git/Bun, and are only needed when you want an editable checkout or server/proxy setup.
 > Docker images are available for headless/server deployments.
+>
+> Do not run `npm install` inside the source checkout. This monorepo uses Bun workspaces,
+> Bun catalogs, `bun.lock`, `patchedDependencies`, and Bun-specific build scripts. Use
+> `bun install` for repository development.
 
 ---
 
@@ -71,9 +88,14 @@ or single-provider. codyx is different:
 
 ---
 
-## Screenshots
+## Interfaces
 
-> _[Screenshots placeholder — TUI session view, web UI dashboard, CLI command output]_
+| Surface     | Command                   | Best For                                                      |
+| ----------- | ------------------------- | ------------------------------------------------------------- |
+| Terminal UI | `codyx`                   | Daily interactive coding, sessions, providers, and agents     |
+| CLI         | `codyx run "..."`         | Scripting, CI jobs, one-shot automation, and repeatable tasks |
+| API server  | `codyx serve --port 4097` | Headless or team deployments with auth and web clients        |
+| Web UI      | `codyx web`               | Browser-based session and provider management                 |
 
 ## Features
 
@@ -351,6 +373,9 @@ bun install
 bun run dev
 ```
 
+The source checkout is Bun-only. `npm install` fails on this repository because npm does
+not understand the `catalog:` dependency protocol used by the workspace.
+
 ### npm
 
 ```bash
@@ -389,11 +414,8 @@ codyx
 git clone https://github.com/mufasa1611/codyx-orchestrator.git
 cd codyx-orchestrator
 
-# Install dependencies
+# Install dependencies. Do not use npm install in this repository.
 bun install
-
-# Run typecheck
-bun run typecheck
 
 # Start in development mode (TUI)
 bun run dev
@@ -401,8 +423,10 @@ bun run dev
 # Start the API server
 cd packages/codyx && bun run src/index.ts serve --port 4097 --print-logs --log-level DEBUG
 
-# Run tests
-cd packages/codyx && bun test
+# Typecheck and test from package directories
+cd packages/codyx
+bun typecheck
+bun test
 
 # Database migrations
 cd packages/codyx && bun run db generate --name <migration-name>
@@ -435,6 +459,7 @@ packages/
 Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 
 - Report bugs and request features through [GitHub Issues](https://github.com/mufasa1611/codyx-orchestrator/issues)
+- Send installer problems, update requests, or product notes through [feedback](https://install.kingkung.men/feedback)
 - Submit pull requests — PRs welcome
 - Follow the coding style in `AGENTS.md`
 - Run `bun run typecheck` and `bun test` before submitting

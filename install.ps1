@@ -3,6 +3,7 @@ param(
   [string]$Tag = $(if ($env:CODY_NPM_TAG) { $env:CODY_NPM_TAG } else { "beta" }),
   [string]$Version = $(if ($env:CODY_NPM_VERSION) { $env:CODY_NPM_VERSION } else { "" }),
   [switch]$NoVerify,
+  [switch]$AcceptLicense,
   [switch]$NoLaunch
 )
 
@@ -20,6 +21,7 @@ try {
   Invoke-WebRequest -UseBasicParsing -Uri $installerUrl -OutFile $tempFile
   $installerArgs = if ($Version) { @("-Version", $Version) } else { @("-Tag", $Tag) }
   if ($NoVerify) { $installerArgs += "-NoVerify" }
+  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
   if (-not $NoLaunch) { $installerArgs += "-Launch" }
   & $tempFile @installerArgs
   exit $LASTEXITCODE

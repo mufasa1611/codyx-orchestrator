@@ -30,6 +30,7 @@ param(
   [switch]$NoProxy,
   [switch]$NoBuild,
   [switch]$Verbose,
+  [switch]$AcceptLicense,
   [string]$InstallRoot = ""
 )
 
@@ -41,6 +42,7 @@ $Script:CODY_VERSION = "1.0.0"
 $Script:REPO_URL = "https://github.com/mufasa1611/codyx-orchestrator.git"
 $Script:CREDITS = "Builder: M. Farid (Mufasa) | Repo: $REPO_URL"
 $Script:VERIFICATION_URL = "https://install.kingkung.men"
+$Script:LICENSE_URL = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE"
 
 # Configuration
 $RepoUrl = $Script:REPO_URL
@@ -51,6 +53,9 @@ $GlobalCmd = Join-Path $GlobalBin "codyx.cmd"
 $CheckoutRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { $null }
 $IsStandalone = -not ($CheckoutRoot -and (Test-Path (Join-Path $CheckoutRoot "codyx.cmd")))
 $CreatedRepo = $false
+$InstallerStateDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
+$InstallerMarkerPath = Join-Path $InstallerStateDir "install-marker.json"
+$Script:ManagedTools = @()
 
 # Verbose logging
 $VerbosePref = if ($Verbose) { "Continue" } else { "SilentlyContinue" }
@@ -150,6 +155,268 @@ function Test-InteractiveHost {
   try { return -not [Console]::IsInputRedirected } catch { return $true }
 }
 
+function Get-ObjectArray($Value) {
+  if ($null -eq $Value) { return @() }
+  if ($Value -is [System.Array]) { return @($Value) }
+  return @($Value)
+}
+
+function Read-CodyxMarker {
+  param([string]$Path)
+
+  if (-not $Path) { return $null }
+  if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+  } catch {
+    return $null
+  }
+}
+
+function Write-CodyxMarker {
+  param(
+    [string]$Path,
+    $Marker
+  )
+
+  $dir = Split-Path -Parent $Path
+  if ($dir) { $null = New-Item -ItemType Directory -Force -Path $dir }
+  [System.IO.File]::WriteAllText(
+    $Path,
+    ($Marker | ConvertTo-Json -Compress -Depth 8),
+    [System.Text.UTF8Encoding]::new($false)
+  )
+}
+
+function Test-SameManagedTool {
+  param($Left, $Right)
+
+  return (
+    "$($Left.name)" -eq "$($Right.name)" -and
+    "$($Left.manager)" -eq "$($Right.manager)" -and
+    "$($Left.packageId)" -eq "$($Right.packageId)" -and
+    "$($Left.path)" -eq "$($Right.path)"
+  )
+}
+
+function Add-CodyxManagedTool {
+  param(
+    [string]$Name,
+    [string]$Manager,
+    [string]$PackageId = "",
+    [string]$Path = "",
+    [string[]]$PathAdds = @()
+  )
+
+  $tool = [pscustomobject]@{
+    name = $Name
+    manager = $Manager
+    packageId = $PackageId
+    path = $Path
+    pathAdds = @($PathAdds | Where-Object { $_ })
+  }
+
+  if (-not ($Script:ManagedTools | Where-Object { Test-SameManagedTool $_ $tool } | Select-Object -First 1)) {
+    $Script:ManagedTools += $tool
+  }
+
+  $marker = Read-CodyxMarker $InstallerMarkerPath
+  if (-not $marker) { $marker = [pscustomobject]@{} }
+  if (-not ($marker.PSObject.Properties.Name -contains "managedTools")) {
+    $marker | Add-Member -NotePropertyName managedTools -NotePropertyValue @()
+  }
+  $tools = Get-ObjectArray $marker.managedTools
+  if (-not ($tools | Where-Object { Test-SameManagedTool $_ $tool } | Select-Object -First 1)) {
+    $marker.managedTools = @($tools + $tool)
+    Write-CodyxMarker $InstallerMarkerPath $marker
+  }
+}
+
+function Get-CodyxManagedTools {
+  $tools = @()
+  foreach ($markerPath in @($InstallerMarkerPath, (Join-Path $Root ".codyx-install-marker"))) {
+    $marker = Read-CodyxMarker $markerPath
+    if ($marker -and ($marker.PSObject.Properties.Name -contains "managedTools")) {
+      foreach ($tool in (Get-ObjectArray $marker.managedTools)) {
+        if (-not ($tools | Where-Object { Test-SameManagedTool $_ $tool } | Select-Object -First 1)) {
+          $tools += $tool
+        }
+      }
+    }
+  }
+  return $tools
+}
+
+function Remove-CodyxPath {
+  param(
+    [string]$Path,
+    [string]$Label
+  )
+
+  if (-not $Path) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  try {
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    Write-Ok "Removed ${Label}: $Path"
+  } catch {
+    Write-Warn "Could not remove ${Label}: $Path"
+  }
+}
+
+function Remove-UserPathEntry {
+  param([string]$Entry)
+
+  if (-not $Entry) { return }
+  try { $target = [System.IO.Path]::GetFullPath($Entry).TrimEnd("\") } catch { $target = $Entry.TrimEnd("\") }
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if (-not $userPath) { return }
+  $items = @($userPath -split ";" | Where-Object { $_ -and $_.Trim() })
+  $kept = @()
+  $removed = $false
+  foreach ($item in $items) {
+    $expanded = [Environment]::ExpandEnvironmentVariables($item)
+    try { $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd("\") } catch { $normalized = $expanded.TrimEnd("\") }
+    if ($normalized.Equals($target, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $removed = $true
+      continue
+    }
+    $kept += $item
+  }
+  if ($removed) {
+    [Environment]::SetEnvironmentVariable("Path", (@($kept) -join ";"), "User")
+    $envItems = @()
+    foreach ($item in @($env:PATH -split ";")) {
+      if (-not $item -or -not $item.Trim()) { continue }
+      $expanded = [Environment]::ExpandEnvironmentVariables($item)
+      try { $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd("\") } catch { $normalized = $expanded.TrimEnd("\") }
+      if (-not $normalized.Equals($target, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $envItems += $item
+      }
+    }
+    $env:PATH = @($envItems) -join ";"
+    Write-Ok "Removed PATH entry installed by codyx: $Entry"
+  }
+}
+
+function Invoke-CodyxManagedToolCleanup {
+  $tools = Get-CodyxManagedTools
+  foreach ($tool in $tools) {
+    $name = "$($tool.name)"
+    $manager = "$($tool.manager)"
+    $packageId = "$($tool.packageId)"
+    $toolPath = "$($tool.path)"
+
+    foreach ($entry in (Get-ObjectArray $tool.pathAdds)) {
+      Remove-UserPathEntry "$entry"
+    }
+
+    if ($manager -eq "path") {
+      Remove-CodyxPath $toolPath "$name installed by codyx"
+      continue
+    }
+
+    if ($manager -eq "winget" -and $packageId -and (Test-Command winget)) {
+      Write-Step "Removing $name installed by codyx with winget..."
+      & winget uninstall --id $packageId --exact --source winget --silent
+      if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Removed $name installed by codyx."
+      } else {
+        Write-Warn "Could not remove $name with winget. Remove manually if needed: winget uninstall --id $packageId --exact"
+      }
+      continue
+    }
+
+    if ($manager -eq "choco" -and $packageId -and (Test-Command choco)) {
+      Write-Step "Removing $name installed by codyx with Chocolatey..."
+      & choco uninstall $packageId -y --no-progress | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Removed $name installed by codyx."
+      } else {
+        Write-Warn "Could not remove $name with Chocolatey. Remove manually if needed: choco uninstall $packageId -y"
+      }
+    }
+  }
+}
+
+function Test-SafeInstallRootCleanup {
+  param([string]$Path)
+
+  if (-not $Path) { return $false }
+  try {
+    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+    $default = [System.IO.Path]::GetFullPath($DefaultParent).TrimEnd("\")
+    if ($full.Equals($default, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if (Test-Path -LiteralPath (Join-Path $full ".codyx-install-marker")) { return $true }
+  } catch {}
+  return $false
+}
+
+function Invoke-CodyxTraceCleanup {
+  Write-Step "Cleaning codyx installation traces..."
+
+  if (Test-Command npm) {
+    & npm uninstall -g codyx-ai | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+  }
+
+  foreach ($name in @("codyx.cmd", "codyx.ps1", "codyx.exe", "codyx")) {
+    Remove-CodyxPath (Join-Path $GlobalBin $name) "global shim"
+  }
+
+  Remove-CodyxPath (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\codyx") "Start Menu shortcuts"
+  Invoke-CodyxManagedToolCleanup
+
+  if (Test-SafeInstallRootCleanup $Root) {
+    Remove-CodyxPath $Root "install root"
+  } else {
+    Write-Warn "Skipped install root cleanup because it is not the default codyx path and has no install marker: $Root"
+  }
+
+  Remove-CodyxPath $InstallerStateDir "installer verification data"
+
+  Write-Ok "codyx cleanup finished."
+}
+
+function Confirm-LicenseAgreement {
+  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") {
+    Write-Ok "License accepted through explicit installer option."
+    return $true
+  }
+
+  Write-Section 0 "License Agreement"
+  Write-Host "codyx-orchestrator is distributed under the MIT License." -ForegroundColor White
+  Write-Host "License: $($Script:LICENSE_URL)" -ForegroundColor DarkGray
+  Write-Host ""
+  Write-Host "By installing, you agree to the license terms and understand that" -ForegroundColor White
+  Write-Host "the software is provided AS IS, without warranty of any kind." -ForegroundColor White
+  Write-Host ""
+  Write-Host "[ ] Agree and continue installation" -ForegroundColor Green
+  Write-Host "[ ] Disagree and remove codyx traces" -ForegroundColor Red
+  Write-Host ""
+
+  if (-not (Test-InteractiveHost)) {
+    Write-Err "License agreement requires an interactive terminal."
+    Write-Err "Rerun interactively or set CODY_ACCEPT_LICENSE=1 after reviewing the license."
+    return $false
+  }
+
+  while ($true) {
+    $choice = (Read-Host "Type A to agree or D to disagree").Trim().ToLowerInvariant()
+    if ($choice -in @("a", "agree", "y", "yes")) {
+      Write-Host "[x] Agree" -ForegroundColor Green
+      Write-Ok "License accepted."
+      return $true
+    }
+    if ($choice -in @("d", "disagree", "n", "no")) {
+      Write-Host "[x] Disagree" -ForegroundColor Red
+      Write-Warn "License declined. Starting uninstall cleanup."
+      Invoke-CodyxTraceCleanup
+      return $false
+    }
+    Write-Warn "Choose A to agree or D to disagree."
+  }
+}
+
 function Add-UserPathEntry($entry) {
   $full = [System.IO.Path]::GetFullPath($entry).TrimEnd("\")
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -215,6 +482,7 @@ function Install-EnsureCommand($Name, $WingetId, $Label) {
   # Try winget
   $result = Install-WithWinget $WingetId $Label
   if ($result -eq $true) {
+    Add-CodyxManagedTool $Name "winget" $WingetId
     if (Test-Command $Name) { return $true }
   }
 
@@ -222,6 +490,7 @@ function Install-EnsureCommand($Name, $WingetId, $Label) {
   if ($result -ne $true) {
     $result = Install-WithChoco $Label
     if ($result -eq $true) {
+      Add-CodyxManagedTool $Name "choco" $Label
       refreshenv 2>$null
       if (Test-Command $Name) { return $true }
     }
@@ -309,6 +578,10 @@ Write-Host "       codyx Windows Installer v$($Script:CODY_VERSION)" -Foreground
 Write-Host "  =======================================" -ForegroundColor Cyan
 Write-Host "  $($Script:CREDITS)" -ForegroundColor DarkGray
 
+if (-not (Confirm-LicenseAgreement)) {
+  exit 1
+}
+
 # Phase 1: Prerequisites
 
 Write-Section 1 "Prerequisites"
@@ -327,6 +600,7 @@ if ($env:HTTP_PROXY -or $env:HTTPS_PROXY) {
   $env:GIT_HTTPS_PROXY = $proxy
 }
 
+$bunExistedBefore = Test-Command bun
 if (-not (Test-BunVersion)) {
   if (Test-Command bun) {
     Write-Warn "Bun 1.3.13 or newer is required. Updating Bun..."
@@ -338,6 +612,9 @@ if (-not (Test-BunVersion)) {
   if ($LASTEXITCODE -ne 0) { Write-Err "Bun installation failed."; exit 1 }
   $env:PATH = "$env:USERPROFILE\.bun\bin;$env:APPDATA\npm;$env:PATH"
   if (-not (Test-BunVersion)) { Write-Err "Bun 1.3.13+ is still unavailable after install."; exit 1 }
+  if (-not $bunExistedBefore) {
+    Add-CodyxManagedTool "bun" "path" "" (Join-Path $env:USERPROFILE ".bun") @((Join-Path $env:USERPROFILE ".bun\bin"))
+  }
   Write-Ok "Bun 1.3.13+ installed."
 } else {
   Write-Ok "Bun 1.3.13+ found."
@@ -373,7 +650,7 @@ if ($verificationPath -and (Test-Path -LiteralPath $verificationPath)) {
     } "verification helper download"
   } catch {
     Write-Err "Could not load the installer verification step."
-    Write-Err "Git and Bun will remain installed. Rerun the installer when GitHub is available."
+    Write-Err "Rerun the installer when GitHub is available, or decline the license later to clean Codyx-owned tools."
     exit 1
   }
   $verificationResult = & ([scriptblock]::Create($Script:verificationSource)) @verificationParameters
@@ -387,7 +664,11 @@ if (-not $NoProxy) {
   if (-not (Test-Command cloudflared)) {
     Write-Warn "cloudflared not found."
     $ok = Install-WithWinget "Cloudflare.cloudflared" "cloudflared"
-    if ($ok -ne $true) { Write-Warn "cloudflared install skipped. Proxy tunnel won't auto-start." }
+    if ($ok -eq $true) {
+      Add-CodyxManagedTool "cloudflared" "winget" "Cloudflare.cloudflared"
+    } else {
+      Write-Warn "cloudflared install skipped. Proxy tunnel won't auto-start."
+    }
   } else {
     Write-Ok "cloudflared found."
   }
@@ -589,11 +870,21 @@ if (Test-Path -LiteralPath $markerPath) {
     $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
     if (-not $marker.shortcuts) { $marker | Add-Member -NotePropertyName shortcuts -NotePropertyValue @() }
     if (-not $marker.installed) { $marker | Add-Member -NotePropertyName installed -NotePropertyValue @() }
+    if (-not ($marker.PSObject.Properties.Name -contains "managedTools")) {
+      $marker | Add-Member -NotePropertyName managedTools -NotePropertyValue @()
+    }
     if ($marker.shortcuts -notcontains $shortcutPath) { $marker.shortcuts += $shortcutPath }
     if ($marker.installed -notcontains $shortcutPath) { $marker.installed += $shortcutPath }
+    $managedTools = Get-ObjectArray $marker.managedTools
+    foreach ($tool in (Get-CodyxManagedTools)) {
+      if (-not ($managedTools | Where-Object { Test-SameManagedTool $_ $tool } | Select-Object -First 1)) {
+        $managedTools += $tool
+      }
+    }
+    $marker.managedTools = $managedTools
     [System.IO.File]::WriteAllText(
       $markerPath,
-      ($marker | ConvertTo-Json -Compress),
+      ($marker | ConvertTo-Json -Compress -Depth 8),
       [System.Text.UTF8Encoding]::new($false)
     )
   } catch {

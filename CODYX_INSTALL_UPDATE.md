@@ -20,7 +20,13 @@ From CMD:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
 ```
 
-The npm installer installs Node.js LTS with `winget` when possible, installs `codyx-ai`, verifies the global `codyx` command, and can launch the TUI. It does not clone this repository, run `bun install`, build the web UI from source, or configure the source checkout proxy stack.
+The npm installer shows the MIT license agreement before installation. If the user agrees, it installs Node.js LTS with `winget` when possible, installs `codyx-ai`, verifies the global `codyx` command, and can launch the TUI. If the user disagrees, it stops and removes codyx traces such as the global package, codyx shims, installer verification data, Start Menu shortcuts, and the default source install root. It also removes Node.js only when this installer recorded that it installed Node.js; pre-existing machine installs are left alone. It does not clone this repository, run `bun install`, build the web UI from source, or configure the source checkout proxy stack.
+
+For noninteractive automation, review the license first and set:
+
+```powershell
+$env:CODY_ACCEPT_LICENSE = "1"
+```
 
 ## User Update Policy
 
@@ -60,7 +66,7 @@ macOS/Linux source checkout:
 CODY_FORCE_SOURCE=1 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
 ```
 
-The source installer installs Git and Bun 1.3.13+ when needed, then pauses for email ownership verification before cloning the repository or continuing with the rest of installation. It explains what is collected, sends a six-digit code, and stores only a signed receipt under:
+The source installer shows the MIT license agreement before installing prerequisites. If the user disagrees, it starts codyx cleanup and exits. If the user agrees, it installs Git and Bun 1.3.13+ when needed, then pauses for email ownership verification before cloning the repository or continuing with the rest of installation. Cleanup removes Git, Bun, and cloudflared only when this installer recorded that it installed them; pre-existing machine installs are left alone. It explains what is collected, sends a six-digit code, and stores only a signed receipt under:
 
 ```text
 %LOCALAPPDATA%\codyx-installer\verification.json

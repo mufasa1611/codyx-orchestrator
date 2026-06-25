@@ -1,44 +1,44 @@
-# Mintlify Starter Kit
+# Codyx Mintlify Docs
 
-Use the starter kit to get your docs deployed and ready to customize.
+Mintlify documentation workspace for codyx guides, API references, and public
+documentation snippets.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## Local Preview
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+Install the Mintlify CLI globally if it is not already available:
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
-
-## Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
-
-```
+```bash
 npm i -g mint
 ```
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+Start the preview from this directory, where `docs.json` lives:
 
-```
+```bash
+cd packages/docs
 mint dev
 ```
 
-View your local preview at `http://localhost:3000`.
+The preview runs at `http://localhost:3000`.
 
-## Publishing changes
+## Structure
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
+| Path             | Purpose                                    |
+| ---------------- | ------------------------------------------ |
+| `docs.json`      | Mintlify navigation and site configuration |
+| `index.mdx`      | Documentation landing page                 |
+| `quickstart.mdx` | First-run guide                            |
+| `essentials/`    | Core user guides                           |
+| `ai-tools/`      | AI/tooling guides                          |
+| `snippets/`      | Shared MDX snippets                        |
+| `openapi.json`   | API reference input                        |
 
-## Need help?
+## Publishing
 
-### Troubleshooting
+Mintlify deploys from the connected repository integration. Push documentation
+changes to the configured default branch after previewing locally.
 
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
+## Notes
 
-### Resources
-
-- [Mintlify documentation](https://mintlify.com/docs)
+The Mintlify CLI is installed with npm because it is a global documentation tool.
+Do not use `npm install` for this monorepo's source dependencies; use `bun install`
+from the repository root.

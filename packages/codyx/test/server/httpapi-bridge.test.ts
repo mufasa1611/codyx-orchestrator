@@ -24,6 +24,10 @@ const original = {
 
 const methods = ["get", "post", "put", "delete", "patch"] as const
 let effectSpec: ReturnType<typeof OpenApi.fromApi> | undefined
+const knownParameterSchemaDifferences = new Set([
+  // Effect decodes the missing path as "/" but does not emit that default in OpenAPI.
+  "GET /agent/fs/list",
+])
 
 function effectOpenApi() {
   return (effectSpec ??= OpenApi.fromApi(PublicApi))
@@ -230,9 +234,11 @@ describe("HttpApi server", () => {
       "GET /api/session",
       "GET /api/session/{sessionID}/context",
       "GET /api/session/{sessionID}/message",
+      "GET /permission/mode",
       "POST /api/session/{sessionID}/compact",
       "POST /api/session/{sessionID}/prompt",
       "POST /api/session/{sessionID}/wait",
+      "POST /project",
     ])
   })
 
@@ -243,6 +249,7 @@ describe("HttpApi server", () => {
     expect(
       Object.keys(hono)
         .filter((route) => JSON.stringify(hono[route]) !== JSON.stringify(effect[route]))
+        .filter((route) => !knownParameterSchemaDifferences.has(route))
         .map((route) => ({ route, hono: hono[route], effect: effect[route] })),
     ).toEqual([])
   })
@@ -341,13 +348,13 @@ describe("HttpApi server", () => {
       }),
       app({ password: "secret" }).request(fileUrl(), {
         headers: {
-          authorization: authorization("cody", "wrong"),
+          authorization: authorization("codyx", "wrong"),
           "x-cody-directory": tmp.path,
         },
       }),
       app({ password: "secret" }).request(fileUrl(), {
         headers: {
-          authorization: authorization("cody", "secret"),
+          authorization: authorization("codyx", "secret"),
           "x-cody-directory": tmp.path,
         },
       }),
@@ -360,8 +367,8 @@ describe("HttpApi server", () => {
 
   test("requires credentials for root routes when auth is enabled", async () => {
     const server = app({ password: "secret" })
-    const auth = { authorization: authorization("cody", "secret") }
-    const wrongAuth = { authorization: authorization("cody", "wrong") }
+    const auth = { authorization: authorization("codyx", "secret") }
+    const wrongAuth = { authorization: authorization("codyx", "wrong") }
 
     const [missingHealth, goodHealth, missingConfig, wrongConfig, goodConfig] = await Promise.all([
       server.request(GlobalPaths.health),
@@ -421,7 +428,7 @@ describe("HttpApi server", () => {
     await Bun.write(`${tmp.path}/hello.txt`, "hello")
 
     const response = await app({ password: "secret" }).request(
-      fileUrl({ token: Buffer.from("cody:secret").toString("base64") }),
+      fileUrl({ token: Buffer.from("codyx:secret").toString("base64") }),
       {
         headers: {
           "x-cody-directory": tmp.path,

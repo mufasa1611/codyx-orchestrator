@@ -23,9 +23,18 @@ interface RemovalTargets {
   binary: string | null
   startMenu: string[]
   globalShims: string[]
+  managedTools: ManagedTool[]
   envProxy: string | null
   installRoot: string | null
   installMarker: string | null
+}
+
+interface ManagedTool {
+  name?: string
+  manager?: string
+  packageId?: string
+  path?: string
+  pathAdds?: string[]
 }
 
 interface InstallMarker {
@@ -34,6 +43,7 @@ interface InstallMarker {
   pathAdds?: string[]
   shortcuts?: string[]
   shims?: string[]
+  managedTools?: ManagedTool[]
 }
 
 export const UninstallCommand = {
@@ -97,7 +107,7 @@ export const UninstallCommand = {
 
     await generateRemovalLog(removalLog)
 
-    if (!args.force) await askRemoveOptionalDeps()
+    if (!args.force) await askRemoveOptionalDeps(targets.managedTools)
 
     prompts.outro("Done")
   },
@@ -139,6 +149,7 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
     binary,
     startMenu,
     globalShims,
+    managedTools: marker?.managedTools ?? [],
     envProxy,
     installRoot: marker?.root ?? process.env.CODY_INSTALL_ROOT ?? null,
     installMarker: marker?.root ? path.join(marker.root, ".codyx-install-marker") : null,
@@ -169,6 +180,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   for (const shim of targets.globalShims) {
     prompts.log.info(`  ✓ Shim: ${shortenPath(shim)}`)
+  }
+
+  for (const tool of targets.managedTools) {
+    prompts.log.info(`  ✓ Tool installed by codyx: ${formatManagedTool(tool)}`)
   }
 
   if (targets.envProxy) {
@@ -211,7 +226,10 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
       continue
     }
-    if (targets.installRoot && (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))) {
+    if (
+      targets.installRoot &&
+      (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))
+    ) {
       prompts.log.step(`Deferring ${dir.label} cleanup to install root removal`)
       continue
     }
@@ -362,6 +380,8 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     }
   }
 
+  await removeManagedTools(targets.managedTools, removed, errors)
+
   if (targets.installRoot) {
     const exists = await fs
       .access(targets.installRoot)
@@ -413,41 +433,160 @@ async function generateRemovalLog(log: { removed: string[]; errors: string[] }) 
   prompts.log.info(`Removal log: ${logPath}`)
 }
 
-async function askRemoveOptionalDeps() {
-  const removeBun = await prompts.confirm({
-    message: "Remove Bun (installed specifically for codyx)?",
-    initialValue: false,
-  })
+function formatManagedTool(tool: ManagedTool) {
+  const name = tool.name || "tool"
+  if (tool.manager === "path" && tool.path) return `${name} (${shortenPath(tool.path)})`
+  if (tool.packageId) return `${name} (${tool.manager || "package"}: ${tool.packageId})`
+  return name
+}
 
-  if (removeBun) {
-    prompts.log.step("To remove Bun, run: rm -rf ~/.bun")
-    prompts.log.step("Or on Windows: rmdir /s /q %USERPROFILE%\\.bun")
+function managedToolCommand(tool: ManagedTool) {
+  if (!tool.manager) return
+  if (tool.manager === "path") return
+  if (!tool.packageId) return
+
+  const sudo = os.platform() === "win32" || process.getuid?.() === 0 ? [] : ["sudo"]
+  const commands: Record<string, string[]> = {
+    winget: ["winget", "uninstall", "--id", tool.packageId, "--exact", "--source", "winget", "--silent"],
+    choco: ["choco", "uninstall", tool.packageId, "-y", "--no-progress"],
+    apt: [...sudo, "apt-get", "remove", "-y", tool.packageId],
+    "apt-get": [...sudo, "apt-get", "remove", "-y", tool.packageId],
+    dnf: [...sudo, "dnf", "remove", "-y", tool.packageId],
+    yum: [...sudo, "yum", "remove", "-y", tool.packageId],
+    zypper: [...sudo, "zypper", "remove", "-y", tool.packageId],
+    pacman: [...sudo, "pacman", "-R", "--noconfirm", tool.packageId],
   }
+  return commands[tool.manager]
+}
 
-  const removeCloudflared = await prompts.confirm({
-    message: "Remove cloudflared (installed for codyx proxy tunnel)?",
-    initialValue: false,
-  })
+async function removeManagedTools(tools: ManagedTool[], removed: string[], errors: string[]) {
+  const spinner = prompts.spinner()
+  for (const tool of tools) {
+    for (const entry of tool.pathAdds ?? []) {
+      await removePathEntry(entry).catch(() => {})
+    }
 
-  if (removeCloudflared) {
-    prompts.log.step("To remove cloudflared:")
-    prompts.log.step("  winget uninstall Cloudflare.cloudflared")
-    prompts.log.step(
-      "  Or manual: https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/",
-    )
+    if (tool.manager === "path" && tool.path) {
+      spinner.start(`Removing ${tool.name || "tool"} installed by codyx...`)
+      const err = await fs.rm(tool.path, { recursive: true, force: true }).catch((e) => e)
+      if (err) {
+        spinner.stop(`Failed to remove ${tool.name || "tool"}`, 1)
+        errors.push(`${tool.name || "tool"}: ${err.message}`)
+        continue
+      }
+      removed.push(tool.path)
+      spinner.stop(`Removed ${tool.name || "tool"}`)
+      continue
+    }
+
+    const cmd = managedToolCommand(tool)
+    if (!cmd) continue
+
+    spinner.start(`Removing ${tool.name || tool.packageId || "tool"} installed by codyx...`)
+    const result = await Process.run(cmd, { nothrow: true })
+    if (result.code !== 0) {
+      spinner.stop(`Failed to remove ${tool.name || tool.packageId || "tool"}`, 1)
+      prompts.log.warn(`Run manually: ${cmd.join(" ")}`)
+      errors.push(`${tool.name || tool.packageId || "tool"}: exit code ${result.code}`)
+      continue
+    }
+    removed.push(`managed tool: ${tool.name || tool.packageId}`)
+    spinner.stop(`Removed ${tool.name || tool.packageId || "tool"}`)
   }
 }
 
+async function askRemoveOptionalDeps(managedTools: ManagedTool[]) {
+  if (managedTools.length > 0) return
+  prompts.log.info(
+    "Git, Bun, Node.js, and cloudflared were not marked as installed by codyx, so they were left installed.",
+  )
+}
+
+async function removePathEntry(entry: string) {
+  if (!entry) return
+  if (os.platform() !== "win32") {
+    await removeUnixPathEntry(entry)
+    return
+  }
+  const script = [
+    `$target = '${entry.replace(/'/g, "''")}'`,
+    `$items = ([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ }`,
+    `$kept = @()`,
+    `foreach ($item in $items) {`,
+    `  try { $normalized = [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($item)).TrimEnd('\\') } catch { $normalized = $item.TrimEnd('\\') }`,
+    `  try { $expected = [System.IO.Path]::GetFullPath($target).TrimEnd('\\') } catch { $expected = $target.TrimEnd('\\') }`,
+    `  if (-not $normalized.Equals($expected, [System.StringComparison]::OrdinalIgnoreCase)) { $kept += $item }`,
+    `}`,
+    `[Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')`,
+  ].join("; ")
+  await Process.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    nothrow: true,
+  })
+}
+
+async function removeUnixPathEntry(entry: string) {
+  const files = [
+    path.join(os.homedir(), ".profile"),
+    path.join(os.homedir(), ".bashrc"),
+    path.join(os.homedir(), ".bash_profile"),
+    path.join(process.env.ZDOTDIR || os.homedir(), ".zshrc"),
+    path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "fish", "config.fish"),
+  ]
+  for (const file of files) {
+    const content = await fs.readFile(file, "utf-8").catch(() => "")
+    if (!content) continue
+
+    const next = content
+      .split("\n")
+      .filter((line) => !line.includes(entry) && !line.includes("BUN_INSTALL") && line.trim() !== "# bun")
+      .join("\n")
+    if (next !== content) await fs.writeFile(file, next.endsWith("\n") ? next : `${next}\n`, "utf-8")
+  }
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter((value) => value)))
+}
+
+function uniqueManagedTools(tools: ManagedTool[]) {
+  return Array.from(
+    new Map(
+      tools
+        .filter((tool) => tool.name || tool.packageId || tool.path)
+        .map((tool) => [`${tool.name}|${tool.manager}|${tool.packageId}|${tool.path}`, tool]),
+    ).values(),
+  )
+}
+
 async function readInstallMarker(): Promise<InstallMarker | null> {
-  const root = process.env.CODY_INSTALL_ROOT || ""
-  if (!root) return null
-  const markerPath = path.join(root, ".codyx-install-marker")
-  const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
-  if (!content) return null
-  try {
-    return JSON.parse(content.replace(/^\uFEFF/, "")) as InstallMarker
-  } catch {
-    return null
+  const paths = [
+    ...(process.env.CODY_INSTALL_ROOT ? [path.join(process.env.CODY_INSTALL_ROOT, ".codyx-install-marker")] : []),
+    ...(process.env.LOCALAPPDATA
+      ? [path.join(process.env.LOCALAPPDATA, "codyx-installer", "install-marker.json")]
+      : []),
+  ]
+  const markers = (
+    await Promise.all(
+      paths.map(async (markerPath) => {
+        const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
+        if (!content) return null
+        try {
+          return JSON.parse(content.replace(/^\uFEFF/, "")) as InstallMarker
+        } catch {
+          return null
+        }
+      }),
+    )
+  ).filter((marker): marker is InstallMarker => Boolean(marker))
+  if (markers.length === 0) return null
+
+  return {
+    root: markers.find((marker) => marker.root)?.root,
+    installed: uniqueStrings(markers.flatMap((marker) => marker.installed ?? [])),
+    pathAdds: uniqueStrings(markers.flatMap((marker) => marker.pathAdds ?? [])),
+    shortcuts: uniqueStrings(markers.flatMap((marker) => marker.shortcuts ?? [])),
+    shims: uniqueStrings(markers.flatMap((marker) => marker.shims ?? [])),
+    managedTools: uniqueManagedTools(markers.flatMap((marker) => marker.managedTools ?? [])),
   }
 }
 
@@ -548,11 +687,18 @@ export async function scheduleInstallRootRemoval(root: string) {
     return
   }
 
-  const child = spawn("sh", ["-c", `sleep 2; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`], {
-    cwd: removalCwd,
-    detached: true,
-    stdio: "ignore",
-  })
+  const child = spawn(
+    "sh",
+    [
+      "-c",
+      `sleep 2; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`,
+    ],
+    {
+      cwd: removalCwd,
+      detached: true,
+      stdio: "ignore",
+    },
+  )
   child.unref()
 }
 

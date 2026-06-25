@@ -119,12 +119,9 @@ describe("HttpApi UI fallback", () => {
     let proxiedUrl: string | undefined
 
     const response = await uiApp({
-      client: httpClient(
-        new Response("<html>cody</html>", { headers: { "content-type": "text/html" } }),
-        (request) => {
-          proxiedUrl = request.url
-        },
-      ),
+      client: httpClient(new Response("<html>cody</html>", { headers: { "content-type": "text/html" } }), (request) => {
+        proxiedUrl = request.url
+      }),
     }).request("/")
 
     expect(response.status).toBe(200)
@@ -357,7 +354,7 @@ describe("HttpApi UI fallback", () => {
       password: "secret",
       username: "cody",
       client: httpClient(new Response("<html>cody</html>", { headers: { "content-type": "text/html" } })),
-    }).request(`/?auth_token=${btoa("cody:secret")}`)
+    }).request(`/?auth_token=${btoa("codyx:secret")}`)
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe("<html>cody</html>")
@@ -368,7 +365,7 @@ describe("HttpApi UI fallback", () => {
     Flag.CODY_DISABLE_EMBEDDED_WEB_UI = true
 
     const response = await uiApp({ password: "secret", username: "cody" }).request("/", {
-      headers: { authorization: `Basic ${btoa("cody:secret")}` },
+      headers: { authorization: `Basic ${btoa("codyx:secret")}` },
     })
 
     expect(response.status).toBe(200)

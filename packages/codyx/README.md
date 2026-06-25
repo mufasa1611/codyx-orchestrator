@@ -22,7 +22,7 @@ flowchart TD
     end
 
     subgraph Install ["Install (end-user)"]
-        C1["npm install -g codyx-ai"] --> C2["npm installs matching<br/>codyx-ai-{os}-{arch} as<br/>optional dependency"]
+        C1["npm install -g codyx-ai@beta"] --> C2["npm installs matching<br/>codyx-ai-{os}-{arch} as<br/>optional dependency"]
         C2 --> C3["postinstall.mjs runs"]
         C3 --> C4["require.resolve('codyx-ai-{p}-{a}')"]
         C4 --> C5["link binary → bin/.cody<br/>(bin/.cody.exe on Windows)"]
@@ -49,15 +49,30 @@ flowchart TD
 
 ### Scripts
 
-| Script | Purpose |
-|---|---|
-| `script/build.ts` | Cross-compile platform-specific standalone binaries via Bun.compile |
-| `script/publish.ts` | Publish platform packages + wrapper to npm, Docker, AUR, Homebrew |
-| `script/postinstall.mjs` | End-user postinstall: links correct platform binary into `bin/.cody` |
-| `bin/_launcher.js` | Shared runtime launcher: finds & spawns the platform binary |
-| `bin/codyx` | Thin wrapper → `_launcher('codyx')` |
-| `bin/cody` | Thin wrapper → `_launcher('cody')` |
+| Script                   | Purpose                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `script/build.ts`        | Cross-compile platform-specific standalone binaries via Bun.compile          |
+| `script/publish.ts`      | Publish platform packages + wrapper to npm, Docker, AUR, Homebrew            |
+| `script/postinstall.mjs` | End-user postinstall: links correct platform binary into `bin/.cody`         |
+| `bin/_launcher.js`       | Shared runtime launcher: finds & spawns the platform binary                  |
+| `bin/codyx`              | Thin wrapper → `_launcher('codyx')`                                          |
+| `bin/cody`               | Thin wrapper → `_launcher('cody')`                                           |
 | `script/fix-node-pty.ts` | Dev-only: fix node-pty spawn-helper permissions (runs from root postinstall) |
-| `script/generate.ts` | SDK code generation (imported by build.ts) |
-| `Dockerfile` | Multi-arch Alpine image (libgcc, libstdc++, ripgrep) |
-| `drizzle.config.ts` | Drizzle Kit schema/migration config
+| `script/generate.ts`     | SDK code generation (imported by build.ts)                                   |
+| `Dockerfile`             | Multi-arch Alpine image (libgcc, libstdc++, ripgrep)                         |
+| `drizzle.config.ts`      | Drizzle Kit schema/migration config                                          |
+
+## Source Development
+
+Use Bun from the repository root:
+
+```bash
+bun install
+cd packages/codyx
+bun typecheck
+bun test
+```
+
+Do not run `npm install` in this package or the repository root. The source
+workspace uses Bun catalogs, `bun.lock`, and Bun-specific scripts. npm is used
+only by end users installing the published `codyx-ai` package from the registry.

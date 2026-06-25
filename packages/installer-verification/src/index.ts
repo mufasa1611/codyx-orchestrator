@@ -54,6 +54,11 @@ const commandActionSchema = z.object({
   receipt: z.string().min(1).max(2048),
   command_id: z.string().uuid(),
 })
+const feedbackSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: emailSchema,
+  message: z.string().trim().min(1).max(5000),
+})
 
 class ApiError extends Error {
   constructor(
@@ -451,26 +456,12 @@ app.post("/v1/challenges/:id/verify", async (context) => {
 
 app.post("/v1/feedback", async (context) => {
   await applyIpRateLimit(context.env, context.req.raw)
-  const input = parse(
-    z.object({
-      name: z.string().max(100).optional(),
-      email: z.string().max(254).optional(),
-      message: z.string().trim().min(1).max(5000),
-    }),
-    await jsonBody(context.req.raw),
-  )
+  const input = parse(feedbackSchema, await jsonBody(context.req.raw))
   const now = Date.now()
   await context.env.InstallerVerificationDatabase.prepare(
     "INSERT INTO feedback (id, display_name, email, message, created_at, retain_until) VALUES (?, ?, ?, ?, ?, ?)",
   )
-    .bind(
-      crypto.randomUUID(),
-      input.name ?? null,
-      input.email ?? null,
-      input.message,
-      now,
-      now + 365 * 24 * 60 * 60 * 1000,
-    )
+    .bind(crypto.randomUUID(), input.name, input.email, input.message, now, now + 365 * 24 * 60 * 60 * 1000)
     .run()
   const adminEmail = context.env.INSTALLER_ADMIN_EMAIL
   if (adminEmail) {
@@ -482,8 +473,8 @@ app.post("/v1/feedback", async (context) => {
         sendingKey: value.mailgunSendingKey,
         sender: "Codyx Feedback <installer@verification.kingkung.men>",
         adminEmail,
-        name: input.name ?? null,
-        email: input.email ?? null,
+        name: input.name,
+        email: input.email,
         message: input.message,
       }).catch(() => {
         console.warn(JSON.stringify({ status: 502, error: "feedback_notification_failed" }))

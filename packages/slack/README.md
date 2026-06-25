@@ -1,6 +1,6 @@
 # @cody/slack
 
-Slack bot integration for cody that creates threaded conversations.
+Slack bot integration for codyx that creates threaded conversations.
 
 ## Setup
 
@@ -24,4 +24,5 @@ Slack bot integration for cody that creates threaded conversations.
 bun dev
 ```
 
-The bot will respond to messages in channels where it's added, creating separate cody sessions for each thread.
+The bot responds to messages in channels where it is added, creating separate
+codyx sessions for each thread.

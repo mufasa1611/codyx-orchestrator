@@ -22,10 +22,14 @@ param(
   [string]$Tag = $(if ($env:CODY_NPM_TAG) { $env:CODY_NPM_TAG } else { "latest" }),
   [string]$Version = $(if ($env:CODY_NPM_VERSION) { $env:CODY_NPM_VERSION } else { "" }),
   [switch]$NoVerify,
+  [switch]$AcceptLicense,
   [switch]$Launch
 )
 
 $ErrorActionPreference = "Stop"
+$LicenseUrl = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE"
+$InstallerStateDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
+$InstallerMarkerPath = Join-Path $InstallerStateDir "install-marker.json"
 
 function Write-Ok($Message) {
   Write-Host "[ok] $Message" -ForegroundColor Green
@@ -96,6 +100,177 @@ function Find-CodyxCommand {
   return ""
 }
 
+function Test-InteractiveHost {
+  if (-not [Environment]::UserInteractive) { return $false }
+  try { return -not [Console]::IsInputRedirected } catch { return $true }
+}
+
+function Get-ObjectArray($Value) {
+  if ($null -eq $Value) { return @() }
+  if ($Value -is [System.Array]) { return @($Value) }
+  return @($Value)
+}
+
+function Read-CodyxMarker {
+  if (-not (Test-Path -LiteralPath $InstallerMarkerPath)) { return $null }
+  try {
+    return Get-Content -LiteralPath $InstallerMarkerPath -Raw | ConvertFrom-Json
+  } catch {
+    return $null
+  }
+}
+
+function Write-CodyxMarker($Marker) {
+  $null = New-Item -ItemType Directory -Force -Path $InstallerStateDir
+  [System.IO.File]::WriteAllText(
+    $InstallerMarkerPath,
+    ($Marker | ConvertTo-Json -Compress -Depth 8),
+    [System.Text.UTF8Encoding]::new($false)
+  )
+}
+
+function Test-SameManagedTool($Left, $Right) {
+  return (
+    "$($Left.name)" -eq "$($Right.name)" -and
+    "$($Left.manager)" -eq "$($Right.manager)" -and
+    "$($Left.packageId)" -eq "$($Right.packageId)" -and
+    "$($Left.path)" -eq "$($Right.path)"
+  )
+}
+
+function Add-CodyxManagedTool {
+  param(
+    [string]$Name,
+    [string]$Manager,
+    [string]$PackageId = "",
+    [string]$Path = "",
+    [string[]]$PathAdds = @()
+  )
+
+  $tool = [pscustomobject]@{
+    name = $Name
+    manager = $Manager
+    packageId = $PackageId
+    path = $Path
+    pathAdds = @($PathAdds | Where-Object { $_ })
+  }
+  $marker = Read-CodyxMarker
+  if (-not $marker) { $marker = [pscustomobject]@{} }
+  if (-not ($marker.PSObject.Properties.Name -contains "managedTools")) {
+    $marker | Add-Member -NotePropertyName managedTools -NotePropertyValue @()
+  }
+  $tools = Get-ObjectArray $marker.managedTools
+  if (-not ($tools | Where-Object { Test-SameManagedTool $_ $tool } | Select-Object -First 1)) {
+    $marker.managedTools = @($tools + $tool)
+    Write-CodyxMarker $marker
+  }
+}
+
+function Remove-CodyxPath {
+  param(
+    [string]$Path,
+    [string]$Label
+  )
+
+  if (-not $Path) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  try {
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    Write-Ok "Removed ${Label}: $Path"
+  } catch {
+    Write-Warn "Could not remove ${Label}: $Path"
+  }
+}
+
+function Invoke-CodyxManagedToolCleanup {
+  $marker = Read-CodyxMarker
+  if (-not $marker -or -not ($marker.PSObject.Properties.Name -contains "managedTools")) { return }
+
+  foreach ($tool in (Get-ObjectArray $marker.managedTools)) {
+    $name = "$($tool.name)"
+    $manager = "$($tool.manager)"
+    $packageId = "$($tool.packageId)"
+    $toolPath = "$($tool.path)"
+
+    if ($manager -eq "path") {
+      Remove-CodyxPath $toolPath "$name installed by codyx"
+      continue
+    }
+
+    if ($manager -eq "winget" -and $packageId -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+      Write-Info "Removing $name installed by codyx with winget..."
+      winget uninstall --id $packageId --exact --source winget --silent
+      if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Removed $name installed by codyx."
+      } else {
+        Write-Warn "Could not remove $name with winget. Remove manually if needed: winget uninstall --id $packageId --exact"
+      }
+    }
+  }
+}
+
+function Invoke-CodyxTraceCleanup {
+  Write-Info "Cleaning codyx installation traces..."
+
+  if (Get-Command npm -ErrorAction SilentlyContinue) {
+    npm uninstall -g codyx-ai | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+  }
+
+  $globalBin = Get-NpmGlobalBin
+  if (-not $globalBin) { $globalBin = Join-Path $env:APPDATA "npm" }
+  foreach ($name in @("codyx.cmd", "codyx.ps1", "codyx.exe", "codyx")) {
+    Remove-CodyxPath (Join-Path $globalBin $name) "global shim"
+  }
+
+  Remove-CodyxPath (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\codyx") "Start Menu shortcuts"
+  Invoke-CodyxManagedToolCleanup
+  Remove-CodyxPath (Join-Path $env:LOCALAPPDATA "codyx") "source install root"
+  Remove-CodyxPath $InstallerStateDir "installer verification data"
+
+  Write-Ok "codyx cleanup finished."
+}
+
+function Confirm-LicenseAgreement {
+  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") {
+    Write-Ok "License accepted through explicit installer option."
+    return $true
+  }
+
+  Write-Host "License Agreement" -ForegroundColor Cyan
+  Write-Host "codyx-orchestrator is distributed under the MIT License." -ForegroundColor White
+  Write-Host "License: $LicenseUrl" -ForegroundColor DarkGray
+  Write-Host ""
+  Write-Host "By installing, you agree to the license terms and understand that" -ForegroundColor White
+  Write-Host "the software is provided AS IS, without warranty of any kind." -ForegroundColor White
+  Write-Host ""
+  Write-Host "[ ] Agree and continue installation" -ForegroundColor Green
+  Write-Host "[ ] Disagree and remove codyx traces" -ForegroundColor Red
+  Write-Host ""
+
+  if (-not (Test-InteractiveHost)) {
+    Write-Err "License agreement requires an interactive terminal."
+    Write-Err "Rerun interactively or set CODY_ACCEPT_LICENSE=1 after reviewing the license."
+    return $false
+  }
+
+  while ($true) {
+    $choice = (Read-Host "Type A to agree or D to disagree").Trim().ToLowerInvariant()
+    if ($choice -in @("a", "agree", "y", "yes")) {
+      Write-Host "[x] Agree" -ForegroundColor Green
+      Write-Ok "License accepted."
+      return $true
+    }
+    if ($choice -in @("d", "disagree", "n", "no")) {
+      Write-Host "[x] Disagree" -ForegroundColor Red
+      Write-Warn "License declined. Starting uninstall cleanup."
+      Invoke-CodyxTraceCleanup
+      return $false
+    }
+    Write-Warn "Choose A to agree or D to disagree."
+  }
+}
+
 Write-Host ""
 Write-Host "codyx npm installer for Windows" -ForegroundColor Cyan
 Write-Host ""
@@ -103,10 +278,15 @@ Write-Host ""
 $pkgSpec = if ($Version) { "codyx-ai@$Version" } else { "codyx-ai@$Tag" }
 Write-Info "Target package: $pkgSpec"
 
+if (-not (Confirm-LicenseAgreement)) {
+  exit 1
+}
+
 Write-Host ""
 Write-Info "Checking for Node.js 18+..."
 
 $nodeOk = $false
+$nodeExistedBefore = [bool](Get-Command node -ErrorAction SilentlyContinue)
 if (Get-Command node -ErrorAction SilentlyContinue) {
   $nodeVerStr = (node --version 2>$null) -replace "^v", ""
   $nodeMajor = [int]($nodeVerStr -split "\.")[0]
@@ -128,6 +308,9 @@ if (-not $nodeOk) {
       exit 1
     }
     Refresh-Path
+    if (-not $nodeExistedBefore) {
+      Add-CodyxManagedTool "node" "winget" "OpenJS.NodeJS.LTS"
+    }
   } else {
     Write-Err "Node.js 18+ was not found and winget is not available."
     Write-Err "Install Node.js 18+ from https://nodejs.org and rerun this installer."
@@ -180,7 +363,7 @@ Write-Host "  codyx           Launch interactive menu"
 Write-Host "  codyx web       Start web UI in browser"
 Write-Host "  codyx --help    See all commands"
 Write-Host ""
-Write-Host "Update anytime:   npm update -g codyx-ai"
+Write-Host "Update anytime:   npm install -g $pkgSpec"
 Write-Host "Uninstall:        npm uninstall -g codyx-ai"
 Write-Host ""
 

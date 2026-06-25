@@ -25,7 +25,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $installerArgs = @('-Tag', $env:CODY_NPM_TAG); if ($env:CODY_NPM_VERSION) { $installerArgs = @('-Version', $env:CODY_NPM_VERSION) }; if ($env:CODY_NO_VERIFY -eq '1') { $installerArgs += '-NoVerify' }; if ($env:CODY_NO_LAUNCH -ne '1') { $installerArgs += '-Launch' }; & $env:CODY_TEMP_INSTALLER @installerArgs; exit $LASTEXITCODE }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $installerArgs = @('-Tag', $env:CODY_NPM_TAG); if ($env:CODY_NPM_VERSION) { $installerArgs = @('-Version', $env:CODY_NPM_VERSION) }; if ($env:CODY_NO_VERIFY -eq '1') { $installerArgs += '-NoVerify' }; if ($env:CODY_ACCEPT_LICENSE -eq '1') { $installerArgs += '-AcceptLicense' }; if ($env:CODY_NO_LAUNCH -ne '1') { $installerArgs += '-Launch' }; & $env:CODY_TEMP_INSTALLER @installerArgs; exit $LASTEXITCODE }"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 del "%TEMP_INSTALLER%" >nul 2>nul

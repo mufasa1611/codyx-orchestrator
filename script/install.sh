@@ -41,6 +41,7 @@ CODY_PROXY_URL="${CODY_PROXY_URL:-}"
 IS_SERVER=0
 IS_CONTAINER=0
 PKG_MGR=""
+MANAGED_TOOLS=()
 
 # ── Colors ─────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -58,6 +59,52 @@ err()   { echo -e "${RED}[error]${NC} $1"; }
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+json_escape() {
+  local value="${1:-}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  printf '"%s"' "$value"
+}
+
+record_managed_tool() {
+  MANAGED_TOOLS+=("${1:-}|${2:-}|${3:-}|${4:-}|${5:-}")
+}
+
+write_install_marker() {
+  local marker="$ROOT/.codyx-install-marker"
+  {
+    printf '{"root":'
+    json_escape "$ROOT"
+    printf ',"installed":['
+    json_escape "$GLOBAL_BIN_DIR/codyx"
+    printf '],"pathAdds":['
+    json_escape "$GLOBAL_BIN_DIR"
+    printf '],"shortcuts":[],"shims":['
+    json_escape "$GLOBAL_BIN_DIR/codyx"
+    printf '],"managedTools":['
+    local first=1
+    local entry name manager package_id tool_path path_add
+    for entry in "${MANAGED_TOOLS[@]}"; do
+      IFS='|' read -r name manager package_id tool_path path_add <<< "$entry"
+      [ "$first" = "1" ] || printf ','
+      first=0
+      printf '{"name":'
+      json_escape "$name"
+      printf ',"manager":'
+      json_escape "$manager"
+      printf ',"packageId":'
+      json_escape "$package_id"
+      printf ',"path":'
+      json_escape "$tool_path"
+      printf ',"pathAdds":['
+      if [ -n "$path_add" ]; then json_escape "$path_add"; fi
+      printf ']}'
+    done
+    printf ']}'
+  } > "$marker"
 }
 
 bun_version_supported() {
@@ -257,11 +304,14 @@ fi
 
 step "Checking prerequisites..."
 
+git_existed_before=0
+command_exists git && git_existed_before=1
 if ! command_exists git; then
   if [ -n "$PKG_MGR" ] && (is_root || command_exists sudo); then
     step "Git not found. Installing..."
     pkg_update 2>/dev/null || true
     pkg_install git || { err "Failed to install git"; exit 1; }
+    [ "$git_existed_before" = "0" ] && record_managed_tool "git" "$PKG_MGR" "git" "" ""
     ok "Git installed."
   else
     err "Git is required. Install it with your package manager:"
@@ -273,6 +323,8 @@ if ! command_exists git; then
 fi
 ok "Git found."
 
+bun_existed_before=0
+command_exists bun && bun_existed_before=1
 if ! command_exists bun || ! bun_version_supported "$(bun --version 2>/dev/null || echo 0.0.0)"; then
   if command_exists bun; then
     warn "Bun 1.3.13 or newer is required. Updating..."
@@ -298,6 +350,7 @@ if ! command_exists bun || ! bun_version_supported "$(bun --version 2>/dev/null 
     err "Bun 1.3.13+ installation failed. Install manually: https://bun.sh"
     exit 1
   fi
+  [ "$bun_existed_before" = "0" ] && record_managed_tool "bun" "path" "" "$HOME/.bun" "$HOME/.bun/bin"
   ok "Bun 1.3.13+ installed."
 else
   ok "Bun 1.3.13+ found."
@@ -390,6 +443,7 @@ install_cloudflared() {
   fi
   chmod +x /usr/local/bin/cloudflared
   if command_exists cloudflared; then
+    record_managed_tool "cloudflared" "path" "" "/usr/local/bin/cloudflared" ""
     ok "cloudflared installed ($(cloudflared version 2>/dev/null | head -1))"
     return 0
   fi
@@ -816,6 +870,8 @@ if [ -z "$version" ]; then
   exit 1
 fi
 ok "Global command verified: codyx $version"
+write_install_marker
+ok "Install marker written to $ROOT/.codyx-install-marker"
 
 # ── Show onion address if available ────────────────────────────────────
 

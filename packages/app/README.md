@@ -1,39 +1,49 @@
-## Usage
+# @cody/app
 
-Dependencies for these templates are managed with [pnpm](https://pnpm.io) using `pnpm up -Lri`.
+SolidJS web client for codyx. This package provides the browser UI used by
+`codyx web`, desktop builds, and server-backed deployments.
 
-This is the reason you see a `pnpm-lock.yaml`. That said, any package manager will work. This file can safely be removed once you clone a template.
+## Development
+
+Install dependencies from the repository root with Bun:
 
 ```bash
 bun install
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+Run the app package locally:
 
-## Available Scripts
+```bash
+cd packages/app
+bun run dev
+```
 
-In the project directory, you can run:
+The Vite dev server defaults to `http://localhost:3000`. For a complete local
+session experience, also run a codyx backend:
 
-### `bun run dev`
+```bash
+cd packages/codyx
+bun run src/index.ts serve --port 4096 --print-logs --log-level DEBUG
+```
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Scripts
 
-The page will reload if you make edits.<br>
-
-### `npm run build`
-
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+| Command                  | Purpose                                            |
+| ------------------------ | -------------------------------------------------- |
+| `bun run dev`            | Start the Vite dev server                          |
+| `bun run build`          | Build the production web assets                    |
+| `bun run serve`          | Preview the production build                       |
+| `bun run typecheck`      | Typecheck the app package                          |
+| `bun run test:unit`      | Run unit tests with Happy DOM                      |
+| `bun run test:e2e:local` | Run Playwright tests against the local app/backend |
 
 ## E2E Testing
 
-Playwright starts the Vite dev server automatically via `webServer`, and UI tests expect a codyx backend at `localhost:4096` by default.
+Playwright starts the Vite dev server automatically through `webServer`. UI tests
+expect a codyx backend at `localhost:4096` by default.
 
 ```bash
+cd packages/app
 bunx playwright install chromium
 bun run test:e2e:local
 bun run test:e2e:local -- --grep "settings"
@@ -41,10 +51,11 @@ bun run test:e2e:local -- --grep "settings"
 
 Environment options:
 
-- `PLAYWRIGHT_SERVER_HOST` / `PLAYWRIGHT_SERVER_PORT` (backend address, default: `localhost:4096`)
-- `PLAYWRIGHT_PORT` (Vite dev server port, default: `3000`)
-- `PLAYWRIGHT_BASE_URL` (override base URL, default: `http://localhost:<PLAYWRIGHT_PORT>`)
+- `PLAYWRIGHT_SERVER_HOST` / `PLAYWRIGHT_SERVER_PORT` - backend address, default `localhost:4096`
+- `PLAYWRIGHT_PORT` - Vite dev server port, default `3000`
+- `PLAYWRIGHT_BASE_URL` - override base URL, default `http://localhost:<PLAYWRIGHT_PORT>`
 
-## Deployment
+## Notes
 
-You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)
+Do not run `npm install` in this package. The monorepo uses Bun workspaces,
+`catalog:` dependency versions, and `bun.lock`.

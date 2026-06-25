@@ -48,11 +48,11 @@ ${
   <div class="field-row">
     <div class="form-group">
       <label for="name">Name</label>
-      <input type="text" id="name" name="name" maxlength="100" placeholder="Your name" value="${escapeHtml(name)}">
+      <input type="text" id="name" name="name" maxlength="100" placeholder="Your name" required value="${escapeHtml(name)}">
     </div>
     <div class="form-group">
       <label for="email">Email</label>
-      <input type="email" id="email" name="email" maxlength="254" placeholder="you@example.com" value="${escapeHtml(email)}">
+      <input type="email" id="email" name="email" maxlength="254" placeholder="you@example.com" required value="${escapeHtml(email)}">
     </div>
   </div>
   <div class="form-group">
@@ -90,12 +90,34 @@ document.getElementById("message").addEventListener("input", function() {
 async function submitFeedback(e) {
   e.preventDefault()
   const btn = document.getElementById("submit-btn")
+  const emailInput = document.getElementById("email")
   btn.disabled = true
   btn.textContent = "Sending..."
 
   const name = document.getElementById("name").value.trim()
-  const email = document.getElementById("email").value.trim()
+  const email = emailInput.value.trim()
   const message = document.getElementById("message").value.trim()
+
+  if (!name) {
+    showToast("Please enter your name.", "error")
+    btn.disabled = false
+    btn.textContent = "Send Feedback"
+    return
+  }
+
+  if (!email) {
+    showToast("Please enter your email.", "error")
+    btn.disabled = false
+    btn.textContent = "Send Feedback"
+    return
+  }
+
+  if (!emailInput.checkValidity()) {
+    showToast("Please enter a valid email address.", "error")
+    btn.disabled = false
+    btn.textContent = "Send Feedback"
+    return
+  }
 
   if (!message) {
     showToast("Please enter a message.", "error")
