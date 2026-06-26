@@ -39,6 +39,17 @@ function Invoke-WithSparklingProgress {
     return $res
 }
 
+function Invoke-Native($Command, [object[]]$Arguments = @()) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Command @Arguments
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 $cwd = (Get-Location).Path
 $tempFile = [System.IO.Path]::GetTempFileName()
 
@@ -61,17 +72,9 @@ try {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Backup patch: $patchPath"
             }
 
-            # Run reset with progress
-            $resetBlock = {
-                param($dir, $br, $temp)
-                Set-Location $dir
-                git reset --hard origin/$br
-                $LASTEXITCODE | Set-Content -Path $temp
-            }
-            $null = Invoke-WithSparklingProgress -ScriptBlock $resetBlock -ArgumentList @($cwd, $Branch, $tempFile) -StatusText "Repairing install checkout..."
-            
-            $exitCode = (Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue).Trim()
-            if ($exitCode -eq "0") {
+            Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repairing install checkout..."
+            $exitCode = Invoke-Native "git" @("reset", "--hard", "origin/$Branch")
+            if ($exitCode -eq 0) {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repair complete. Install checkout is now in sync."
             } else {
                 Write-Host "$([char]27)[91m[Codyx]$([char]27)[0m Repair failed. Re-run install.ps1."

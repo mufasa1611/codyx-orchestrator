@@ -34,7 +34,11 @@ public sealed class LauncherWindow : Window
   readonly TextBox logBox = new();
   readonly Button primaryButton = new();
   readonly Button detailsButton = new();
+  readonly Button terminalButton = new();
+  readonly Button webButton = new();
+  readonly Button uninstallButton = new();
   readonly Border licensePanel = new();
+  readonly Border launchChoicePanel = new();
   readonly Border setupInputPanel = new();
   readonly TextBlock setupPromptText = new();
   readonly TextBox setupInput = new();
@@ -47,6 +51,7 @@ public sealed class LauncherWindow : Window
   Process? setupProcess;
   RoutedEventHandler? primaryHandler;
   bool setupPromptActive;
+  bool firstChatPromptOnTerminalLaunch;
 
   public LauncherWindow()
   {
@@ -59,10 +64,11 @@ public sealed class LauncherWindow : Window
   void ConfigureWindow()
   {
     Title = "codyx Launcher";
-    Width = 720;
-    Height = 860;
-    MinWidth = 620;
-    MinHeight = 760;
+    var workArea = SystemParameters.WorkArea;
+    Width = Math.Min(980, Math.Max(760, workArea.Width - 80));
+    Height = Math.Min(940, Math.Max(680, workArea.Height - 80));
+    MinWidth = Math.Min(760, Width);
+    MinHeight = Math.Min(680, Height);
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
     Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
   }
@@ -132,6 +138,16 @@ public sealed class LauncherWindow : Window
     licensePanel.Child = BuildLicensePanel();
     body.Children.Add(licensePanel);
 
+    launchChoicePanel.Visibility = Visibility.Collapsed;
+    launchChoicePanel.Margin = new Thickness(0, 18, 0, 0);
+    launchChoicePanel.Padding = new Thickness(18);
+    launchChoicePanel.CornerRadius = new CornerRadius(8);
+    launchChoicePanel.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    launchChoicePanel.BorderThickness = new Thickness(1);
+    launchChoicePanel.Background = new SolidColorBrush(Color.FromRgb(17, 23, 34));
+    launchChoicePanel.Child = BuildLaunchChoicePanel();
+    body.Children.Add(launchChoicePanel);
+
     var actions = new StackPanel
     {
       Orientation = Orientation.Horizontal,
@@ -172,7 +188,14 @@ public sealed class LauncherWindow : Window
     setupInputPanel.Child = BuildSetupInputPanel();
     body.Children.Add(setupInputPanel);
 
-    root.Children.Add(body);
+    var scroll = new ScrollViewer
+    {
+      Content = body,
+      VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+      HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+    };
+    Grid.SetRow(scroll, 1);
+    root.Children.Add(scroll);
     return root;
   }
 
@@ -212,6 +235,55 @@ public sealed class LauncherWindow : Window
     row.Children.Add(setupSendButton);
 
     panel.Children.Add(row);
+    return panel;
+  }
+
+  UIElement BuildLaunchChoicePanel()
+  {
+    var panel = new StackPanel();
+    panel.Children.Add(new TextBlock
+    {
+      Text = "Choose how to start codyx",
+      Foreground = Brushes.White,
+      FontWeight = FontWeights.Bold,
+      FontSize = 18,
+      Margin = new Thickness(0, 0, 0, 6),
+    });
+    panel.Children.Add(new TextBlock
+    {
+      Text = "Updates are checked. Start the terminal experience, open the Web UI, or remove codyx from this Windows user.",
+      Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224)),
+      TextWrapping = TextWrapping.Wrap,
+      Margin = new Thickness(0, 0, 0, 14),
+    });
+
+    var buttons = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      HorizontalAlignment = HorizontalAlignment.Right,
+    };
+
+    terminalButton.Content = "Terminal UI";
+    terminalButton.Padding = new Thickness(16, 9, 16, 9);
+    terminalButton.Margin = new Thickness(0, 0, 10, 0);
+    terminalButton.Background = new SolidColorBrush(Color.FromRgb(35, 225, 126));
+    terminalButton.Foreground = Brushes.Black;
+    terminalButton.FontWeight = FontWeights.Bold;
+    terminalButton.Click += (_, _) => LaunchTerminalUi();
+    buttons.Children.Add(terminalButton);
+
+    webButton.Content = "Web UI";
+    webButton.Padding = new Thickness(16, 9, 16, 9);
+    webButton.Margin = new Thickness(0, 0, 10, 0);
+    webButton.Click += (_, _) => LaunchWebUi();
+    buttons.Children.Add(webButton);
+
+    uninstallButton.Content = "Uninstall";
+    uninstallButton.Padding = new Thickness(16, 9, 16, 9);
+    uninstallButton.Click += async (_, _) => await BeginUninstallAsync();
+    buttons.Children.Add(uninstallButton);
+
+    panel.Children.Add(buttons);
     return panel;
   }
 
@@ -362,8 +434,8 @@ public sealed class LauncherWindow : Window
     licensePanel.Visibility = Visibility.Collapsed;
     SetPrimaryAction("Setup running...", false, null);
     statusText.Text = "Complete identity and email verification below.";
-    AppendLog("Starting setup with explicit license acceptance.");
-    AppendLog("The answer box will unlock only when the installer asks for a real answer.");
+    AppendLog("Starting first-run setup after license acceptance.");
+    AppendLog("The answer box unlocks only when the installer asks for your name, email, or verification code.");
     ShowDetails(true);
     ShowSetupInput(false, "Waiting for installer prompt...");
 
@@ -376,10 +448,8 @@ public sealed class LauncherWindow : Window
       SetStep(2, StepState.Done);
       SetStep(3, StepState.Done);
       SetStep(4, StepState.Active);
-      LaunchCodyx(true);
-      SetStep(4, StepState.Done);
-      statusText.Text = "codyx setup finished and launched.";
-      SetPrimaryAction("Close", true, (_, _) => Close());
+      ShowLaunchChoices(true);
+      statusText.Text = "codyx setup finished. Choose how to start.";
       return;
     }
 
@@ -398,8 +468,8 @@ public sealed class LauncherWindow : Window
     if (code != 0)
     {
       SetStep(1, StepState.Error);
-      statusText.Text = "Update check failed. View details for the launcher log.";
-      SetPrimaryAction("Open interactive setup", true, async (_, _) => await ContinueFirstRunAsync());
+      statusText.Text = "Update or repair failed. View details, then retry.";
+      SetPrimaryAction("Retry update check", true, async (_, _) => await RunUpdateThenLaunchAsync());
       return;
     }
 
@@ -407,10 +477,8 @@ public sealed class LauncherWindow : Window
     SetStep(2, StepState.Done);
     SetStep(3, StepState.Done);
     SetStep(4, StepState.Active);
-    LaunchCodyx(false);
-    SetStep(4, StepState.Done);
-    statusText.Text = "codyx is launching.";
-    SetPrimaryAction("Close", true, (_, _) => Close());
+    ShowLaunchChoices(false);
+    statusText.Text = "codyx is ready. Choose how to start.";
   }
 
   async Task<int> RunHiddenLauncherAsync()
@@ -477,26 +545,256 @@ public sealed class LauncherWindow : Window
     }
   }
 
-  void LaunchCodyx(bool firstChatPrompt)
+  void ShowLaunchChoices(bool firstChatPrompt)
+  {
+    firstChatPromptOnTerminalLaunch = firstChatPrompt;
+    setupInputPanel.Visibility = Visibility.Collapsed;
+    launchChoicePanel.Visibility = Visibility.Visible;
+    terminalButton.IsEnabled = true;
+    webButton.IsEnabled = true;
+    uninstallButton.IsEnabled = true;
+    SetPrimaryAction("Close", true, (_, _) => Close());
+  }
+
+  void LaunchTerminalUi()
+  {
+    if (!LaunchCodyx("--no-banner", firstChatPromptOnTerminalLaunch)) return;
+    firstChatPromptOnTerminalLaunch = false;
+    SetStep(4, StepState.Done);
+    statusText.Text = "Terminal UI opened.";
+  }
+
+  void LaunchWebUi()
+  {
+    if (!LaunchCodyx("--launcher-web", false)) return;
+    SetStep(4, StepState.Done);
+    statusText.Text = "Web UI is starting in its terminal window.";
+  }
+
+  bool LaunchCodyx(string arguments, bool firstChatPrompt)
   {
     var command = IOPath.Combine(installRoot, "codyx.cmd");
     if (!File.Exists(command))
     {
       AppendLog($"Cannot find {command}");
-      return;
+      statusText.Text = "Cannot find the installed codyx launcher.";
+      return false;
     }
 
+    var commandLine = string.IsNullOrWhiteSpace(arguments)
+      ? $"\"{command}\""
+      : $"\"{command}\" {arguments}";
     var startInfo = new ProcessStartInfo
     {
       FileName = "cmd.exe",
       Arguments = firstChatPrompt
-        ? $"/d /s /k \"set CODY_FIRST_CHAT_PROMPT=1&& \"\"{command}\"\"\""
-        : $"/d /s /k \"\"{command}\"\"",
+        ? $"/d /s /k \"set CODY_FIRST_CHAT_PROMPT=1&& {commandLine}\""
+        : $"/d /s /k \"{commandLine}\"",
       UseShellExecute = true,
       WorkingDirectory = installRoot,
       WindowStyle = ProcessWindowStyle.Normal,
     };
     Process.Start(startInfo);
+    return true;
+  }
+
+  async Task BeginUninstallAsync()
+  {
+    var result = MessageBox.Show(
+      this,
+      $"Remove codyx for this Windows user?\n\nInstall root:\n{installRoot}\n\nThis removes Codyx-owned folders, shims, shortcuts, temp launcher files, app data, and tools recorded as installed by Codyx.",
+      "Uninstall codyx",
+      MessageBoxButton.YesNo,
+      MessageBoxImage.Warning);
+    if (result != MessageBoxResult.Yes) return;
+
+    terminalButton.IsEnabled = false;
+    webButton.IsEnabled = false;
+    uninstallButton.IsEnabled = false;
+    SetPrimaryAction("Uninstalling...", false, null);
+    statusText.Text = "Removing codyx from this Windows user.";
+    ShowDetails(true);
+    AppendLog("Starting uninstall from a temporary cleanup script.");
+
+    var code = await RunProcessAsync(new ProcessStartInfo
+    {
+      FileName = PowerShellPath(),
+      Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{WriteTempUninstallScript()}\" -InstallRoot \"{installRoot}\"",
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+      CreateNoWindow = true,
+      WorkingDirectory = AppContext.BaseDirectory,
+    });
+
+    if (code == 0)
+    {
+      launchChoicePanel.Visibility = Visibility.Collapsed;
+      SetStep(4, StepState.Done);
+      statusText.Text = "codyx was removed. You can close this window.";
+      SetPrimaryAction("Close", true, (_, _) => Close());
+      return;
+    }
+
+    SetStep(4, StepState.Error);
+    statusText.Text = "Uninstall did not finish. View details and try again.";
+    terminalButton.IsEnabled = true;
+    webButton.IsEnabled = true;
+    uninstallButton.IsEnabled = true;
+    SetPrimaryAction("Try uninstall again", true, async (_, _) => await BeginUninstallAsync());
+  }
+
+  static string WriteTempUninstallScript()
+  {
+    var dir = IOPath.Combine(IOPath.GetTempPath(), $"codyx-uninstall-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(dir);
+    var script = IOPath.Combine(dir, "remove-codyx.ps1");
+    File.WriteAllText(script, """
+param([string]$InstallRoot)
+
+$ErrorActionPreference = "Continue"
+
+function Remove-CodyxPath {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+  if (Test-Path -LiteralPath $Path) {
+    Write-Host "[warn] Could not remove $Path"
+    return
+  }
+  Write-Host "[ok] Removed $Path"
+}
+
+function Remove-CodyxFile {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+  if (Test-Path -LiteralPath $Path) {
+    Write-Host "[warn] Could not remove $Path"
+    return
+  }
+  Write-Host "[ok] Removed $Path"
+}
+
+function Read-CodyxMarker {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) { return $null }
+  try { return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json } catch { return $null }
+}
+
+function Get-ObjectArray {
+  param($Value)
+  if ($null -eq $Value) { return @() }
+  if ($Value -is [array]) { return @($Value) }
+  return @($Value)
+}
+
+function Remove-UserPathEntry {
+  param([string]$Entry)
+  if ([string]::IsNullOrWhiteSpace($Entry)) { return }
+  try { $target = [System.IO.Path]::GetFullPath($Entry).TrimEnd("\") } catch { $target = $Entry.TrimEnd("\") }
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if ([string]::IsNullOrWhiteSpace($userPath)) { return }
+  $kept = @()
+  $removed = $false
+  foreach ($item in @($userPath -split ";")) {
+    if ([string]::IsNullOrWhiteSpace($item)) { continue }
+    $expanded = [Environment]::ExpandEnvironmentVariables($item)
+    try { $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd("\") } catch { $normalized = $expanded.TrimEnd("\") }
+    if ($normalized.Equals($target, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $removed = $true
+      continue
+    }
+    $kept += $item
+  }
+  if (-not $removed) { return }
+  [Environment]::SetEnvironmentVariable("Path", (@($kept) -join ";"), "User")
+  Write-Host "[ok] Removed PATH entry $Entry"
+}
+
+function Invoke-CodyxManagedToolCleanup {
+  param($Marker)
+  if ($null -eq $Marker -or -not ($Marker.PSObject.Properties.Name -contains "managedTools")) { return }
+  foreach ($tool in (Get-ObjectArray $Marker.managedTools)) {
+    foreach ($entry in (Get-ObjectArray $tool.pathAdds)) {
+      Remove-UserPathEntry "$entry"
+    }
+    if ("$($tool.manager)" -eq "path") {
+      Remove-CodyxPath "$($tool.path)"
+      continue
+    }
+    if ("$($tool.manager)" -eq "winget" -and "$($tool.packageId)" -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+      Write-Host "[info] Removing $($tool.name) installed by codyx with winget."
+      & winget uninstall --id "$($tool.packageId)" --exact --source winget --silent
+      if ($LASTEXITCODE -eq 0) { Write-Host "[ok] Removed $($tool.name)" } else { Write-Host "[warn] Could not remove $($tool.name)" }
+      continue
+    }
+    if ("$($tool.manager)" -eq "choco" -and "$($tool.packageId)" -and (Get-Command choco -ErrorAction SilentlyContinue)) {
+      Write-Host "[info] Removing $($tool.name) installed by codyx with choco."
+      & choco uninstall "$($tool.packageId)" -y --no-progress
+      if ($LASTEXITCODE -eq 0) { Write-Host "[ok] Removed $($tool.name)" } else { Write-Host "[warn] Could not remove $($tool.name)" }
+    }
+  }
+}
+
+$local = [Environment]::GetFolderPath("LocalApplicationData")
+$roaming = [Environment]::GetFolderPath("ApplicationData")
+$user = [Environment]::GetFolderPath("UserProfile")
+$temp = [System.IO.Path]::GetTempPath()
+$installerState = Join-Path $local "codyx-installer"
+$marker = Read-CodyxMarker (Join-Path $installerState "install-marker.json")
+$checkoutMarker = if ([string]::IsNullOrWhiteSpace($InstallRoot)) { $null } else { Read-CodyxMarker (Join-Path $InstallRoot ".codyx-install-marker") }
+
+Invoke-CodyxManagedToolCleanup $marker
+Invoke-CodyxManagedToolCleanup $checkoutMarker
+
+foreach ($shim in @("codyx", "cody", "cody-x", "codyx-ai")) {
+  foreach ($extension in @("", ".cmd", ".ps1")) {
+    Remove-CodyxFile (Join-Path (Join-Path $roaming "npm") "$shim$extension")
+  }
+}
+
+foreach ($path in @(
+  $InstallRoot,
+  (Join-Path $local "codyx-installer"),
+  (Join-Path $local "codyx"),
+  (Join-Path $roaming "codyx"),
+  (Join-Path $roaming "Microsoft\Windows\Start Menu\Programs\codyx"),
+  (Join-Path $user ".codyx"),
+  (Join-Path $user ".config\codyx"),
+  (Join-Path $user ".local\share\codyx"),
+  (Join-Path $user ".local\state\codyx"),
+  (Join-Path $user ".cache\codyx"),
+  (Join-Path $temp "codyx-launcher")
+) | Select-Object -Unique) {
+  Remove-CodyxPath $path
+}
+
+$npm = Get-Command npm -ErrorAction SilentlyContinue
+if ($npm) {
+  try {
+    Write-Host "[info] Removing global npm package codyx-ai if present."
+    & $npm.Source uninstall -g codyx-ai --silent
+  } catch {
+    Write-Host "[warn] npm global package cleanup failed."
+  }
+}
+
+$self = $MyInvocation.MyCommand.Path
+$parent = Split-Path -Parent $self
+$escapedSelf = $self.Replace("'", "''")
+$escapedParent = $parent.Replace("'", "''")
+Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -ArgumentList @(
+  "-NoProfile",
+  "-ExecutionPolicy",
+  "Bypass",
+  "-Command",
+  "Start-Sleep -Milliseconds 800; Remove-Item -LiteralPath '$escapedSelf' -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath '$escapedParent' -Recurse -Force -ErrorAction SilentlyContinue"
+)
+""");
+    return script;
   }
 
   string ExtractLauncherScript()

@@ -202,6 +202,7 @@ function Sync-Checkout {
     $parts = if ($counts) { @($counts -split "\s+") } else { @("0", "0") }
     $ahead = if ($parts.Length -gt 0) { [int]$parts[0] } else { 0 }
     $behind = if ($parts.Length -gt 1) { [int]$parts[1] } else { 0 }
+    $null = Invoke-Native "git" @("update-index", "-q", "--refresh")
     $trackedChanges = @(& git status --porcelain --untracked-files=no 2>$null | Where-Object { $_ -and $_.Trim() })
 
     if ($ahead -gt 0 -or $trackedChanges.Count -gt 0) {

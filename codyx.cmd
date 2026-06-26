@@ -174,6 +174,17 @@ if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
   )
 )
 
+if /I "%~1"=="--launcher-web" (
+  echo %ESC%[94m[Codyx]%ESC%[0m Building and starting web UI...
+  call "%BUN%" run --cwd "%ROOT%packages\app" build
+  if errorlevel 1 exit /b %ERRORLEVEL%
+  pushd "%ROOT%"
+  call "%BUN%" run codyx web
+  set "CODY_EXIT_CODE=%ERRORLEVEL%"
+  popd
+  exit /b !CODY_EXIT_CODE!
+)
+
 if not "%~1"=="" (
   call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts %*
   exit /b %ERRORLEVEL%
