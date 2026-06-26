@@ -506,15 +506,15 @@ jobs:
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         working-directory: packages/android
         run: |
-          bunx @bubblewrap/cli update --manifest .
-          bunx @bubblewrap/cli build --manifest . --skipPwaValidation --signingKeyPath ./android.keystore --signingKeyAlias codyx
+          bunx @bubblewrap/cli update --manifest twa-manifest.json
+          bunx @bubblewrap/cli build --manifest twa-manifest.json --skipPwaValidation --signingKeyPath ./android.keystore --signingKeyAlias codyx
 
       - name: Build unsigned Android package
         if: env.ANDROID_KEYSTORE_BASE64 == ''
         working-directory: packages/android
         run: |
-          bunx @bubblewrap/cli update --manifest .
-          bunx @bubblewrap/cli build --manifest . --skipPwaValidation --skipSigning
+          bunx @bubblewrap/cli update --manifest twa-manifest.json
+          bunx @bubblewrap/cli build --manifest twa-manifest.json --skipPwaValidation --skipSigning
 
       - name: Upload Android release assets
         if: needs.version.outputs.release != ''

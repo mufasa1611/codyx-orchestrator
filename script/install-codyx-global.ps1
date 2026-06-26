@@ -142,7 +142,7 @@ $null = New-Item -ItemType Directory -Force -Path $startMenuDir
 $shell = New-Object -ComObject WScript.Shell
 $launchShortcut = $shell.CreateShortcut("$startMenuDir\codyx.lnk")
 $launchShortcut.TargetPath = "cmd.exe"
-$launchShortcut.Arguments = "/c `"`"$npmDir\codyx.cmd`"`""
+$launchShortcut.Arguments = "/k `"`"$npmDir\codyx.cmd`"`""
 $launchShortcut.Description = "Launch codyx"
 $launchShortcut.WorkingDirectory = $Root
 $launchShortcut.Save()
@@ -152,7 +152,7 @@ $marker.installed += "$startMenuDir\codyx.lnk"
 
 $webShortcut = $shell.CreateShortcut("$startMenuDir\codyx Web.lnk")
 $webShortcut.TargetPath = "cmd.exe"
-$webShortcut.Arguments = "/c `"`"$npmDir\codyx.cmd`" web"
+$webShortcut.Arguments = "/k `"`"$npmDir\codyx.cmd`" web"
 $webShortcut.Description = "Launch codyx web UI"
 $webShortcut.WorkingDirectory = $Root
 $webShortcut.Save()

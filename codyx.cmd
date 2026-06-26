@@ -159,10 +159,21 @@ if "%CODY_CHOICE%"=="255" exit /b 0
 if "%CODY_CHOICE%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Building and starting web UI...
   call "%BUN%" run --cwd "%ROOT%packages\app" build
+  set "CODY_EXIT_CODE=%ERRORLEVEL%"
+  if not "!CODY_EXIT_CODE!"=="0" goto cody_done
   pushd "%ROOT%"
   call "%BUN%" run codyx web
+  set "CODY_EXIT_CODE=%ERRORLEVEL%"
   popd
 ) else (
   call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts --no-banner
+  set "CODY_EXIT_CODE=%ERRORLEVEL%"
 )
-exit /b %ERRORLEVEL%
+
+:cody_done
+if not defined CODY_EXIT_CODE set "CODY_EXIT_CODE=%ERRORLEVEL%"
+echo.
+echo %ESC%[94m[Codyx]%ESC%[0m Session ended with exit code !CODY_EXIT_CODE!.
+echo Press any key to close this window...
+pause >nul
+exit /b !CODY_EXIT_CODE!

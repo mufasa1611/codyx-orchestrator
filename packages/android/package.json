@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "version": "bun scripts/sync-version.ts",
-    "update": "bun run version && bunx @bubblewrap/cli update --manifest .",
-    "build": "bun run update && bunx @bubblewrap/cli build --manifest . --skipPwaValidation",
-    "build:unsigned": "bun run update && bunx @bubblewrap/cli build --manifest . --skipPwaValidation --skipSigning"
+    "update": "bun run version && bunx @bubblewrap/cli update --manifest twa-manifest.json",
+    "build": "bun run update && bunx @bubblewrap/cli build --manifest twa-manifest.json --skipPwaValidation",
+    "build:unsigned": "bun run update && bunx @bubblewrap/cli build --manifest twa-manifest.json --skipPwaValidation --skipSigning"
   },
   "license": "MIT"
 }
