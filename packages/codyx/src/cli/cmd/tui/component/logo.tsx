@@ -62,7 +62,7 @@ const shimmerConfig: ShimmerConfig = {
 // _ = full shadow cell (space with bg=shadow)
 // ^ = letter top, shadow bottom (▀ with fg=letter, bg=shadow)
 // ~ = shadow top only (▀ with fg=shadow)
-const GAP = 1
+const GAP = 0
 const WIDTH = 0.76
 const GAIN = 2.3
 const FLASH = 2.15

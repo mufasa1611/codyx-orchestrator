@@ -51,11 +51,11 @@ export function logo(pad?: string) {
     bg: "\x1b[48;5;235m",
   }
   const right = {
-    fg: reset,
+    fg: "\x1b[92m",
     shadow: "\x1b[38;5;238m",
     bg: "\x1b[48;5;238m",
   }
-  const gap = " "
+  const gap = ""
   const draw = (line: string, fg: string, shadow: string, bg: string) => {
     const parts: string[] = []
     for (const char of line) {

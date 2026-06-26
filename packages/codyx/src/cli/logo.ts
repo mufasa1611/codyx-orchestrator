@@ -4,8 +4,8 @@
 }
 
 export const codyX = {
-  left: ["", "▄▀▀▀ █▀▀█ █▀▀▄ █▀▀█  █▀▀█", "█    █  █ █  █ ▀██▀  ▀██▀", "▀▀▀▀ ▀▀▀▀ ▀▀▀   ██    ▀▀"],
-  right: ["", "", "", ""],
+  left: ["Codyx-"],
+  right: ["orchestrator"],
 }
 
 export const go = {

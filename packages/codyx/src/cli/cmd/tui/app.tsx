@@ -406,7 +406,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
             description: "Keep chatting now. You can run /init yourself when you want Codyx to learn this system.",
             value: "no",
             onSelect: (d) => {
-              kv.set("first_system_init_prompt_answered", true)
+              kv.set("first_system_init_prompt_answered_v2", true)
               d.clear()
               toast.show({
                 variant: "info",
@@ -420,7 +420,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
             description: "Run /init now so the agent can inspect the system and write helpful memo notes.",
             value: "yes",
             onSelect: (d) => {
-              kv.set("first_system_init_prompt_answered", true)
+              kv.set("first_system_init_prompt_answered_v2", true)
               d.clear()
               promptRef.current?.set({ input: "/init", parts: [] })
               promptRef.current?.submit()
@@ -435,7 +435,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     if (firstInitPromptStarted) return
     if (process.env.CODY_FIRST_CHAT_PROMPT !== "1") return
     if (!kv.ready) return
-    if (kv.get("first_system_init_prompt_answered", false)) return
+    if (kv.get("first_system_init_prompt_answered_v2", false)) return
     if (sync.status !== "complete") return
     if (sync.data.provider.length === 0) return
     if (route.data.type !== "home") return
