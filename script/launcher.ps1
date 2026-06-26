@@ -1,41 +1,313 @@
-param([string]$Root)
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+  First-run and daily launcher for codyx on Windows.
+.DESCRIPTION
+  Installs missing prerequisites, bootstraps the source checkout through the
+  normal installer on first run, silently fast-forwards the install checkout on
+  later launches, refreshes dependencies/build output when needed, then starts
+  the normal codyx command so the existing TUI/Web menu and verification flow
+  remain intact.
+#>
+[CmdletBinding(PositionalBinding = $false)]
+param(
+  [string]$RepoUrl = $(if ($env:CODY_REPO_URL) { $env:CODY_REPO_URL } else { "https://github.com/mufasa1611/codyx-orchestrator.git" }),
+  [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "dev" }),
+  [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA "codyx" }),
+  [switch]$AcceptLicense,
+  [switch]$NoBuild,
+  [switch]$NoLaunch,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$CodyxArgs
+)
 
-$options = @("CLI (Terminal UI)", "Web UI (Browser)")
-$selected = 0
-$esc = [char]0x1b
-$up = [char]0x2191
-$down = [char]0x2193
-$menuHeight = $options.Length + 5
-$first = $true
-try {
-    try { [Console]::CursorVisible = $false } catch {}
-    $host.UI.RawUI.FlushInputBuffer()
-    do {
-        if (-not $first) {
-            Write-Host "${esc}[${menuHeight}A${esc}[J" -NoNewline
-        } else {
-            $first = $false
-        }
-        Write-Host ""
-        Write-Host "  codyx Launcher"
-        Write-Host ""
-        for ($i = 0; $i -lt $options.Length; $i++) {
-            if ($i -eq $selected) {
-                Write-Host "${esc}[38;5;214m  > $($options[$i])${esc}[0m"
-            } else {
-                Write-Host "${esc}[2m    $($options[$i])${esc}[0m"
-            }
-        }
-        Write-Host ""
-        Write-Host "  (${up}/${down} to move, Enter to select)"
-        $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        if ($key.VirtualKeyCode -eq 38) { $selected = ($selected - 1 + $options.Length) % $options.Length }
-        elseif ($key.VirtualKeyCode -eq 40) { $selected = ($selected + 1) % $options.Length }
-        elseif ($key.VirtualKeyCode -eq 27) { $selected = 255; break }
-    } until ($key.VirtualKeyCode -eq 13)
-} finally {
-    try { [Console]::CursorVisible = $true } catch {}
-    $host.UI.RawUI.FlushInputBuffer()
+$ErrorActionPreference = "Stop"
+try { $Host.UI.RawUI.WindowTitle = "codyx Launcher" } catch {}
+
+function Write-Info($Message) {
+  Write-Host "[codyx] $Message" -ForegroundColor Cyan
 }
 
-exit $selected
+function Write-Ok($Message) {
+  Write-Host "[ok] $Message" -ForegroundColor Green
+}
+
+function Write-Warn($Message) {
+  Write-Host "[warn] $Message" -ForegroundColor Yellow
+}
+
+function Test-Command($Name) {
+  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Get-BunCommand {
+  $cmd = Get-Command bun -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  foreach ($candidate in @(
+    (Join-Path $env:USERPROFILE ".bun\bin\bun.exe"),
+    (Join-Path $env:APPDATA "npm\bun.cmd")
+  )) {
+    if (Test-Path -LiteralPath $candidate) { return $candidate }
+  }
+  return $null
+}
+
+function Test-BunVersion {
+  $bun = Get-BunCommand
+  if (-not $bun) { return $false }
+  try {
+    return [version](& $bun --version) -ge [version]"1.3.13"
+  } catch {
+    return $false
+  }
+}
+
+function Install-WithWinget($CommandName, $PackageId, $Label) {
+  if (Test-Command $CommandName) { return $true }
+  if (-not (Test-Command winget)) { return $false }
+  Write-Info "$Label not found. Installing with winget..."
+  & winget install --id $PackageId --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) { return $false }
+  $env:PATH = "$env:ProgramFiles\Git\cmd;$env:ProgramFiles\nodejs;$env:PATH"
+  return (Test-Command $CommandName)
+}
+
+function Install-WithChoco($CommandName, $PackageId, $Label) {
+  if (Test-Command $CommandName) { return $true }
+  if (-not (Test-Command choco)) { return $false }
+  Write-Info "$Label not found. Installing with Chocolatey..."
+  & choco install $PackageId -y --no-progress | Out-Null
+  if ($LASTEXITCODE -ne 0) { return $false }
+  refreshenv 2>$null
+  return (Test-Command $CommandName)
+}
+
+function Ensure-Git {
+  if (Test-Command git) {
+    Write-Ok "Git found."
+    return
+  }
+  if (Install-WithWinget "git" "Git.Git" "Git") {
+    Write-Ok "Git installed."
+    return
+  }
+  if (Install-WithChoco "git" "git" "Git") {
+    Write-Ok "Git installed."
+    return
+  }
+  throw "Git is required and could not be installed automatically. Install Git, then run this launcher again."
+}
+
+function Ensure-Bun {
+  if (Test-BunVersion) {
+    Write-Ok "Bun 1.3.13+ found."
+    return
+  }
+  Write-Info "Bun 1.3.13+ not found. Installing Bun for the current user..."
+  $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -Command "irm https://bun.sh/install.ps1 | iex"
+  if ($LASTEXITCODE -ne 0) { throw "Bun installation failed." }
+  $env:PATH = "$(Join-Path $env:USERPROFILE ".bun\bin");$(Join-Path $env:APPDATA "npm");$env:PATH"
+  if (-not (Test-BunVersion)) { throw "Bun 1.3.13+ is still unavailable after install." }
+  Write-Ok "Bun installed."
+}
+
+function Test-CodyxCheckout($Path) {
+  if (-not $Path) { return $false }
+  if (-not (Test-Path -LiteralPath (Join-Path $Path "package.json"))) { return $false }
+  if (-not (Test-Path -LiteralPath (Join-Path $Path "codyx.cmd"))) { return $false }
+  try {
+    return (Get-Content -Raw -LiteralPath (Join-Path $Path "package.json")) -match '"name"\s*:\s*"codyx-orchestrator"'
+  } catch {
+    return $false
+  }
+}
+
+function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
+  $backoff = 1
+  for ($i = 0; $i -lt $MaxRetries; $i++) {
+    try {
+      & $ScriptBlock
+      return
+    } catch {
+      if ($i -eq $MaxRetries - 1) { throw }
+      Write-Warn "$Label failed (attempt $($i + 1)/$MaxRetries). Retrying in ${backoff}s..."
+      Start-Sleep -Seconds $backoff
+      $backoff = [Math]::Min($backoff * 2, 16)
+    }
+  }
+}
+
+function Invoke-FirstRunInstall {
+  Write-Info "First run setup is needed."
+  $installer = Join-Path $InstallRoot "script\install.ps1"
+  $installerArgs = @("-Branch", $Branch, "-InstallRoot", $InstallRoot)
+  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
+  if ($NoBuild) { $installerArgs += "-NoBuild" }
+  $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $installer @installerArgs
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+function Sync-Checkout {
+  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot ".git"))) { return $false }
+
+  Push-Location $InstallRoot
+  try {
+    $beforeHead = (& git rev-parse HEAD 2>$null).Trim()
+    & git fetch origin $Branch --quiet
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warn "Could not reach origin/$Branch. Launching the installed copy."
+      return $false
+    }
+
+    $currentBranch = (& git branch --show-current 2>$null).Trim()
+    if (-not $currentBranch) {
+      Write-Warn "Detached checkout detected. Skipping launcher update."
+      return $false
+    }
+    if ($currentBranch -ne $Branch) {
+      Write-Info "Switching install checkout from $currentBranch to $Branch..."
+      & git switch $Branch
+      if ($LASTEXITCODE -ne 0) {
+        & git switch -C $Branch --track "origin/$Branch"
+        if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
+      }
+    }
+
+    $counts = (& git rev-list --left-right --count HEAD...origin/$Branch 2>$null).Trim()
+    $parts = if ($counts) { @($counts -split "\s+") } else { @("0", "0") }
+    $ahead = if ($parts.Length -gt 0) { [int]$parts[0] } else { 0 }
+    $behind = if ($parts.Length -gt 1) { [int]$parts[1] } else { 0 }
+    $trackedChanges = @(& git status --porcelain --untracked-files=no 2>$null | Where-Object { $_ -and $_.Trim() })
+
+    if ($ahead -gt 0 -or $trackedChanges.Count -gt 0) {
+      Write-Warn "Install checkout has local tracked changes or commits. Creating a backup and repairing..."
+      $updateScript = Join-Path $InstallRoot "script\update-progress.ps1"
+      $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+      & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $updateScript -Action "repair" -Branch $Branch
+      if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Repair failed. Launching the installed copy."
+        return $false
+      }
+      return $true
+    }
+
+    if ($behind -eq 0) {
+      Write-Ok "Install checkout is up to date."
+      return $false
+    }
+
+    Write-Info "Updating install checkout..."
+    & git pull --ff-only
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warn "Fast-forward update failed. Launching the installed copy."
+      return $false
+    }
+
+    $afterHead = (& git rev-parse HEAD 2>$null).Trim()
+    return ($beforeHead -and $afterHead -and $beforeHead -ne $afterHead)
+  } finally {
+    Pop-Location
+  }
+}
+
+function Test-DependencyFilesChanged($BeforeHead) {
+  if (-not $BeforeHead) { return $true }
+  Push-Location $InstallRoot
+  try {
+    $afterHead = (& git rev-parse HEAD 2>$null).Trim()
+    if (-not $afterHead -or $BeforeHead -eq $afterHead) { return $false }
+    return [bool](@(& git diff "$BeforeHead..$afterHead" --name-only | Where-Object {
+      $_ -match '(^|/)package\.json$' -or $_ -eq "bun.lock"
+    }) | Select-Object -First 1)
+  } finally {
+    Pop-Location
+  }
+}
+
+function Refresh-Install {
+  $bun = Get-BunCommand
+  if (-not $bun) { throw "Bun is unavailable." }
+
+  $beforeHead = if (Test-Path -LiteralPath (Join-Path $InstallRoot ".git")) {
+    Push-Location $InstallRoot
+    try { (& git rev-parse HEAD 2>$null).Trim() } finally { Pop-Location }
+  } else {
+    ""
+  }
+  $updated = Sync-Checkout
+  $needInstall = $updated -and (Test-DependencyFilesChanged $beforeHead)
+  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "node_modules"))) { $needInstall = $true }
+
+  if ($needInstall) {
+    Write-Info "Refreshing dependencies..."
+    Push-Location $InstallRoot
+    try {
+      & $bun install
+      if ($LASTEXITCODE -ne 0) { throw "bun install failed." }
+    } finally {
+      Pop-Location
+    }
+  }
+
+  if (-not $NoBuild -and $updated) {
+    $appDir = Join-Path $InstallRoot "packages\app"
+    if (Test-Path -LiteralPath $appDir) {
+      Write-Info "Rebuilding Web UI..."
+      Push-Location $appDir
+      try {
+        & $bun run build
+        if ($LASTEXITCODE -ne 0) { Write-Warn "Web UI build failed. The CLI can still launch." }
+      } finally {
+        Pop-Location
+      }
+    }
+  }
+}
+
+function Invoke-Codyx {
+  if ($NoLaunch) { return }
+  $launcher = Join-Path $InstallRoot "codyx.cmd"
+  if (-not (Test-Path -LiteralPath $launcher)) { throw "Cannot find installed codyx command at $launcher." }
+
+  $previousSkipUpdate = $env:CODY_SKIP_UPDATE_CHECK
+  $env:CODY_SKIP_UPDATE_CHECK = "1"
+  try {
+    & $launcher @CodyxArgs
+    exit $LASTEXITCODE
+  } finally {
+    $env:CODY_SKIP_UPDATE_CHECK = $previousSkipUpdate
+  }
+}
+
+Write-Host ""
+Write-Host "  codyx Launcher" -ForegroundColor Cyan
+Write-Host "  Repo:   $RepoUrl" -ForegroundColor DarkGray
+Write-Host "  Branch: $Branch" -ForegroundColor DarkGray
+Write-Host "  Root:   $InstallRoot" -ForegroundColor DarkGray
+Write-Host ""
+
+Ensure-Git
+Ensure-Bun
+
+if (-not (Test-CodyxCheckout $InstallRoot)) {
+  if ((Test-Path -LiteralPath $InstallRoot) -and (Get-ChildItem -LiteralPath $InstallRoot -Force | Select-Object -First 1)) {
+    throw "$InstallRoot exists but is not a codyx checkout. Move it away or set CODY_INSTALL_ROOT."
+  }
+
+  Write-Info "Cloning codyx..."
+  $parent = Split-Path -Parent $InstallRoot
+  if ($parent) { $null = New-Item -ItemType Directory -Force -Path $parent }
+  Invoke-WithRetry {
+    & git clone --branch $Branch $RepoUrl $InstallRoot
+    if ($LASTEXITCODE -ne 0) { throw "git clone failed." }
+  } "git clone"
+  git config --global --add safe.directory "$InstallRoot" 2>$null
+  Invoke-FirstRunInstall
+} else {
+  git config --global --add safe.directory "$InstallRoot" 2>$null
+  Refresh-Install
+}
+
+Invoke-Codyx

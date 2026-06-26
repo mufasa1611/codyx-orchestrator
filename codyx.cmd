@@ -152,7 +152,7 @@ if not "%~1"=="" (
 )
 
 call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts --print-banner-only
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\launcher.ps1" -Root "%ROOT%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\launcher-menu.ps1" -Root "%ROOT%"
 set "CODY_CHOICE=%ERRORLEVEL%"
 if "%CODY_CHOICE%"=="255" exit /b 0
 
