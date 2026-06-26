@@ -199,6 +199,52 @@ function Write-CodyxMarker {
   )
 }
 
+function Set-CodyxMarkerValue {
+  param(
+    $Marker,
+    [string]$Name,
+    $Value
+  )
+
+  if ($Marker.PSObject.Properties.Name -contains $Name) {
+    $Marker.$Name = $Value
+    return
+  }
+  $Marker | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+}
+
+function Write-CodyxAdminUninstallMarker {
+  param([string]$Path)
+
+  if (-not $Path) { return }
+  $marker = Read-CodyxMarker $Path
+  if (-not $marker) { $marker = [pscustomobject]@{} }
+  if (-not ($marker.PSObject.Properties.Name -contains "root") -or -not $marker.root) {
+    Set-CodyxMarkerValue $marker "root" $Root
+  }
+
+  $receiptPath = Join-Path $InstallerStateDir "verification.json"
+  Set-CodyxMarkerValue $marker "adminUninstall" ([pscustomobject]@{
+    enabled = $true
+    serviceUrl = $Script:VERIFICATION_URL
+    receiptPath = $receiptPath
+    commandsPath = "/v1/commands"
+    acknowledgePath = "/v1/acknowledge"
+    completePath = "/v1/complete"
+  })
+
+  $verification = Read-CodyxMarker $receiptPath
+  if ($verification -and $verification.install_id) {
+    Set-CodyxMarkerValue $marker "verification" ([pscustomobject]@{
+      installId = [string]$verification.install_id
+      receiptPath = $receiptPath
+      serverUrl = if ($verification.server_url) { [string]$verification.server_url } else { $Script:VERIFICATION_URL }
+    })
+  }
+
+  Write-CodyxMarker $Path $marker
+}
+
 function Test-SameManagedTool {
   param($Left, $Right)
 
@@ -902,6 +948,9 @@ if (Test-Path -LiteralPath $markerPath) {
   } catch {
     Write-Warn "Could not update install marker with uninstall shortcut."
   }
+}
+foreach ($path in @($InstallerMarkerPath, $markerPath)) {
+  Write-CodyxAdminUninstallMarker $path
 }
 
 # Done

@@ -362,6 +362,41 @@ describe("installer verification service", () => {
     expect((command as any).status).toBe("pending")
   })
 
+  test("admin bans and unbans a verified machine", async () => {
+    const machineId = `machine-${crypto.randomUUID()}`
+    const created = await createChallenge(Object.assign(challengeBody(), { machine_id: machineId }))
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+
+    const ban = await admin(`/v1/admin/installations/${created.body.install_id}/ban`, { method: "POST" })
+    expect(ban.status).toBe(200)
+    expect((await ban.json()) as { banned: boolean; uninstall_triggered: boolean }).toMatchObject({
+      banned: true,
+      uninstall_triggered: true,
+    })
+
+    const exported = await admin("/v1/admin/installations?format=json")
+    const body = (await exported.json()) as { installations: Array<{ install_id: string; is_banned: boolean }> }
+    expect(body.installations.find((row) => row.install_id === created.body.install_id)?.is_banned).toBe(true)
+
+    const blocked = await request("/v1/challenges", {
+      method: "POST",
+      body: JSON.stringify(Object.assign(challengeBody(), { machine_id: machineId })),
+    })
+    expect(blocked.status).toBe(403)
+    expect((await blocked.json()) as { error: string }).toMatchObject({ error: "machine_banned" })
+
+    const unban = await admin(`/v1/admin/installations/${created.body.install_id}/unban`, { method: "POST" })
+    expect(unban.status).toBe(200)
+    expect((await unban.json()) as { unbanned: boolean }).toMatchObject({ unbanned: true })
+
+    const allowed = await request("/v1/challenges", {
+      method: "POST",
+      body: JSON.stringify(Object.assign(challengeBody(), { machine_id: machineId })),
+    })
+    expect(allowed.status).toBe(201)
+  })
+
   test("client polls and finds pending remote command", async () => {
     const created = await createChallenge()
     const verified = await verifyChallenge(created.response.challenge_id)

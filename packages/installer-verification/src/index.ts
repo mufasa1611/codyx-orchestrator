@@ -225,6 +225,10 @@ function csvCell(value: unknown) {
   return `"${serialized.replaceAll('"', '""')}"`
 }
 
+function sqlBoolean(value: unknown) {
+  return value === true || value === 1 || value === "1"
+}
+
 app.use("*", async (context, next) => {
   await ensureSchema(context.env.InstallerVerificationDatabase)
   await next()
@@ -542,7 +546,7 @@ app.get("/v1/admin/installations", async (context) => {
     ...row,
     command_status: row.command_status ?? null,
     command_id: row.command_id ?? null,
-    is_banned: row.is_banned === 1,
+    is_banned: sqlBoolean(row.is_banned),
   }))
   if (format === "json") return context.json({ installations: rows })
   const columns = [
@@ -649,7 +653,12 @@ app.post("/v1/admin/installations/:installID/ban", async (context) => {
       )
       .bind(crypto.randomUUID(), registration.machine_id, null, null, now, now + RETENTION_MS)
       .run()
-    machineBanned = true
+    machineBanned = Boolean(
+      await db
+        .prepare("SELECT 1 FROM banned_machine WHERE machine_id = ? LIMIT 1")
+        .bind(registration.machine_id)
+        .first(),
+    )
   }
 
   const existingCommand = await db

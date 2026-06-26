@@ -24,6 +24,11 @@ $ollamaModels = [ordered]@{}
 $ggufModels = [ordered]@{}
 $seenPaths = New-Object 'System.Collections.Generic.HashSet[string]'
 $notes = New-Object 'System.Collections.Generic.List[string]'
+$ollamaManifestRoots = New-Object 'System.Collections.Generic.List[string]'
+$script:ollamaStartedByCodyx = $false
+$script:ollamaApiReady = $false
+$script:ollamaExecutablePath = ""
+$script:customOllamaModelsPath = ""
 
 function Show-CodyScan([string]$Message) {
   if ($env:CODY_MODEL_DISCOVERY_QUIET -eq "1") { return }
@@ -116,6 +121,7 @@ function Install-OllamaIfMissing {
 
 function Start-OllamaIfNeeded {
   if (Test-OllamaApi) {
+    $script:ollamaApiReady = $true
     Show-CodyScan "Ollama API is already running"
     return
   }
@@ -125,12 +131,15 @@ function Start-OllamaIfNeeded {
     Show-CodyScan "Ollama executable unavailable; checking manifests only"
     return
   }
+  $script:ollamaExecutablePath = $ollama
 
   Show-CodyScan "Ollama API is not responding; starting ollama serve in the background"
+  $script:ollamaStartedByCodyx = $true
   Start-Process -FilePath $ollama -ArgumentList "serve" -WindowStyle Hidden | Out-Null
   foreach ($attempt in 1..10) {
     Start-Sleep -Milliseconds 700
     if (Test-OllamaApi) {
+      $script:ollamaApiReady = $true
       Show-CodyScan "Ollama API is running"
       return
     }
@@ -191,6 +200,7 @@ function Add-OllamaManifestModels([string]$ManifestRoot) {
   if (-not (Test-Path $ManifestRoot)) { return }
   Show-CodyScan "reading Ollama manifests: $ManifestRoot"
   $rootFull = [System.IO.Path]::GetFullPath($ManifestRoot).TrimEnd('\')
+  $ollamaManifestRoots.Add($rootFull)
   Get-FilesBeforeDeadline $ManifestRoot "*" "Ollama manifest scan" | ForEach-Object {
     if (Test-Expired) { return }
     $fullName = "$_"
@@ -212,10 +222,13 @@ function Add-OllamaManifestModels([string]$ManifestRoot) {
 function Find-OllamaModels {
   Show-CodyScan "checking Ollama local registry"
   Install-OllamaIfMissing
+  $command = Get-OllamaCommand
+  if ($command) { $script:ollamaExecutablePath = $command }
   Start-OllamaIfNeeded
   try {
     $timeout = [math]::Max(1, [math]::Min(5, [math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)))
     $response = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec $timeout
+    $script:ollamaApiReady = $true
     @($response.models) | ForEach-Object {
       $name = if ($_.name) { "$($_.name)" } else { "$($_.model)" }
       Add-OllamaModel $name "ollama api"
@@ -227,7 +240,9 @@ function Find-OllamaModels {
 
   $roots = New-Object 'System.Collections.Generic.HashSet[string]'
   if ($env:OLLAMA_MODELS) {
-    [void]$roots.Add((Join-Path $env:OLLAMA_MODELS "manifests"))
+    $script:customOllamaModelsPath = [System.IO.Path]::GetFullPath($env:OLLAMA_MODELS)
+    $notes.Add("Ollama custom model root: $($script:customOllamaModelsPath)")
+    [void]$roots.Add((Join-Path $script:customOllamaModelsPath "manifests"))
   }
   [void]$roots.Add((Join-Path $HOME ".ollama\models\manifests"))
 
@@ -315,6 +330,11 @@ $report = [ordered]@{
   ggufModelCount = $ggufModels.Count
   configPath = $configPath
   notes = @($notes)
+  ollamaApiReady = $script:ollamaApiReady
+  ollamaStartedByCodyx = $script:ollamaStartedByCodyx
+  ollamaExecutable = $script:ollamaExecutablePath
+  ollamaCustomModelsPath = $script:customOllamaModelsPath
+  ollamaManifestRoots = @($ollamaManifestRoots | Select-Object -Unique)
 }
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false

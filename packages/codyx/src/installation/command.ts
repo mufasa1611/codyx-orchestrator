@@ -1,4 +1,4 @@
-import { collectRemovalTargets, scheduleInstallRootRemoval } from "@/cli/cmd/uninstall"
+import { collectRemovalTargets, executeUninstall } from "@/cli/cmd/uninstall"
 import { InstallationVersion } from "@cody/core/installation/version"
 import path from "path"
 import fs from "fs"
@@ -367,48 +367,8 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
       { keepConfig: false, keepData: false, dryRun: false, force: true },
       "curl",
     )
-
-    for (const dir of targets.directories) {
-      if (dir.keep) continue
-      if (
-        targets.installRoot &&
-        (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))
-      ) {
-        continue
-      }
-      if (fs.existsSync(dir.path)) {
-        printProgress(`Removing ${dir.label}...`)
-        await fs.promises.rm(dir.path, { recursive: true, force: true }).catch(() => {})
-        await new Promise((resolve) => setTimeout(resolve, 150))
-      }
-    }
-
-    for (const shim of targets.globalShims) {
-      if (fs.existsSync(shim)) {
-        printProgress(`Removing shim: ${path.basename(shim)}...`)
-        await fs.promises.rm(shim, { force: true }).catch(() => {})
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
-    }
-
-    if (targets.envProxy && fs.existsSync(targets.envProxy)) {
-      printProgress("Removing proxy settings...")
-      await fs.promises.rm(targets.envProxy, { force: true }).catch(() => {})
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-
-    if (targets.installMarker && fs.existsSync(targets.installMarker)) {
-      printProgress("Removing install marker...")
-      await fs.promises.rm(targets.installMarker, { force: true }).catch(() => {})
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-
-    if (targets.installRoot && fs.existsSync(targets.installRoot)) {
-      printProgress("Scheduling install root removal...")
-      await scheduleInstallRootRemoval(targets.installRoot).catch(() => {})
-      await new Promise((resolve) => setTimeout(resolve, 150))
-    }
-
+    printProgress("Running marker-based uninstall cleanup...")
+    await executeUninstall("curl", targets)
     process.stderr.write(`\r\x1b[K`)
   } catch (e) {
     // silent failure

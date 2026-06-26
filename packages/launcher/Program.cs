@@ -43,6 +43,7 @@ public sealed class LauncherWindow : Window
   readonly TextBlock setupPromptText = new();
   readonly TextBox setupInput = new();
   readonly Button setupSendButton = new();
+  readonly Button setupCancelButton = new();
   readonly StackPanel stepPanel = new();
   readonly TextBlock statusText = new();
   readonly string installRoot;
@@ -211,6 +212,7 @@ public sealed class LauncherWindow : Window
     var row = new Grid();
     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
     row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
     setupInput.Margin = new Thickness(0, 0, 10, 0);
     setupInput.MinHeight = 34;
@@ -226,11 +228,20 @@ public sealed class LauncherWindow : Window
     };
     row.Children.Add(setupInput);
 
+    setupCancelButton.Content = "Cancel";
+    setupCancelButton.Padding = new Thickness(14, 8, 14, 8);
+    setupCancelButton.Margin = new Thickness(0, 0, 10, 0);
+    setupCancelButton.IsEnabled = false;
+    setupCancelButton.Visibility = Visibility.Collapsed;
+    setupCancelButton.Click += (_, _) => SendSetupInput("cancel");
+    Grid.SetColumn(setupCancelButton, 1);
+    row.Children.Add(setupCancelButton);
+
     setupSendButton.Content = "Send";
     setupSendButton.Padding = new Thickness(16, 8, 16, 8);
     setupSendButton.IsEnabled = false;
     setupSendButton.Click += (_, _) => SendSetupInput();
-    Grid.SetColumn(setupSendButton, 1);
+    Grid.SetColumn(setupSendButton, 2);
     row.Children.Add(setupSendButton);
 
     panel.Children.Add(row);
@@ -360,7 +371,7 @@ public sealed class LauncherWindow : Window
     };
     licenseLink.RequestNavigate += (_, e) =>
     {
-      Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+      OpenUri(e.Uri.AbsoluteUri);
       e.Handled = true;
     };
     panel.Children.Add(new TextBlock
@@ -887,9 +898,9 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     });
   }
 
-  void SendSetupInput()
+  void SendSetupInput(string? forcedValue = null)
   {
-    var value = setupInput.Text.Trim();
+    var value = forcedValue ?? setupInput.Text.Trim();
     if (string.IsNullOrEmpty(value)) return;
     if (!setupPromptActive) return;
     if (setupProcess == null || setupProcess.HasExited) return;
@@ -903,10 +914,51 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
   {
     setupInputPanel.Visibility = Visibility.Visible;
     setupPromptActive = active;
-    setupPromptText.Text = prompt;
+    RenderSetupPrompt(prompt);
     setupInput.IsEnabled = active;
     setupSendButton.IsEnabled = active;
+    setupCancelButton.Visibility = active && prompt.Contains("cancel", StringComparison.OrdinalIgnoreCase)
+      ? Visibility.Visible
+      : Visibility.Collapsed;
+    setupCancelButton.IsEnabled = setupCancelButton.Visibility == Visibility.Visible;
     if (active) setupInput.Focus();
+  }
+
+  void RenderSetupPrompt(string prompt)
+  {
+    setupPromptText.Inlines.Clear();
+    var urlStart = prompt.IndexOf("https://", StringComparison.OrdinalIgnoreCase);
+    if (urlStart < 0)
+    {
+      setupPromptText.Inlines.Add(new Run(prompt));
+      return;
+    }
+
+    var urlEnd = urlStart;
+    while (urlEnd < prompt.Length && !char.IsWhiteSpace(prompt[urlEnd]) && prompt[urlEnd] != ',' && prompt[urlEnd] != ')')
+    {
+      urlEnd++;
+    }
+
+    setupPromptText.Inlines.Add(new Run(prompt[..urlStart]));
+    var url = prompt[urlStart..urlEnd];
+    var link = new Hyperlink(new Run(url))
+    {
+      NavigateUri = new Uri(url),
+      Foreground = new SolidColorBrush(Color.FromRgb(77, 190, 255)),
+    };
+    link.RequestNavigate += (_, e) =>
+    {
+      OpenUri(e.Uri.AbsoluteUri);
+      e.Handled = true;
+    };
+    setupPromptText.Inlines.Add(link);
+    setupPromptText.Inlines.Add(new Run(prompt[urlEnd..]));
+  }
+
+  static void OpenUri(string uri)
+  {
+    Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
   }
 
   void SetPrimaryAction(string content, bool enabled, RoutedEventHandler? handler)

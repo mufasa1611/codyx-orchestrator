@@ -55,7 +55,7 @@ Invoke-Test "valid cached receipt continues without prompting" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $installId = [guid]::NewGuid().ToString()
-    @{ version = 1; install_id = $installId; receipt = "saved.receipt"; expires_at = "2027-01-01T00:00:00Z" } |
+    @{ version = 1; install_id = $installId; receipt = "saved.receipt"; expires_at = "2027-01-01T00:00:00Z"; machine_id = "machine-cache" } |
       ConvertTo-Json | Set-Content -LiteralPath $receiptPath
     $state = @{ requests = 0 }
     $request = {
@@ -64,6 +64,7 @@ Invoke-Test "valid cached receipt continues without prompting" {
       Assert-True ($Method -eq "POST") "Receipt validation must use POST."
       Assert-True ([uri]$Uri).AbsolutePath.Equals("/v1/receipts/validate") "Unexpected validation path."
       Assert-True ($Body.install_id -eq $installId) "Validation did not use the saved installation ID."
+      Assert-True ($Body.machine_id -eq "machine-cache") "Validation did not use the saved machine ID."
       return New-Success ([pscustomobject]@{ valid = $true; expires_at = "2027-01-01T00:00:00Z" })
     }.GetNewClosure()
     $result = & $Helper -InstallerVersion "test" -ReceiptPath $receiptPath -NonInteractive `
@@ -78,6 +79,8 @@ Invoke-Test "valid cached receipt continues without prompting" {
 
 Invoke-Test "first verification saves only receipt metadata" {
   $directory = New-TestDirectory
+  $previousMachineId = $env:CODY_MACHINE_ID
+  $env:CODY_MACHINE_ID = "machine-first-install"
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
@@ -94,6 +97,7 @@ Invoke-Test "first verification saves only receipt metadata" {
       if ($path -eq "/v1/challenges/challenge-1/verify") {
         $state.verifies++
         Assert-True ($Body.code -eq "246810") "The entered code was not submitted."
+        Assert-True ($Body.machine_id -eq "machine-first-install") "Machine ID was not submitted during verification."
         return New-Success ([pscustomobject]@{ receipt = "new.receipt"; expires_at = "2027-01-01T00:00:00Z" })
       }
       throw "Unexpected request path: $path"
@@ -103,13 +107,16 @@ Invoke-Test "first verification saves only receipt metadata" {
     Assert-True $result.Success "First verification should succeed."
     Assert-True ($state.challenge.display_name -eq "Installer User") "Display name was not submitted."
     Assert-True ($state.challenge.email -eq "user@example.com") "Email was not submitted."
+    Assert-True ($state.challenge.machine_id -eq "machine-first-install") "Machine ID was not submitted during challenge creation."
     Assert-True ($state.verifies -eq 1) "Expected one code verification request."
     $saved = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
     $properties = @($saved.psobject.Properties.Name | Sort-Object)
-    Assert-True (($properties -join ",") -eq "expires_at,install_id,receipt,server_url,version") "Receipt file contains unexpected fields."
+    Assert-True (($properties -join ",") -eq "expires_at,install_id,machine_id,receipt,server_url,version") "Receipt file contains unexpected fields."
     Assert-True ($saved.receipt -eq "new.receipt") "Receipt was not saved."
+    Assert-True ($saved.machine_id -eq "machine-first-install") "Machine ID was not saved."
     Assert-True ($saved.server_url -eq "https://install.kingkung.men") "Receipt server URL was not saved."
   } finally {
+    $env:CODY_MACHINE_ID = $previousMachineId
     Remove-Item -LiteralPath $directory -Recurse -Force
   }
 }

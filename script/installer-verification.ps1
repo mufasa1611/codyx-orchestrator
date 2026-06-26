@@ -136,17 +136,30 @@ function Read-InstallerValue($Prompt) {
   return [string](& $ReadAction $Prompt)
 }
 
-function Save-VerificationReceipt($InstallId, $Receipt, $ExpiresAt) {
+function Get-CodyxMachineId {
+  if ($env:CODY_MACHINE_ID -and $env:CODY_MACHINE_ID.Trim().Length -le 512) {
+    return $env:CODY_MACHINE_ID.Trim()
+  }
+  try {
+    $value = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Cryptography" -Name MachineGuid).MachineGuid
+    if ($value -and "$value".Trim().Length -le 512) { return "$value".Trim() }
+  } catch {}
+  return ""
+}
+
+function Save-VerificationReceipt($InstallId, $Receipt, $ExpiresAt, $MachineId) {
   $directory = Split-Path -Parent $ReceiptPath
   $null = New-Item -ItemType Directory -Force -Path $directory
   $temporary = "$ReceiptPath.tmp"
-  @{
+  $state = @{
     version = 1
     install_id = $InstallId
     receipt = $Receipt
     expires_at = $ExpiresAt
     server_url = $ServiceUrl
-  } | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding UTF8
+  }
+  if ($MachineId) { $state.machine_id = $MachineId }
+  $state | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding UTF8
   Move-Item -LiteralPath $temporary -Destination $ReceiptPath -Force
 }
 
@@ -181,6 +194,7 @@ $installId = if ($state -and (Test-InstallId $state.install_id)) {
 } else {
   [guid]::NewGuid().ToString()
 }
+$machineId = Get-CodyxMachineId
 
 if ($state -and $state.receipt -and (Test-InstallId $state.install_id)) {
   Write-VerificationStep "Checking saved installer verification..."
@@ -189,6 +203,7 @@ if ($state -and $state.receipt -and (Test-InstallId $state.install_id)) {
     receipt = [string]$state.receipt
     installer_version = $InstallerVersion
     platform = "windows"
+    machine_id = if ($state.machine_id) { [string]$state.machine_id } else { $machineId }
   }
   if (-not $validation.Success) { return Stop-ForServiceFailure $validation }
   if ($validation.Body.valid) {
@@ -253,6 +268,7 @@ while ($true) {
     email = $email
     installer_version = $InstallerVersion
     platform = "windows"
+    machine_id = $machineId
   }
   if (-not $challenge.Success) { return Stop-ForServiceFailure $challenge }
   $challengeId = [string]$challenge.Body.challenge_id
@@ -297,9 +313,10 @@ while ($true) {
 
     $verified = Invoke-VerificationApi "POST" "/v1/challenges/$challengeId/verify" @{
       code = $inputValue
+      machine_id = $machineId
     }
     if ($verified.Success) {
-      Save-VerificationReceipt $installId $verified.Body.receipt $verified.Body.expires_at
+      Save-VerificationReceipt $installId $verified.Body.receipt $verified.Body.expires_at $machineId
       Write-VerificationOk "Email ownership verified. Installation can continue."
       return New-VerificationResult $true "verified"
     }
