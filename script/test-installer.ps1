@@ -83,6 +83,7 @@ Assert-Contains ".github/workflows/publish.yml" 'build-launcher-windows' "Releas
 Assert-Contains ".github/workflows/publish.yml" 'codyx-launcher-windows-x64\.exe' "Release workflow publishes the Windows launcher exe"
 Assert-Contains ".github/workflows/publish.yml" 'actions/setup-dotnet@v4' "Release workflow sets up .NET for the Windows launcher"
 Assert-Contains ".github/workflows/publish.yml" 'dotnet publish packages\\launcher\\Codyx\.Launcher\.csproj' "Release workflow publishes the .NET launcher"
+Assert-Contains ".github/workflows/publish.yml" 'env\.AZURE_CLIENT_ID != '''' && env\.AZURE_TENANT_ID != '''' && env\.AZURE_SUBSCRIPTION_ID != ''''' "Release workflow skips Azure login when signing secrets are absent"
 Assert-NotContains ".github/workflows/publish.yml" 'Invoke-ps2exe' "Release workflow no longer builds the launcher through PS2EXE"
 Assert-Contains ".github/workflows/publish.yml" 'GH_REPO: \$\{\{ needs\.version\.outputs\.repo \}\}' "Electron packaging receives the release repo for updater metadata"
 Assert-Contains ".github/workflows/publish.yml" 'build-android' "Release workflow builds Android artifacts"
