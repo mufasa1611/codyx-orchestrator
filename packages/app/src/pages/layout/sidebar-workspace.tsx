@@ -15,6 +15,7 @@ import { Tooltip } from "@cody/ui/tooltip"
 import { type Session } from "@cody/sdk/v2/client"
 import { type LocalProject } from "@/context/layout"
 import { loadSessionsQueryKey, useGlobalSync } from "@/context/global-sync"
+import { ROOT_SESSION_LOAD_MORE_STEP } from "@/context/global-sync/types"
 import { useLanguage } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import { NewSessionItem, SessionItem, SessionSkeleton } from "./sidebar-items"
@@ -326,7 +327,7 @@ export const SortableWorkspace = (props: {
   const touch = createMediaQuery("(hover: none)")
   const showNew = createMemo(() => !loading() && (touch() || count() === 0 || (active() && !params.id)))
   const loadMore = async () => {
-    setWorkspaceStore("limit", (limit) => (limit ?? 0) + 5)
+    setWorkspaceStore("limit", (limit) => (limit ?? 0) + ROOT_SESSION_LOAD_MORE_STEP)
     await globalSync.project.loadSessions(props.directory)
   }
 
@@ -458,7 +459,7 @@ export const LocalWorkspace = (props: {
   const hasMore = createMemo(() => workspace().store.sessionTotal > count())
   const loading = () => fetching() > 0 && count() === 0
   const loadMore = async () => {
-    workspace().setStore("limit", (limit) => (limit ?? 0) + 5)
+    workspace().setStore("limit", (limit) => (limit ?? 0) + ROOT_SESSION_LOAD_MORE_STEP)
     await globalSync.project.loadSessions(props.project.worktree)
   }
 

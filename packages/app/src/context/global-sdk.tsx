@@ -4,7 +4,7 @@ import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { batch, onCleanup, onMount } from "solid-js"
 import z from "zod"
-import { createSdkForServer } from "@/utils/server"
+import { authScopeForServer, createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { useServer } from "./server"
@@ -236,6 +236,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
 
     return {
       url: currentServer.http.url,
+      authScope: authScopeForServer(currentServer.http),
       client: sdk,
       event: {
         on: emitter.on.bind(emitter),

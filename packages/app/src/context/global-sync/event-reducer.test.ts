@@ -248,7 +248,7 @@ describe("applyDirectoryEvent", () => {
     }
   })
 
-  test("cleans caches for trimmed sessions on session.created", () => {
+  test("keeps caches for sessions only hidden by trim", () => {
     const dropped = rootSession({ id: "ses_b" })
     const kept = rootSession({ id: "ses_a" })
     const message = userMessage("msg_1", dropped.id)
@@ -281,14 +281,14 @@ describe("applyDirectoryEvent", () => {
     })
 
     expect(store.session.map((x) => x.id)).toEqual([kept.id])
-    expect(store.message[dropped.id]).toBeUndefined()
-    expect(store.part[message.id]).toBeUndefined()
-    expect(store.session_diff[dropped.id]).toBeUndefined()
-    expect(store.todo[dropped.id]).toBeUndefined()
-    expect(store.permission[dropped.id]).toBeUndefined()
-    expect(store.question[dropped.id]).toBeUndefined()
-    expect(store.session_status[dropped.id]).toBeUndefined()
-    expect(todos).toEqual([dropped.id])
+    expect(store.message[dropped.id]).toEqual([message])
+    expect(store.part[message.id]).toEqual([textPart("prt_1", dropped.id, message.id)])
+    expect(store.session_diff[dropped.id]).toEqual([])
+    expect(store.todo[dropped.id]).toEqual([])
+    expect(store.permission[dropped.id]).toEqual([])
+    expect(store.question[dropped.id]).toEqual([])
+    expect(store.session_status[dropped.id]).toEqual({ type: "busy" })
+    expect(todos).toEqual([])
   })
 
   test("cleanupDroppedSessionCaches clears part-only orphan state", () => {

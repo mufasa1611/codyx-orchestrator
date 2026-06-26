@@ -4,6 +4,7 @@ import { Persist, persisted } from "@/utils/persist"
 import type { CodyClient, ProviderListResponse, VcsInfo } from "@cody/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
+  DEFAULT_ROOT_SESSION_LIMIT,
   MAX_DIR_STORES,
   type ChildOptions,
   type DirState,
@@ -228,7 +229,7 @@ export function createChildStoreManager(input: {
               return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
             },
             vcs: vcsStore.value,
-            limit: 5,
+            limit: DEFAULT_ROOT_SESSION_LIMIT,
             message: {},
             part: {},
           })

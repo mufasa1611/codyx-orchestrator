@@ -99,11 +99,18 @@ describe("installer verification service", () => {
     const privacy = await request("/privacy")
     expect(privacy.status).toBe(200)
     const notice = await privacy.text()
-    expect(notice).toContain("display name is not independently verified")
+    expect(notice).toContain("not independently verified")
     expect(notice).toContain("privacy@kingkung.men")
-    expect(notice).toContain("It is not used for marketing")
+    expect(notice).toContain("never</strong> used for marketing")
     expect(notice).toContain("operational registration notice")
-    expect(notice).toContain("Verification codes are never included")
+    expect(notice).toContain("Verification codes are <strong>never</strong> included")
+
+    const license = await request("/license")
+    expect(license.status).toBe(200)
+    const terms = await license.text()
+    expect(terms).toContain("Moderation, role protection")
+    expect(terms).toContain("blocked words <strong>fuck</strong> and <strong>shit</strong>")
+    expect(terms).toContain("machine ban")
   })
 
   test("serves and stores feedback", async () => {

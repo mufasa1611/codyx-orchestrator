@@ -117,7 +117,6 @@ export function applyDirectoryEvent(input: {
       next.splice(result.index, 0, info)
       const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
       input.setStore("session", reconcile(trimmed, { key: "id" }))
-      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
       if (!info.parentID) input.setStore("sessionTotal", (value) => value + 1)
       break
     }
@@ -146,7 +145,6 @@ export function applyDirectoryEvent(input: {
       next.splice(result.index, 0, info)
       const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
       input.setStore("session", reconcile(trimmed, { key: "id" }))
-      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
       break
     }
     case "session.deleted": {

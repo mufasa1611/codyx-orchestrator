@@ -1,8 +1,10 @@
 ﻿import { afterEach, describe, expect, test } from "bun:test"
-import { Effect } from "effect"
+import { Effect, Exit } from "effect"
+import { UserRef } from "@/effect/instance-ref"
 import { Instance } from "../../src/project/instance"
 import { WithInstance } from "../../src/project/with-instance"
 import { Session as SessionNs } from "@/session/session"
+import { SessionV2 } from "@/v2/session"
 import * as Log from "@cody/core/util/log"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
 import { Flag } from "@cody/core/flag/flag"
@@ -17,6 +19,10 @@ const originalWorkspaces = Flag.CODY_EXPERIMENTAL_WORKSPACES
 
 function run<A, E>(fx: Effect.Effect<A, E, SessionNs.Service>) {
   return Effect.runPromise(fx.pipe(Effect.provide(SessionNs.defaultLayer)))
+}
+
+function runV2<A, E>(fx: Effect.Effect<A, E, SessionV2.Service>) {
+  return Effect.runPromise(fx.pipe(Effect.provide(SessionV2.defaultLayer)))
 }
 
 const svc = {
@@ -130,7 +136,7 @@ describe("session.list", () => {
         const pathIDs = (
           await svc.list({
             directory: path.join(tmp.path, "packages", "app"),
-            path: "packages/codyx/src",
+            path: "packages/cody/src",
           })
         ).map((s) => s.id)
         expect(pathIDs).not.toContain(parent.id)
@@ -233,6 +239,41 @@ describe("session.list", () => {
 
         const sessions = await svc.list({ limit: 2 })
         expect(sessions.length).toBe(2)
+      },
+    })
+  })
+
+  test("v2 list and get stay scoped to the current user", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await WithInstance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const owner = await svc.create({ title: "owner-session", userID: "user_owner" })
+        const other = await svc.create({ title: "other-session", userID: "user_other" })
+
+        const ids = (
+          await runV2(
+            SessionV2.Service.use((svc) => svc.list({ roots: true })).pipe(
+              Effect.provideService(UserRef, "user_owner"),
+            ),
+          )
+        ).map((s) => s.id)
+        expect(ids).toContain(owner.id)
+        expect(ids).not.toContain(other.id)
+
+        const ownerGet = await runV2(
+          SessionV2.Service.use((svc) => svc.get(owner.id)).pipe(Effect.provideService(UserRef, "user_owner")),
+        )
+        expect(ownerGet.id).toBe(owner.id)
+
+        const otherGet = await Effect.runPromise(
+          SessionV2.Service.use((svc) => svc.get(other.id)).pipe(
+            Effect.provideService(UserRef, "user_owner"),
+            Effect.provide(SessionV2.defaultLayer),
+            Effect.exit,
+          ),
+        )
+        expect(Exit.isFailure(otherGet)).toBe(true)
       },
     })
   })

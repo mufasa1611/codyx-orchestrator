@@ -1,6 +1,7 @@
 import { SessionMessageTable, SessionTable } from "@/session/session.sql"
 import { SessionID } from "@/session/schema"
 import { WorkspaceID } from "@/control-plane/schema"
+import { UserRef } from "@/effect/instance-ref"
 import { and, asc, desc, eq, gt, gte, isNull, like, lt, or, type SQL } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { Context, DateTime, Effect, Layer, Option, Schema } from "effect"
@@ -147,7 +148,18 @@ export const layer = Layer.effect(
         return {} as any
       }),
       get: Effect.fn("V2Session.get")(function* (sessionID) {
-        const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get())
+        const userID = yield* UserRef
+        const row = Database.use((db) =>
+          db
+            .select()
+            .from(SessionTable)
+            .where(
+              userID
+                ? and(eq(SessionTable.id, sessionID), eq(SessionTable.user_id, userID))
+                : eq(SessionTable.id, sessionID),
+            )
+            .get(),
+        )
         if (!row) return yield* new NotFoundError({ sessionID })
         return fromRow(row)
       }),
@@ -158,6 +170,8 @@ export const layer = Layer.effect(
         if (direction === "previous" && order === "asc") order = "desc"
         if (direction === "previous" && order === "desc") order = "asc"
         const conditions: SQL[] = []
+        const userID = yield* UserRef
+        if (userID) conditions.push(eq(SessionTable.user_id, userID))
         if (input.directory) conditions.push(eq(SessionTable.directory, input.directory))
         if (input.path)
           conditions.push(or(eq(SessionTable.path, input.path), like(SessionTable.path, `${input.path}/%`))!)

@@ -48,6 +48,15 @@ export function authHeadersForServer(server: ServerConnection.HttpBase): Headers
   }
 }
 
+export function authScopeForServer(server: ServerConnection.HttpBase) {
+  if (server.token) {
+    const user = authUserFromJwt(server.token)
+    return `bearer:${user?.id ?? user?.username ?? server.token}`
+  }
+  if (server.password) return `basic:${server.username ?? "codyx"}`
+  return "anonymous"
+}
+
 export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeof globalThis.fetch = globalThis.fetch) {
   return (path: string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers)

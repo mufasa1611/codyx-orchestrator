@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
+import { loadSessionsQueryKey } from "./global-sync"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
+
+describe("loadSessionsQueryKey", () => {
+  test("includes auth scope without changing the directory prefix", () => {
+    expect(loadSessionsQueryKey("dir", "bearer:user_123")).toEqual(["dir", "loadSessions", "bearer:user_123"])
+    expect(loadSessionsQueryKey("dir")).toEqual(["dir", "loadSessions"])
+  })
+})
 
 describe("pickDirectoriesToEvict", () => {
   test("keeps pinned stores and evicts idle stores", () => {

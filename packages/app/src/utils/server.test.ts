@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { authFromToken, authTokenFromCredentials, authUserFromJwt } from "./server"
+import { authFromToken, authScopeForServer, authTokenFromCredentials, authUserFromJwt } from "./server"
 
 describe("authFromToken", () => {
   test("decodes basic auth credentials from auth_token", () => {
@@ -34,5 +34,24 @@ describe("authUserFromJwt", () => {
   test("ignores malformed JWTs", () => {
     expect(authUserFromJwt("not-a-jwt")).toBeUndefined()
     expect(authUserFromJwt("header.not-json.signature")).toBeUndefined()
+  })
+})
+
+describe("authScopeForServer", () => {
+  test("scopes bearer connections by signed-in user", () => {
+    const payload = btoa(JSON.stringify({ sub: "usr_123", username: "cody" }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "")
+    expect(authScopeForServer({ url: "http://localhost:3000", token: `header.${payload}.signature` })).toBe(
+      "bearer:usr_123",
+    )
+  })
+
+  test("keeps basic and anonymous connections separate", () => {
+    expect(authScopeForServer({ url: "http://localhost:3000", username: "mufasa", password: "secret" })).toBe(
+      "basic:mufasa",
+    )
+    expect(authScopeForServer({ url: "http://localhost:3000" })).toBe("anonymous")
   })
 })

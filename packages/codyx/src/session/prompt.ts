@@ -50,6 +50,7 @@ import { zod } from "@/util/effect-zod"
 import { withStatics } from "@/util/schema"
 import * as EffectLogger from "@cody/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
+import { UserRef } from "@/effect/instance-ref"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { EffectBridge } from "@/effect/bridge"
@@ -57,6 +58,8 @@ import { EventV2 } from "@/v2/event"
 import { SessionEvent } from "@/v2/session-event"
 import { Modelv2 } from "@/v2/model"
 import { AgentAttachment, FileAttachment, Source } from "@/v2/session-prompt"
+import { checkPromptPolicy, policyViolationMessage, type PolicyUser } from "./policy-guard"
+import * as ServerAuth from "@/server/auth/service"
 import * as DateTime from "effect/DateTime"
 import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
@@ -118,6 +121,7 @@ export const layer = Layer.effect(
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
     const hub = yield* AgentHub.Service
+    const policyViolations = new Map<string, number>()
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -132,6 +136,44 @@ export const layer = Layer.effect(
     const cancel = Effect.fn("SessionPrompt.cancel")(function* (sessionID: SessionID) {
       yield* elog.info("cancel", { sessionID })
       yield* state.cancel(sessionID)
+    })
+
+    const currentPolicyUser = Effect.fn("SessionPrompt.currentPolicyUser")(function* () {
+      const id = yield* UserRef
+      if (!id) return
+      const user = yield* Effect.sync(() => ServerAuth.getUser(id))
+      return { id, username: user?.username } satisfies PolicyUser
+    })
+
+    const visiblePromptText = (parts: PromptInput["parts"]) =>
+      parts
+        .flatMap((part) => {
+          if (part.type === "text" && !part.synthetic) return [part.text]
+          if (part.type === "subtask") return [part.prompt]
+          return []
+        })
+        .join("\n")
+
+    const assertPromptPolicy = Effect.fn("SessionPrompt.assertPromptPolicy")(function* (input: {
+      sessionID: SessionID
+      text: string
+    }) {
+      const user = yield* currentPolicyUser()
+      const result = checkPromptPolicy({ text: input.text, user })
+      if (result.allowed) return
+      const key = user?.id ?? user?.username ?? "anonymous"
+      const count = (policyViolations.get(key) ?? 0) + 1
+      policyViolations.set(key, count)
+      const error = new NamedError.Unknown({ message: policyViolationMessage(result.reason, count) })
+      yield* elog.warn("policy violation", {
+        sessionID: input.sessionID,
+        userID: user?.id,
+        username: user?.username,
+        reason: result.reason,
+        count,
+      })
+      yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
+      throw error
     })
 
     const resolvePromptParts = Effect.fn("SessionPrompt.resolvePromptParts")(function* (template: string) {
@@ -1372,10 +1414,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
     let initializing = false
 
-    const prompt: Interface["prompt"] = Effect.fn("SessionPrompt.prompt")(
-      function* (input: PromptInput) {
+    const promptImpl: (input: PromptInput, options?: { skipPolicy?: boolean }) => Effect.Effect<MessageV2.WithParts> =
+      Effect.fn("SessionPrompt.prompt")(function* (input: PromptInput, options?: { skipPolicy?: boolean }) {
         const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
         yield* revert.cleanup(session)
+        if (!options?.skipPolicy) {
+          yield* assertPromptPolicy({ sessionID: input.sessionID, text: visiblePromptText(input.parts) })
+        }
 
         if (!initializing) {
           const ctx = yield* InstanceState.context
@@ -1416,8 +1461,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
         if (input.noReply === true) return message
         return yield* loop({ sessionID: input.sessionID })
-      },
-    )
+      })
+
+    const prompt: Interface["prompt"] = (input) => promptImpl(input)
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
       const match = yield* sessions.findMessage(sessionID, (m) => m.info.role !== "user")
@@ -1560,9 +1606,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
           const handleExit = yield* processor
             .create({
-            assistantMessage: msg,
-            sessionID,
-            model,
+              assistantMessage: msg,
+              sessionID,
+              model,
             })
             .pipe(Effect.exit)
           if (Exit.isFailure(handleExit)) {
@@ -1627,7 +1673,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             const agentStatus = yield* hub.getStatus
             if (agentStatus.connected) {
               system.push(
-                "A remote PC is verified as connected for this response. Use cody-agent-list, cody-agent-read, cody-agent-write, and cody-agent-exec for its filesystem and commands. Do not claim the remote PC is disconnected or provide setup instructions when this notice is present. The default glob, grep, read, write, edit, and shell tools operate on the server, not the remote PC. If a remote tool fails, report that specific command failure without replacing the supported setup flow. The only supported pairing command is `bunx --yes cody-connect@latest <PAIRING_CODE>` from Settings > Connect My PC; do not recommend installing or running the codyx TUI."
+                "A remote PC is verified as connected for this response. Use cody-agent-list, cody-agent-read, cody-agent-write, and cody-agent-exec for its filesystem and commands. Do not claim the remote PC is disconnected or provide setup instructions when this notice is present. The default glob, grep, read, write, edit, and shell tools operate on the server, not the remote PC. If a remote tool fails, report that specific command failure without replacing the supported setup flow. The only supported pairing command is `bunx --yes cody-connect@latest <PAIRING_CODE>` from Settings > Connect My PC; do not recommend installing or running the codyx TUI.",
               )
             }
             const format = lastUser.format ?? { type: "text" as const }
@@ -1712,8 +1758,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       },
     )
 
-    const command = Effect.fn("SessionPrompt.command")(function* (input: CommandInput) {
+    const command: Interface["command"] = Effect.fn("SessionPrompt.command")(function* (input: CommandInput) {
       yield* elog.info("command", { sessionID: input.sessionID, command: input.command, agent: input.agent })
+      yield* assertPromptPolicy({ sessionID: input.sessionID, text: input.arguments })
       const cmd = yield* commands.get(input.command)
       if (!cmd) {
         const available = (yield* commands.list()).map((c) => c.name)
@@ -1812,14 +1859,17 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         { parts },
       )
 
-      const result = yield* prompt({
-        sessionID: input.sessionID,
-        messageID: input.messageID,
-        model: userModel,
-        agent: userAgent,
-        parts,
-        variant: input.variant,
-      })
+      const result = yield* promptImpl(
+        {
+          sessionID: input.sessionID,
+          messageID: input.messageID,
+          model: userModel,
+          agent: userAgent,
+          parts,
+          variant: input.variant,
+        },
+        { skipPolicy: true },
+      )
       yield* bus.publish(Command.Event.Executed, {
         name: input.command,
         sessionID: input.sessionID,

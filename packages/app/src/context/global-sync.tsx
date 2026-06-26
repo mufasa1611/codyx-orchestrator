@@ -23,7 +23,7 @@ import {
   loadProvidersQuery,
 } from "./global-sync/bootstrap"
 import { createChildStoreManager } from "./global-sync/child-store"
-import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./global-sync/event-reducer"
+import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reducer"
 import { clearSessionPrefetchDirectory } from "./global-sync/session-prefetch"
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
 import { trimSessions } from "./global-sync/session-trim"
@@ -48,7 +48,13 @@ type GlobalStore = {
   reload: undefined | "pending" | "complete"
 }
 
-export const loadSessionsQueryKey = (directory: string) => [directory, "loadSessions"] as const
+export function loadSessionsQueryKey(directory: string): readonly [string, "loadSessions"]
+export function loadSessionsQueryKey(directory: string, authScope: string): readonly [string, "loadSessions", string]
+export function loadSessionsQueryKey(directory: string, authScope?: string) {
+  return authScope === undefined
+    ? ([directory, "loadSessions"] as const)
+    : ([directory, "loadSessions", authScope] as const)
+}
 
 export const mcpQueryKey = (directory: string) => [directory, "mcp"] as const
 
@@ -76,6 +82,16 @@ function createGlobalSync() {
   const booting = new Map<string, Promise<void>>()
   const sessionLoads = new Map<string, Promise<void>>()
   const sessionMeta = new Map<string, { limit: number }>()
+  const scopedDirectoryKey = (key: string) => `${globalSDK.authScope}:${key}`
+  const hasScopedDirectoryKey = <T,>(map: Map<string, T>, key: string) => map.has(scopedDirectoryKey(key))
+  const deleteScopedDirectoryKeys = <T,>(map: Map<string, T>, key: string) => {
+    const suffix = `:${key}`
+    Array.from(map.keys())
+      .filter((item) => item.endsWith(suffix))
+      .forEach((item) => {
+        map.delete(item)
+      })
+  }
 
   const [configQuery, providerQuery, pathQuery] = useQueries(() => ({
     queries: [
@@ -196,14 +212,15 @@ function createGlobalSync() {
   const children = createChildStoreManager({
     owner,
     isBooting: (directory) => booting.has(directory),
-    isLoadingSessions: (directory) => sessionLoads.has(directory),
+    isLoadingSessions: (directory) => hasScopedDirectoryKey(sessionLoads, directory),
     onBootstrap: (directory) => {
       void bootstrapInstance(directory)
     },
     onDispose: (directory) => {
       const key = directoryKey(directory)
       queue.clear(key)
-      sessionMeta.delete(key)
+      deleteScopedDirectoryKeys(sessionLoads, key)
+      deleteScopedDirectoryKeys(sessionMeta, key)
       sdkCache.delete(key)
       clearProviderRev(key)
       clearSessionPrefetchDirectory(key)
@@ -217,12 +234,13 @@ function createGlobalSync() {
 
   async function loadSessions(directory: string) {
     const key = directoryKey(directory)
-    const pending = sessionLoads.get(key)
+    const scopedKey = scopedDirectoryKey(key)
+    const pending = sessionLoads.get(scopedKey)
     if (pending) return pending
 
     children.pin(key)
     const [store, setStore] = children.child(directory, { bootstrap: false })
-    const meta = sessionMeta.get(key)
+    const meta = sessionMeta.get(scopedKey)
     if (meta && meta.limit >= store.limit) {
       const next = trimSessions(store.session, {
         limit: store.limit,
@@ -230,7 +248,6 @@ function createGlobalSync() {
       })
       if (next.length !== store.session.length) {
         setStore("session", reconcile(next, { key: "id" }))
-        cleanupDroppedSessionCaches(store, setStore, next, setSessionTodo)
       }
       children.unpin(key)
       return
@@ -239,7 +256,7 @@ function createGlobalSync() {
     const limit = Math.max(store.limit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
     const promise = queryClient
       .fetchQuery({
-        queryKey: loadSessionsQueryKey(key),
+        queryKey: loadSessionsQueryKey(key, globalSDK.authScope),
         queryFn: () =>
           loadRootSessionsWithFallback({
             directory,
@@ -267,9 +284,8 @@ function createGlobalSync() {
                   }),
                 )
                 setStore("session", reconcile(sessions, { key: "id" }))
-                cleanupDroppedSessionCaches(store, setStore, sessions, setSessionTodo)
               })
-              sessionMeta.set(key, { limit })
+              sessionMeta.set(scopedKey, { limit })
             })
             .catch((err) => {
               console.error("Failed to load sessions", err)
@@ -284,9 +300,9 @@ function createGlobalSync() {
       })
       .then(() => {})
 
-    sessionLoads.set(key, promise)
+    sessionLoads.set(scopedKey, promise)
     void promise.finally(() => {
-      sessionLoads.delete(key)
+      sessionLoads.delete(scopedKey)
       children.unpin(key)
     })
     return promise
