@@ -3,7 +3,7 @@ import { useRenderer } from "@opentui/solid"
 import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { useTheme, tint } from "@tui/context/theme"
 import * as Sound from "@tui/util/sound"
-import { go, logo } from "@/cli/logo"
+import { codyX, go } from "@/cli/logo"
 
 export type LogoShape = {
   left: string[]
@@ -303,7 +303,7 @@ function build(shape: LogoShape): LogoContext {
   return { LEFT, FULL, SPAN, MAP: mapGlyphs(FULL), shape }
 }
 
-const DEFAULT = build(logo)
+const DEFAULT = build(codyX)
 const GO = build(go)
 
 function shimmer(x: number, y: number, frame: Frame, ctx: LogoContext) {

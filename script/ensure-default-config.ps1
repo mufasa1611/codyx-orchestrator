@@ -22,7 +22,7 @@ if (Test-Path $defaultModelFile) {
 }
 '@
     [System.IO.File]::WriteAllText($defaultModelFile, $json, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "[ok] Migrated default model to opencode/big-pickle (Sandra Pickle)"
+    Write-Host "[ok] Migrated default model to Sandra Pickle"
     exit 0
   }
   Write-Host "[ok] Default model config already exists."
@@ -37,4 +37,4 @@ $json = @'
 '@
 
 [System.IO.File]::WriteAllText($defaultModelFile, $json, [System.Text.UTF8Encoding]::new($false))
-Write-Host "[ok] Default model configured: opencode/big-pickle (Sandra Pickle)"
+Write-Host "[ok] Default model configured: Sandra Pickle"

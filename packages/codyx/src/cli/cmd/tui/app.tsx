@@ -398,22 +398,12 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     dialog.replace(() => (
       <DialogSelect
         title={`Hi ${username}, should Codyx learn this system now?`}
+        current="no"
         renderFilter={false}
         options={[
           {
-            title: "Yes, start",
-            description: "Run /init now so the agent can inspect the system and write helpful memo notes.",
-            value: "yes",
-            onSelect: (d) => {
-              kv.set("first_system_init_prompt_answered", true)
-              d.clear()
-              promptRef.current?.set({ input: "/init", parts: [] })
-              promptRef.current?.submit()
-            },
-          },
-          {
-            title: "No",
-            description: "Skip for now.",
+            title: "No, later",
+            description: "Keep chatting now. You can run /init yourself when you want Codyx to learn this system.",
             value: "no",
             onSelect: (d) => {
               kv.set("first_system_init_prompt_answered", true)
@@ -423,6 +413,17 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
                 message: "No problem. Use /init whenever you want Codyx to learn this system.",
                 duration: 8000,
               })
+            },
+          },
+          {
+            title: "Yes, start",
+            description: "Run /init now so the agent can inspect the system and write helpful memo notes.",
+            value: "yes",
+            onSelect: (d) => {
+              kv.set("first_system_init_prompt_answered", true)
+              d.clear()
+              promptRef.current?.set({ input: "/init", parts: [] })
+              promptRef.current?.submit()
             },
           },
         ]}

@@ -183,7 +183,7 @@ ensure_default_config() {
   "model": "opencode/big-pickle"
 }
 CONFIGEOF
-      ok "Migrated default model to opencode/big-pickle (Sandra Pickle)"
+      ok "Migrated default model to Sandra Pickle"
       return 0
     fi
     ok "Default model config already exists."
@@ -195,7 +195,7 @@ CONFIGEOF
   "model": "opencode/big-pickle"
 }
 CONFIGEOF
-  ok "Default model configured: opencode/big-pickle (Sandra Pickle)"
+  ok "Default model configured: Sandra Pickle"
 }
 
 ensure_jq_for_scan() {
