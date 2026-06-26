@@ -51,7 +51,6 @@ public sealed class LauncherWindow : Window
   Process? setupProcess;
   RoutedEventHandler? primaryHandler;
   bool setupPromptActive;
-  bool firstChatPromptOnTerminalLaunch;
 
   public LauncherWindow()
   {
@@ -448,7 +447,7 @@ public sealed class LauncherWindow : Window
       SetStep(2, StepState.Done);
       SetStep(3, StepState.Done);
       SetStep(4, StepState.Active);
-      ShowLaunchChoices(true);
+      ShowLaunchChoices();
       statusText.Text = "codyx setup finished. Choose how to start.";
       return;
     }
@@ -477,7 +476,7 @@ public sealed class LauncherWindow : Window
     SetStep(2, StepState.Done);
     SetStep(3, StepState.Done);
     SetStep(4, StepState.Active);
-    ShowLaunchChoices(false);
+    ShowLaunchChoices();
     statusText.Text = "codyx is ready. Choose how to start.";
   }
 
@@ -545,9 +544,8 @@ public sealed class LauncherWindow : Window
     }
   }
 
-  void ShowLaunchChoices(bool firstChatPrompt)
+  void ShowLaunchChoices()
   {
-    firstChatPromptOnTerminalLaunch = firstChatPrompt;
     setupInputPanel.Visibility = Visibility.Collapsed;
     launchChoicePanel.Visibility = Visibility.Visible;
     terminalButton.IsEnabled = true;
@@ -558,20 +556,19 @@ public sealed class LauncherWindow : Window
 
   void LaunchTerminalUi()
   {
-    if (!LaunchCodyx("--no-banner", firstChatPromptOnTerminalLaunch)) return;
-    firstChatPromptOnTerminalLaunch = false;
+    if (!LaunchCodyx("--no-banner")) return;
     SetStep(4, StepState.Done);
     statusText.Text = "Terminal UI opened.";
   }
 
   void LaunchWebUi()
   {
-    if (!LaunchCodyx("--launcher-web", false)) return;
+    if (!LaunchCodyx("--launcher-web")) return;
     SetStep(4, StepState.Done);
     statusText.Text = "Web UI is starting in its terminal window.";
   }
 
-  bool LaunchCodyx(string arguments, bool firstChatPrompt)
+  bool LaunchCodyx(string arguments)
   {
     var command = IOPath.Combine(installRoot, "codyx.cmd");
     if (!File.Exists(command))
@@ -587,9 +584,7 @@ public sealed class LauncherWindow : Window
     var startInfo = new ProcessStartInfo
     {
       FileName = "cmd.exe",
-      Arguments = firstChatPrompt
-        ? $"/d /s /k \"set CODY_FIRST_CHAT_PROMPT=1&& {commandLine}\""
-        : $"/d /s /k \"{commandLine}\"",
+      Arguments = $"/d /s /k \"{commandLine}\"",
       UseShellExecute = true,
       WorkingDirectory = installRoot,
       WindowStyle = ProcessWindowStyle.Normal,

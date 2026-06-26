@@ -73,11 +73,25 @@ try {
             }
 
             Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repairing install checkout..."
-            $exitCode = Invoke-Native "git" @("reset", "--hard", "origin/$Branch")
+            & git fetch origin $Branch --quiet
+            $fetchCode = $LASTEXITCODE
+            if ($fetchCode -ne 0) {
+                Write-Host "$([char]27)[93m[Codyx]$([char]27)[0m Could not refresh origin/$Branch. Trying the cached ref..."
+            }
+
+            & git rev-parse --verify --quiet "origin/$Branch" *> $null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "$([char]27)[91m[Codyx]$([char]27)[0m Repair failed. origin/$Branch is not available."
+                exit 1
+            }
+
+            & git reset --hard "origin/$Branch"
+            $exitCode = $LASTEXITCODE
             if ($exitCode -eq 0) {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repair complete. Install checkout is now in sync."
             } else {
                 Write-Host "$([char]27)[91m[Codyx]$([char]27)[0m Repair failed. Re-run install.ps1."
+                & git status --short
                 exit 1
             }
         }

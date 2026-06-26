@@ -161,6 +161,7 @@ function Test-BunVersion {
 }
 
 function Test-InteractiveHost {
+  if ($env:CODY_LAUNCHER_UI -eq "1") { return $true }
   if (-not [Environment]::UserInteractive) { return $false }
   try { return -not [Console]::IsInputRedirected } catch { return $true }
 }
