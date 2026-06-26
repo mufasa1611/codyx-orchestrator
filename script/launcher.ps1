@@ -261,7 +261,7 @@ function Refresh-Install {
   $updated = Sync-Checkout
   $needInstall = $updated -and (Test-DependencyFilesChanged $beforeHead)
   if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "node_modules"))) { $needInstall = $true }
-  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "packages\codyx\node_modules\drizzle-orm\sqlite-core"))) { $needInstall = $true }
+  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js"))) { $needInstall = $true }
 
   if ($needInstall) {
     Write-Info "Refreshing dependencies..."

@@ -149,7 +149,7 @@ if "%CODY_UPDATED%"=="1" (
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 
-if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core" (
+if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js" (
   echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing. Running bun install...
   call "%BUN%" install --cwd "%ROOT%"
   if errorlevel 1 exit /b %ERRORLEVEL%
