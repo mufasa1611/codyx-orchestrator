@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Codyx.Launcher</AssemblyName>
+    <RootNamespace>Codyx.Launcher</RootNamespace>
+    <ApplicationIcon>..\desktop\icons\prod\icon.ico</ApplicationIcon>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\mufasa.png" />
+    <EmbeddedResource Include="..\..\script\launcher.ps1" Link="Resources\launcher.ps1" LogicalName="Codyx.Launcher.Resources.launcher.ps1" />
+  </ItemGroup>
+</Project>

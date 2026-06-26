@@ -1,0 +1,531 @@
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using IOPath = System.IO.Path;
+
+namespace Codyx.Launcher;
+
+public static class Program
+{
+  [STAThread]
+  public static void Main(string[] args)
+  {
+    var app = new Application
+    {
+      ShutdownMode = ShutdownMode.OnMainWindowClose,
+    };
+    app.Run(new LauncherWindow());
+  }
+}
+
+public sealed class LauncherWindow : Window
+{
+  readonly List<StepRow> steps = [];
+  readonly TextBox logBox = new();
+  readonly Button primaryButton = new();
+  readonly Button detailsButton = new();
+  readonly Border licensePanel = new();
+  readonly StackPanel stepPanel = new();
+  readonly TextBlock statusText = new();
+  readonly string installRoot;
+  string launcherScript = "";
+  bool detailsVisible;
+
+  public LauncherWindow()
+  {
+    installRoot = ResolveInstallRoot();
+    ConfigureWindow();
+    Content = BuildLayout();
+    Loaded += async (_, _) => await StartAsync();
+  }
+
+  void ConfigureWindow()
+  {
+    Title = "codyx Launcher";
+    Width = 720;
+    Height = 760;
+    MinWidth = 620;
+    MinHeight = 680;
+    WindowStartupLocation = WindowStartupLocation.CenterScreen;
+    Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
+  }
+
+  UIElement BuildLayout()
+  {
+    var root = new Grid();
+    root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+    root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+    root.Children.Add(BuildBanner());
+
+    var body = new StackPanel
+    {
+      Margin = new Thickness(32, 26, 32, 24),
+    };
+    Grid.SetRow(body, 1);
+
+    body.Children.Add(new Image
+    {
+      Source = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png")),
+      Height = 180,
+      Stretch = Stretch.Uniform,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 0, 0, 18),
+    });
+
+    body.Children.Add(new TextBlock
+    {
+      Text = "welcome to mufasa",
+      Foreground = new SolidColorBrush(Color.FromRgb(35, 225, 126)),
+      FontSize = 30,
+      FontWeight = FontWeights.Bold,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 0, 0, 2),
+    });
+
+    body.Children.Add(new TextBlock
+    {
+      Text = "codyx multi agent build",
+      Foreground = new SolidColorBrush(Color.FromRgb(214, 220, 231)),
+      FontSize = 17,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 0, 0, 24),
+    });
+
+    statusText.Text = "Getting codyx ready";
+    statusText.Foreground = new SolidColorBrush(Color.FromRgb(165, 176, 195));
+    statusText.FontSize = 14;
+    statusText.Margin = new Thickness(0, 0, 0, 12);
+    body.Children.Add(statusText);
+
+    AddStep("Prerequisites", "Check Git and Bun");
+    AddStep("Source", "Clone or update codyx");
+    AddStep("Setup", "Run license, identity, and email verification");
+    AddStep("Launch", "Open the codyx experience");
+    body.Children.Add(stepPanel);
+
+    licensePanel.Visibility = Visibility.Collapsed;
+    licensePanel.Margin = new Thickness(0, 22, 0, 0);
+    licensePanel.Padding = new Thickness(18);
+    licensePanel.CornerRadius = new CornerRadius(8);
+    licensePanel.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    licensePanel.BorderThickness = new Thickness(1);
+    licensePanel.Background = new SolidColorBrush(Color.FromRgb(17, 23, 34));
+    licensePanel.Child = BuildLicensePanel();
+    body.Children.Add(licensePanel);
+
+    var actions = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      HorizontalAlignment = HorizontalAlignment.Right,
+      Margin = new Thickness(0, 18, 0, 0),
+    };
+
+    detailsButton.Content = "View details";
+    detailsButton.Margin = new Thickness(0, 0, 10, 0);
+    detailsButton.Padding = new Thickness(16, 8, 16, 8);
+    detailsButton.Click += (_, _) => ToggleDetails();
+    actions.Children.Add(detailsButton);
+
+    primaryButton.Content = "Preparing...";
+    primaryButton.IsEnabled = false;
+    primaryButton.Padding = new Thickness(18, 8, 18, 8);
+    actions.Children.Add(primaryButton);
+    body.Children.Add(actions);
+
+    logBox.Visibility = Visibility.Collapsed;
+    logBox.IsReadOnly = true;
+    logBox.TextWrapping = TextWrapping.Wrap;
+    logBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+    logBox.Height = 140;
+    logBox.Margin = new Thickness(0, 16, 0, 0);
+    logBox.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
+    logBox.Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224));
+    logBox.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    body.Children.Add(logBox);
+
+    root.Children.Add(body);
+    return root;
+  }
+
+  UIElement BuildBanner()
+  {
+    var grid = new Grid
+    {
+      Height = 128,
+      ClipToBounds = true,
+      Background = new LinearGradientBrush(
+        Color.FromRgb(10, 18, 30),
+        Color.FromRgb(20, 38, 34),
+        0),
+    };
+
+    var glow = new Rectangle
+    {
+      Fill = new LinearGradientBrush(
+        [
+          new GradientStop(Color.FromArgb(0, 28, 216, 117), 0),
+          new GradientStop(Color.FromArgb(180, 28, 216, 117), 0.45),
+          new GradientStop(Color.FromArgb(0, 88, 166, 255), 1),
+        ],
+        0),
+      Opacity = 0.45,
+      Width = 360,
+      HorizontalAlignment = HorizontalAlignment.Left,
+      RenderTransform = new TranslateTransform(-360, 0),
+    };
+    grid.Children.Add(glow);
+
+    ((TranslateTransform)glow.RenderTransform).BeginAnimation(
+      TranslateTransform.XProperty,
+      new DoubleAnimation(-360, 740, TimeSpan.FromSeconds(4.2))
+      {
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+      });
+
+    grid.Children.Add(new TextBlock
+    {
+      Text = "Codyx-Orchestrator",
+      Foreground = Brushes.White,
+      FontSize = 36,
+      FontWeight = FontWeights.Bold,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      VerticalAlignment = VerticalAlignment.Center,
+    });
+
+    return grid;
+  }
+
+  UIElement BuildLicensePanel()
+  {
+    var panel = new StackPanel();
+    panel.Children.Add(new TextBlock
+    {
+      Text = "License agreement",
+      Foreground = Brushes.White,
+      FontWeight = FontWeights.Bold,
+      FontSize = 18,
+      Margin = new Thickness(0, 0, 0, 8),
+    });
+    panel.Children.Add(new TextBlock
+    {
+      Text = "codyx-orchestrator is distributed under the MIT License. Continue only if you agree to the license terms. The next setup window will ask for your name, email, and verification code.",
+      Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224)),
+      TextWrapping = TextWrapping.Wrap,
+      Margin = new Thickness(0, 0, 0, 12),
+    });
+    panel.Children.Add(new TextBlock
+    {
+      Text = "License: https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE",
+      Foreground = new SolidColorBrush(Color.FromRgb(77, 190, 255)),
+      TextWrapping = TextWrapping.Wrap,
+      Margin = new Thickness(0, 0, 0, 14),
+    });
+
+    var buttons = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      HorizontalAlignment = HorizontalAlignment.Right,
+    };
+
+    var decline = new Button
+    {
+      Content = "Decline",
+      Padding = new Thickness(14, 8, 14, 8),
+      Margin = new Thickness(0, 0, 10, 0),
+    };
+    decline.Click += (_, _) => Close();
+    buttons.Children.Add(decline);
+
+    var agree = new Button
+    {
+      Content = "Agree and continue",
+      Padding = new Thickness(16, 8, 16, 8),
+      Background = new SolidColorBrush(Color.FromRgb(35, 225, 126)),
+      Foreground = Brushes.Black,
+      FontWeight = FontWeights.Bold,
+    };
+    agree.Click += async (_, _) => await ContinueFirstRunAsync();
+    buttons.Children.Add(agree);
+
+    panel.Children.Add(buttons);
+    return panel;
+  }
+
+  void AddStep(string title, string detail)
+  {
+    var row = new StepRow(title, detail);
+    steps.Add(row);
+    stepPanel.Children.Add(row.Root);
+  }
+
+  async Task StartAsync()
+  {
+    launcherScript = ExtractLauncherScript();
+    SetStep(0, StepState.Active);
+    await Task.Delay(350);
+    SetStep(0, StepState.Done);
+    SetStep(1, StepState.Active);
+
+    if (!InstallComplete(installRoot))
+    {
+      statusText.Text = "First run needs your license agreement and verification.";
+      SetStep(1, Directory.Exists(installRoot) ? StepState.Done : StepState.Active);
+      SetStep(2, StepState.Active);
+      primaryButton.Content = "Agree in the license panel";
+      primaryButton.IsEnabled = false;
+      licensePanel.Visibility = Visibility.Visible;
+      return;
+    }
+
+    await RunUpdateThenLaunchAsync();
+  }
+
+  async Task ContinueFirstRunAsync()
+  {
+    licensePanel.Visibility = Visibility.Collapsed;
+    primaryButton.Content = "Setup window open";
+    primaryButton.IsEnabled = false;
+    statusText.Text = "Complete identity and email verification in the setup window.";
+    AppendLog("Opening interactive setup with explicit license acceptance.");
+
+    SetStep(1, StepState.Done);
+    SetStep(2, StepState.Active);
+
+    var code = await RunInteractiveLauncherAsync(true);
+    if (code == 0)
+    {
+      SetStep(2, StepState.Done);
+      SetStep(3, StepState.Done);
+      statusText.Text = "codyx setup finished.";
+      primaryButton.Content = "Done";
+      primaryButton.IsEnabled = true;
+      primaryButton.Click += (_, _) => Close();
+      return;
+    }
+
+    SetStep(2, StepState.Error);
+    statusText.Text = "Setup did not finish. View details or run again.";
+    primaryButton.Content = "Try again";
+    primaryButton.IsEnabled = true;
+    primaryButton.Click += async (_, _) => await ContinueFirstRunAsync();
+  }
+
+  async Task RunUpdateThenLaunchAsync()
+  {
+    statusText.Text = "Checking for updates before launch.";
+    AppendLog("Running silent update check.");
+    SetStep(1, StepState.Active);
+
+    var code = await RunHiddenLauncherAsync();
+    if (code != 0)
+    {
+      SetStep(1, StepState.Error);
+      statusText.Text = "Update check failed. View details for the launcher log.";
+      primaryButton.Content = "Open interactive setup";
+      primaryButton.IsEnabled = true;
+      primaryButton.Click += async (_, _) => await ContinueFirstRunAsync();
+      return;
+    }
+
+    SetStep(1, StepState.Done);
+    SetStep(2, StepState.Done);
+    SetStep(3, StepState.Active);
+    LaunchCodyx();
+    SetStep(3, StepState.Done);
+    statusText.Text = "codyx is launching.";
+    primaryButton.Content = "Close";
+    primaryButton.IsEnabled = true;
+    primaryButton.Click += (_, _) => Close();
+  }
+
+  async Task<int> RunHiddenLauncherAsync()
+  {
+    return await RunProcessAsync(new ProcessStartInfo
+    {
+      FileName = PowerShellPath(),
+      Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{launcherScript}\" -NoLaunch",
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+      CreateNoWindow = true,
+      WorkingDirectory = AppContext.BaseDirectory,
+    });
+  }
+
+  async Task<int> RunInteractiveLauncherAsync(bool acceptedLicense)
+  {
+    var licenseArg = acceptedLicense ? " -AcceptLicense" : "";
+    using var process = Process.Start(new ProcessStartInfo
+    {
+      FileName = PowerShellPath(),
+      Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{launcherScript}\"{licenseArg}",
+      UseShellExecute = true,
+      WindowStyle = ProcessWindowStyle.Normal,
+      WorkingDirectory = AppContext.BaseDirectory,
+    });
+    if (process == null) return 1;
+    await process.WaitForExitAsync();
+    return process.ExitCode;
+  }
+
+  async Task<int> RunProcessAsync(ProcessStartInfo startInfo)
+  {
+    using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+    process.OutputDataReceived += (_, eventArgs) => AppendLog(eventArgs.Data);
+    process.ErrorDataReceived += (_, eventArgs) => AppendLog(eventArgs.Data);
+    if (!process.Start()) return 1;
+    process.BeginOutputReadLine();
+    process.BeginErrorReadLine();
+    await process.WaitForExitAsync();
+    return process.ExitCode;
+  }
+
+  void LaunchCodyx()
+  {
+    var command = IOPath.Combine(installRoot, "codyx.cmd");
+    if (!File.Exists(command))
+    {
+      AppendLog($"Cannot find {command}");
+      return;
+    }
+
+    Process.Start(new ProcessStartInfo
+    {
+      FileName = "cmd.exe",
+      Arguments = $"/d /s /c \"\"{command}\"\"",
+      UseShellExecute = true,
+      WorkingDirectory = installRoot,
+      WindowStyle = ProcessWindowStyle.Normal,
+    });
+  }
+
+  string ExtractLauncherScript()
+  {
+    var target = IOPath.Combine(IOPath.GetTempPath(), "codyx-launcher", "launcher.ps1");
+    Directory.CreateDirectory(IOPath.GetDirectoryName(target)!);
+    using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("Codyx.Launcher.Resources.launcher.ps1")
+      ?? throw new InvalidOperationException("Embedded launcher.ps1 was not found.");
+    using var file = File.Create(target);
+    resource.CopyTo(file);
+    return target;
+  }
+
+  static string ResolveInstallRoot()
+  {
+    var requested = Environment.GetEnvironmentVariable("CODY_INSTALL_ROOT");
+    if (!string.IsNullOrWhiteSpace(requested)) return requested;
+
+    var defaultRoot = IOPath.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+      "codyx");
+    if (IsCheckout(defaultRoot)) return defaultRoot;
+    return IOPath.Combine(defaultRoot, "source");
+  }
+
+  static bool IsCheckout(string path)
+  {
+    return File.Exists(IOPath.Combine(path, "package.json"))
+      && File.Exists(IOPath.Combine(path, "codyx.cmd"));
+  }
+
+  static bool InstallComplete(string path)
+  {
+    return IsCheckout(path) && File.Exists(IOPath.Combine(path, ".codyx-install-marker"));
+  }
+
+  static string PowerShellPath()
+  {
+    return IOPath.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe");
+  }
+
+  void ToggleDetails()
+  {
+    detailsVisible = !detailsVisible;
+    logBox.Visibility = detailsVisible ? Visibility.Visible : Visibility.Collapsed;
+    detailsButton.Content = detailsVisible ? "Hide details" : "View details";
+  }
+
+  void AppendLog(string? line)
+  {
+    if (string.IsNullOrWhiteSpace(line)) return;
+    Dispatcher.Invoke(() =>
+    {
+      logBox.AppendText(line + Environment.NewLine);
+      logBox.ScrollToEnd();
+    });
+  }
+
+  void SetStep(int index, StepState state)
+  {
+    if (index >= 0 && index < steps.Count) steps[index].Set(state);
+  }
+}
+
+public enum StepState
+{
+  Waiting,
+  Active,
+  Done,
+  Error,
+}
+
+public sealed class StepRow
+{
+  public Grid Root { get; } = new();
+  readonly Ellipse dot = new();
+  readonly TextBlock titleBlock = new();
+  readonly TextBlock detailBlock = new();
+
+  public StepRow(string title, string detail)
+  {
+    Root.Margin = new Thickness(0, 0, 0, 10);
+    Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+    Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+    dot.Width = 16;
+    dot.Height = 16;
+    dot.Fill = new SolidColorBrush(Color.FromRgb(74, 85, 104));
+    dot.VerticalAlignment = VerticalAlignment.Top;
+    dot.Margin = new Thickness(0, 4, 0, 0);
+    Root.Children.Add(dot);
+
+    var text = new StackPanel();
+    Grid.SetColumn(text, 1);
+    titleBlock.Text = title;
+    titleBlock.Foreground = Brushes.White;
+    titleBlock.FontWeight = FontWeights.SemiBold;
+    detailBlock.Text = detail;
+    detailBlock.Foreground = new SolidColorBrush(Color.FromRgb(154, 164, 181));
+    detailBlock.FontSize = 13;
+    text.Children.Add(titleBlock);
+    text.Children.Add(detailBlock);
+    Root.Children.Add(text);
+  }
+
+  public void Set(StepState state)
+  {
+    dot.Fill = state switch
+    {
+      StepState.Active => new SolidColorBrush(Color.FromRgb(77, 190, 255)),
+      StepState.Done => new SolidColorBrush(Color.FromRgb(35, 225, 126)),
+      StepState.Error => new SolidColorBrush(Color.FromRgb(255, 94, 105)),
+      _ => new SolidColorBrush(Color.FromRgb(74, 85, 104)),
+    };
+    titleBlock.Foreground = state == StepState.Waiting
+      ? new SolidColorBrush(Color.FromRgb(202, 211, 224))
+      : Brushes.White;
+  }
+}

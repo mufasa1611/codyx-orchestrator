@@ -211,6 +211,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
       - name: Setup git committer
         id: committer
         uses: ./.github/actions/setup-git-committer
@@ -229,15 +233,15 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Install-Module ps2exe -Force -Scope CurrentUser -Repository PSGallery
-          Invoke-ps2exe `
-            -inputFile script\launcher.ps1 `
-            -outputFile dist\codyx-launcher-windows-x64.exe `
-            -title "codyx Launcher" `
-            -description "codyx source checkout auto-update launcher" `
-            -product "codyx" `
-            -company "Mufasa" `
-            -iconFile packages\desktop\icons\prod\icon.ico
+          dotnet publish packages\launcher\Codyx.Launcher.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -o dist\launcher
+          Copy-Item dist\launcher\Codyx.Launcher.exe dist\codyx-launcher-windows-x64.exe -Force
 
       - name: Sign launcher exe
         shell: pwsh

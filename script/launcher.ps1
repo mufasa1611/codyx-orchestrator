@@ -15,7 +15,6 @@ param(
   [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "dev" }),
   [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { "" }),
   [switch]$AcceptLicense,
-  [switch]$RequireLicensePrompt,
   [switch]$NoBuild,
   [switch]$NoLaunch,
   [Parameter(ValueFromRemainingArguments = $true)]
@@ -166,7 +165,7 @@ function Invoke-FirstRunInstall {
   Write-Info "First run setup is needed."
   $installer = Join-Path $InstallRoot "script\install.ps1"
   $installerArgs = @("-Branch", $Branch, "-InstallRoot", $InstallRoot)
-  if (-not $RequireLicensePrompt -or $AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
+  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
   if ($NoBuild) { $installerArgs += "-NoBuild" }
   $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
   $code = Invoke-Native $windowsPowerShell @(@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installer) + $installerArgs)

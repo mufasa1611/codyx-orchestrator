@@ -65,6 +65,9 @@ codyx_todolist.md
 test-results/
 **/.test-dist/
 **/.wrangler/
+.dotnet/
+bin/
+obj/
 
 # Noise: ad-hoc db check/fix scripts
 _check_db*

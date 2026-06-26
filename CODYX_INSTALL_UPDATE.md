@@ -2,11 +2,11 @@
 
 ## Zero-Touch User Packages
 
-| Package            | User Action           | Update Mechanism                                                                                                                                                                               |
-| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Launcher `.exe`    | Double-click it daily | The launcher installs Git/Bun when needed, clones or updates the source checkout, refreshes dependencies/build output when needed, then starts `codyx`.                                        |
-| Electron installer | Install once          | The desktop app uses `electron-updater` against this repo's GitHub Releases, downloads updates in the background on startup, and installs the downloaded update on app quit/restart.           |
-| Android APK/AAB    | Install once          | The Android package is a Trusted Web Activity that opens the hosted codyx PWA, so web updates are fetched on app start. Native APK/AAB updates are distributed through releases or Play Store. |
+| Package            | User Action           | Update Mechanism                                                                                                                                                                                 |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Launcher `.exe`    | Double-click it daily | The branded .NET launcher shows license/setup status, installs Git/Bun when needed, clones or updates the source checkout, refreshes dependencies/build output when needed, then starts `codyx`. |
+| Electron installer | Install once          | The desktop app uses `electron-updater` against this repo's GitHub Releases, downloads updates in the background on startup, and installs the downloaded update on app quit/restart.             |
+| Android APK/AAB    | Install once          | The Android package is a Trusted Web Activity that opens the hosted codyx PWA, so web updates are fetched on app start. Native APK/AAB updates are distributed through releases or Play Store.   |
 
 All packages are produced by the release workflow. The launcher release asset is `codyx-launcher-windows-x64.exe`; Electron installers are produced from `packages/desktop`; Android artifacts are produced from `packages/android`.
 
@@ -84,7 +84,7 @@ The source installer shows the MIT license agreement before installing prerequis
 
 After verification, the source installer runs `bun install`, builds the web UI, discovers optional local models, and verifies the source checkout global shim. The privacy notice is available at https://install.kingkung.men/privacy and deletion requests can be sent to `privacy@kingkung.men`.
 
-For non-technical Windows users who should not run a shell command, distribute the launcher `.exe` from the GitHub Release instead. It uses the same source installer on first run and then keeps the checkout up to date on launch.
+For non-technical Windows users who should not run a shell command, distribute the launcher `.exe` from the GitHub Release instead. It shows the license agreement in the branded launcher, opens the interactive name/email verification setup on first run, and then keeps the checkout up to date on launch.
 
 For GUI users, distribute the Electron installer from the same GitHub Release. It starts the desktop Web UI experience and keeps itself current through `electron-updater`.
 
