@@ -15,6 +15,7 @@ param(
   [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "dev" }),
   [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { "" }),
   [switch]$AcceptLicense,
+  [switch]$RequireLicensePrompt,
   [switch]$NoBuild,
   [switch]$NoLaunch,
   [Parameter(ValueFromRemainingArguments = $true)]
@@ -134,6 +135,10 @@ function Test-CodyxCheckout($Path) {
   }
 }
 
+function Test-CodyxInstallComplete($Path) {
+  return (Test-CodyxCheckout $Path) -and (Test-Path -LiteralPath (Join-Path $Path ".codyx-install-marker"))
+}
+
 function Resolve-InstallRoot($RequestedRoot) {
   if ($RequestedRoot) { return $RequestedRoot }
 
@@ -161,7 +166,7 @@ function Invoke-FirstRunInstall {
   Write-Info "First run setup is needed."
   $installer = Join-Path $InstallRoot "script\install.ps1"
   $installerArgs = @("-Branch", $Branch, "-InstallRoot", $InstallRoot)
-  if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
+  if (-not $RequireLicensePrompt -or $AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
   if ($NoBuild) { $installerArgs += "-NoBuild" }
   $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
   $code = Invoke-Native $windowsPowerShell @(@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installer) + $installerArgs)
@@ -312,6 +317,8 @@ Write-Host ""
 Ensure-Git
 Ensure-Bun
 
+$needsFirstRunInstall = -not (Test-CodyxInstallComplete $InstallRoot)
+
 if (-not (Test-CodyxCheckout $InstallRoot)) {
   if ((Test-Path -LiteralPath $InstallRoot) -and (Get-ChildItem -LiteralPath $InstallRoot -Force | Select-Object -First 1)) {
     throw "$InstallRoot exists but is not a codyx checkout. Move it away or set CODY_INSTALL_ROOT."
@@ -321,13 +328,18 @@ if (-not (Test-CodyxCheckout $InstallRoot)) {
   $parent = Split-Path -Parent $InstallRoot
   if ($parent) { $null = New-Item -ItemType Directory -Force -Path $parent }
   Invoke-WithRetry {
-    $code = Invoke-Native "git" @("clone", "--branch", $Branch, $RepoUrl, $InstallRoot)
+    $code = Invoke-Native "git" @("clone", "--quiet", "--branch", $Branch, $RepoUrl, $InstallRoot)
     if ($code -ne 0) { throw "git clone failed." }
   } "git clone"
   git config --global --add safe.directory "$InstallRoot" 2>$null
-  Invoke-FirstRunInstall
+  $needsFirstRunInstall = $true
 } else {
   git config --global --add safe.directory "$InstallRoot" 2>$null
+}
+
+if ($needsFirstRunInstall) {
+  Invoke-FirstRunInstall
+} else {
   Refresh-Install
 }
 
