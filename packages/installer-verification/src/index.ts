@@ -19,6 +19,7 @@ import {
   canResend,
 } from "./policy"
 import { privacyPage } from "./privacy"
+import { licensePage } from "./license"
 import { adminPanel } from "./admin-panel"
 import { feedbackPage } from "./feedback"
 import type { Bindings, ChallengeRow } from "./types"
@@ -240,6 +241,12 @@ app.get("/health", (context) => context.json({ healthy: true, environment: conte
 
 app.get("/privacy", (context) =>
   context.html(privacyPage(context.env.INSTALLER_PRIVACY_EMAIL), 200, {
+    "Cache-Control": "public, max-age=3600",
+  }),
+)
+
+app.get("/license", (context) =>
+  context.html(licensePage(), 200, {
     "Cache-Control": "public, max-age=3600",
   }),
 )

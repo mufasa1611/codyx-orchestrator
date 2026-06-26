@@ -1,10 +1,10 @@
-export function privacyPage(email: string) {
+export function licensePage() {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Codyx Installer — Privacy Notice</title>
+<title>Codyx — License Agreement</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,14 +12,16 @@ export function privacyPage(email: string) {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --green: #23e17e;
-    --blue: #4dbeff;
+    --green:  #23e17e;
+    --blue:   #4dbeff;
     --purple: #9b7eff;
-    --bg: #090c12;
-    --card: rgba(17, 24, 39, 0.72);
+    --amber:  #f5c842;
+    --red:    #ff5e69;
+    --bg:     #090c12;
+    --card:   rgba(17, 24, 39, 0.75);
     --border: rgba(255,255,255,0.08);
-    --text: #d6dce7;
-    --muted: #8a97ad;
+    --text:   #d6dce7;
+    --muted:  #8a97ad;
   }
 
   html, body {
@@ -38,86 +40,53 @@ export function privacyPage(email: string) {
     pointer-events: none;
   }
 
-  /* ── animated canvas background ── */
+  /* ── animated background orbs ── */
   .bg {
     position: fixed;
     inset: 0;
     z-index: 0;
     overflow: hidden;
   }
-
   .orb {
     position: absolute;
     border-radius: 50%;
     filter: blur(90px);
-    opacity: 0.35;
+    opacity: 0.3;
     animation: drift linear infinite;
   }
-  .orb-1 {
-    width: 520px; height: 520px;
-    background: radial-gradient(circle, #23e17e, transparent 70%);
-    top: -120px; left: -120px;
-    animation-duration: 18s;
-  }
-  .orb-2 {
-    width: 420px; height: 420px;
-    background: radial-gradient(circle, #4dbeff, transparent 70%);
-    top: 40%; right: -100px;
-    animation-duration: 22s;
-    animation-delay: -7s;
-  }
-  .orb-3 {
-    width: 360px; height: 360px;
-    background: radial-gradient(circle, #9b7eff, transparent 70%);
-    bottom: -80px; left: 30%;
-    animation-duration: 26s;
-    animation-delay: -13s;
-  }
-  .orb-4 {
-    width: 280px; height: 280px;
-    background: radial-gradient(circle, #ff6b9d, transparent 70%);
-    top: 20%; left: 55%;
-    animation-duration: 20s;
-    animation-delay: -4s;
-  }
+  .orb-1 { width:500px;height:500px;background:radial-gradient(circle,#23e17e,transparent 70%);top:-100px;left:-100px;animation-duration:20s; }
+  .orb-2 { width:400px;height:400px;background:radial-gradient(circle,#4dbeff,transparent 70%);top:35%;right:-80px;animation-duration:25s;animation-delay:-8s; }
+  .orb-3 { width:340px;height:340px;background:radial-gradient(circle,#9b7eff,transparent 70%);bottom:-60px;left:28%;animation-duration:28s;animation-delay:-14s; }
+  .orb-4 { width:260px;height:260px;background:radial-gradient(circle,#f5c842,transparent 70%);top:15%;left:52%;animation-duration:22s;animation-delay:-5s;opacity:0.18; }
 
   @keyframes drift {
-    0%   { transform: translate(0, 0) scale(1); }
-    25%  { transform: translate(40px, 30px) scale(1.06); }
-    50%  { transform: translate(-20px, 60px) scale(0.94); }
-    75%  { transform: translate(30px, -20px) scale(1.04); }
-    100% { transform: translate(0, 0) scale(1); }
+    0%   { transform: translate(0,0) scale(1); }
+    25%  { transform: translate(40px,30px) scale(1.06); }
+    50%  { transform: translate(-20px,60px) scale(0.94); }
+    75%  { transform: translate(30px,-20px) scale(1.04); }
+    100% { transform: translate(0,0) scale(1); }
   }
 
-  /* star particles */
   .stars {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background-image:
-      radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 0%, transparent 100%),
-      radial-gradient(1px 1px at 25% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 50% 25%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 85% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(1px 1px at 40% 90%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 60% 10%, rgba(255,255,255,0.6) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 90% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 5% 50%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 78% 20%, rgba(255,255,255,0.5) 0%, transparent 100%);
-    animation: twinkle 6s ease-in-out infinite alternate;
+      radial-gradient(1px 1px at 10% 15%,rgba(255,255,255,.6) 0%,transparent 100%),
+      radial-gradient(1px 1px at 25% 60%,rgba(255,255,255,.4) 0%,transparent 100%),
+      radial-gradient(1.5px 1.5px at 50% 25%,rgba(255,255,255,.5) 0%,transparent 100%),
+      radial-gradient(1px 1px at 70% 80%,rgba(255,255,255,.3) 0%,transparent 100%),
+      radial-gradient(1px 1px at 85% 40%,rgba(255,255,255,.5) 0%,transparent 100%),
+      radial-gradient(1px 1px at 40% 90%,rgba(255,255,255,.4) 0%,transparent 100%),
+      radial-gradient(1px 1px at 60% 10%,rgba(255,255,255,.6) 0%,transparent 100%),
+      radial-gradient(1.5px 1.5px at 90% 70%,rgba(255,255,255,.3) 0%,transparent 100%);
+    animation: twinkle 7s ease-in-out infinite alternate;
   }
-  @keyframes twinkle {
-    from { opacity: 0.6; }
-    to   { opacity: 1; }
-  }
+  @keyframes twinkle { from { opacity:.5; } to { opacity:1; } }
 
-  /* grid overlay */
   .grid {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background-image:
-      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
     background-size: 48px 48px;
   }
 
@@ -129,12 +98,12 @@ export function privacyPage(email: string) {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: 60px 20px;
+    padding: 60px 20px 80px;
   }
 
   .card {
     width: 100%;
-    max-width: 780px;
+    max-width: 820px;
     background: var(--card);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
@@ -142,9 +111,9 @@ export function privacyPage(email: string) {
     border-radius: 20px;
     padding: 52px 56px;
     box-shadow:
-      0 0 0 1px rgba(255,255,255,0.04),
-      0 32px 80px rgba(0,0,0,0.5),
-      0 0 60px rgba(35,225,126,0.06);
+      0 0 0 1px rgba(255,255,255,.04),
+      0 32px 80px rgba(0,0,0,.55),
+      0 0 60px rgba(35,225,126,.05);
   }
 
   /* ── header ── */
@@ -152,34 +121,34 @@ export function privacyPage(email: string) {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(35,225,126,0.1);
-    border: 1px solid rgba(35,225,126,0.25);
+    background: rgba(245,200,66,.1);
+    border: 1px solid rgba(245,200,66,.28);
     border-radius: 100px;
     padding: 6px 14px;
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--green);
+    color: var(--amber);
     margin-bottom: 24px;
   }
   .badge-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: var(--green);
+    background: var(--amber);
     animation: pulse 2s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.4; transform: scale(0.7); }
+    0%,100% { opacity:1;transform:scale(1); }
+    50%      { opacity:.4;transform:scale(.7); }
   }
 
   h1 {
-    font-size: clamp(28px, 5vw, 42px);
+    font-size: clamp(28px,5vw,42px);
     font-weight: 800;
-    letter-spacing: -0.03em;
+    letter-spacing: -.03em;
     line-height: 1.15;
-    background: linear-gradient(135deg, #ffffff 0%, #d6dce7 60%, var(--green) 100%);
+    background: linear-gradient(135deg,#ffffff 0%,#d6dce7 55%,var(--amber) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -189,21 +158,19 @@ export function privacyPage(email: string) {
   .subtitle {
     font-size: 15px;
     color: var(--muted);
-    font-weight: 400;
     margin-bottom: 40px;
+    line-height: 1.6;
   }
 
   /* ── divider ── */
   .divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    background: linear-gradient(90deg,transparent,var(--border),transparent);
     margin: 36px 0;
   }
 
   /* ── sections ── */
-  .section {
-    margin-bottom: 28px;
-  }
+  .section { margin-bottom: 28px; }
 
   .section-label {
     display: flex;
@@ -211,124 +178,157 @@ export function privacyPage(email: string) {
     gap: 10px;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--blue);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
   .section-label::before {
     content: '';
     display: block;
-    width: 3px;
-    height: 14px;
+    width: 3px; height: 14px;
     border-radius: 2px;
     background: var(--blue);
   }
+  .section-label.amber { color: var(--amber); }
+  .section-label.amber::before { background: var(--amber); }
+  .section-label.red   { color: var(--red); }
+  .section-label.red::before   { background: var(--red); }
+  .section-label.green { color: var(--green); }
+  .section-label.green::before { background: var(--green); }
 
   p {
-    font-size: 15.5px;
-    line-height: 1.75;
+    font-size: 15px;
+    line-height: 1.8;
     color: var(--text);
-    font-weight: 400;
   }
 
-  /* ── data list ── */
-  .data-list {
-    list-style: none;
+  /* ── MIT block ── */
+  .mit-block {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    font-family: 'Inter', monospace;
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--muted);
+    white-space: pre-wrap;
+    margin-top: 14px;
+  }
+  .mit-block strong { color: var(--text); font-weight: 600; }
+
+  /* ── permission grid ── */
+  .perm-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill,minmax(200px,1fr));
     gap: 10px;
     margin-top: 14px;
   }
-  .data-list li {
+  .perm-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border);
+    background: rgba(35,225,126,.06);
+    border: 1px solid rgba(35,225,126,.18);
     border-radius: 10px;
     padding: 10px 14px;
     font-size: 13.5px;
-    color: var(--text);
     font-weight: 500;
-  }
-  .data-list li::before {
-    content: '✦';
-    color: var(--green);
-    font-size: 10px;
-    flex-shrink: 0;
-  }
-
-  /* ── highlight box ── */
-  .highlight {
-    background: rgba(77,190,255,0.06);
-    border: 1px solid rgba(77,190,255,0.18);
-    border-radius: 12px;
-    padding: 18px 22px;
-    font-size: 14.5px;
-    line-height: 1.7;
     color: var(--text);
+  }
+  .perm-item .icon { font-size: 15px; flex-shrink: 0; }
+
+  /* ── restriction block ── */
+  .restrict-block {
+    background: rgba(255,94,105,.06);
+    border: 1px solid rgba(255,94,105,.22);
+    border-radius: 14px;
+    padding: 22px 26px;
     margin-top: 14px;
   }
-  .highlight strong {
-    color: var(--blue);
-    font-weight: 600;
-  }
+  .restrict-block p { font-size: 15px; line-height: 1.8; }
+  .restrict-block strong { color: #ff8f97; font-weight: 600; }
 
-  /* ── retention chips ── */
-  .chips {
+  /* ── requirement item ── */
+  .req-list {
+    list-style: none;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 10px;
     margin-top: 14px;
   }
-  .chip {
+  .req-list li {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(155,126,255,0.08);
-    border: 1px solid rgba(155,126,255,0.2);
-    border-radius: 100px;
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--purple);
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(245,200,66,.05);
+    border: 1px solid rgba(245,200,66,.16);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .req-list li .num {
+    background: rgba(245,200,66,.15);
+    border: 1px solid rgba(245,200,66,.25);
+    color: var(--amber);
+    font-weight: 700;
+    font-size: 12px;
+    border-radius: 6px;
+    padding: 2px 8px;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
-  /* ── contact ── */
+  /* ── contact cards ── */
+  .contact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+  }
   .contact-card {
+    flex: 1 1 260px;
     display: flex;
     align-items: center;
-    gap: 16px;
-    background: rgba(255,255,255,0.03);
+    gap: 14px;
+    background: rgba(255,255,255,.03);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 20px 24px;
-    margin-top: 14px;
-    transition: border-color 0.2s, background 0.2s;
+    padding: 18px 20px;
+    transition: border-color .2s, background .2s;
+    text-decoration: none;
   }
   .contact-card:hover {
-    border-color: rgba(35,225,126,0.3);
-    background: rgba(35,225,126,0.04);
+    border-color: rgba(35,225,126,.3);
+    background: rgba(35,225,126,.04);
   }
   .contact-icon {
-    width: 42px; height: 42px;
+    width: 40px; height: 40px;
     border-radius: 10px;
-    background: rgba(35,225,126,0.12);
-    border: 1px solid rgba(35,225,126,0.2);
+    background: rgba(35,225,126,.1);
+    border: 1px solid rgba(35,225,126,.2);
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+    font-size: 18px;
     flex-shrink: 0;
   }
-  .contact-text { font-size: 14px; }
-  .contact-text strong { display: block; color: #fff; font-weight: 600; margin-bottom: 2px; }
-  .contact-text a {
-    color: var(--green);
-    text-decoration: none;
-    font-weight: 500;
+  .contact-text strong { display: block; color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .contact-text span   { color: var(--green); font-size: 13px; }
+
+  /* ── warranty notice ── */
+  .warranty {
+    background: rgba(77,190,255,.05);
+    border: 1px solid rgba(77,190,255,.15);
+    border-radius: 12px;
+    padding: 18px 22px;
     font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--muted);
+    margin-top: 14px;
   }
-  .contact-text a:hover { text-decoration: underline; }
+  .warranty strong { color: var(--blue); }
 
   /* ── footer ── */
   .footer {
@@ -341,27 +341,27 @@ export function privacyPage(email: string) {
     flex-wrap: wrap;
     gap: 12px;
   }
-  .footer-sig {
-    font-size: 14px;
-    color: var(--muted);
+  .footer-sig { font-size: 14px; color: var(--muted); }
+  .footer-sig .name-gold  { color: var(--amber); font-weight: 600; }
+  .footer-sig .name-green { color: var(--green);  font-weight: 600; }
+  .footer-meta {
+    display: flex; gap: 8px; flex-wrap: wrap;
   }
-  .footer-sig .name-green { color: var(--green); font-weight: 600; }
-  .footer-sig .name-gold  { color: #f5c842; font-weight: 600; }
   .footer-badge {
     font-size: 12px;
     font-weight: 600;
     color: var(--muted);
-    background: rgba(255,255,255,0.04);
+    background: rgba(255,255,255,.04);
     border: 1px solid var(--border);
     border-radius: 100px;
     padding: 5px 14px;
-    letter-spacing: 0.06em;
+    letter-spacing: .06em;
   }
 
-  @media (max-width: 600px) {
+  @media (max-width:600px) {
     .card { padding: 36px 24px; }
-    .data-list { grid-template-columns: 1fr; }
-    .footer { flex-direction: column; align-items: flex-start; }
+    .perm-grid { grid-template-columns:1fr; }
+    .footer { flex-direction:column; align-items:flex-start; }
   }
   /* ── mufasa watermark ── */
   .mufasa-bg {
@@ -494,6 +494,7 @@ export function privacyPage(email: string) {
 </style>
 </head>
 <body>
+
 <canvas id="particles"></canvas>
 <div class="bg">
   <div class="stars"></div>
@@ -526,72 +527,160 @@ export function privacyPage(email: string) {
   </div>
   <div class="card">
 
-    <div class="badge"><span class="badge-dot"></span><span data-i18n="badge">Official Privacy Notice</span></div>
-    <h1 data-i18n="heading">Codyx Installer<br>Privacy Notice</h1>
-    <p class="subtitle" data-i18n="subtitle">How we handle your data during the installation process — transparently and minimally.</p>
+    <div class="badge"><span class="badge-dot"></span><span data-i18n="badge">Official License Agreement</span></div>
+    <h1 data-i18n="heading">Codyx-Orchestrator<br>License Agreement</h1>
+    <p class="subtitle" data-i18n="subtitle">
+      This document governs the use, distribution, and modification of the Codyx-Orchestrator software.
+      By installing or using this software you confirm that you have read, understood, and agreed to all terms below.
+    </p>
 
+    <!-- MIT License -->
     <div class="section">
-      <div class="section-label" data-i18n="collect_label">What we collect</div>
-      <p data-i18n="collect_desc">The official Windows installer collects only what is strictly necessary to verify your identity and keep you informed:</p>
-      <ul class="data-list">
-        <li data-i18n="collect_item_1">Display name you enter</li>
-        <li data-i18n="collect_item_2">Verified email address</li>
-        <li data-i18n="collect_item_3">Random install identifier</li>
-        <li data-i18n="collect_item_4">Installer version number</li>
-        <li data-i18n="collect_item_5">Windows platform label</li>
-        <li data-i18n="collect_item_6">Verification timestamps</li>
+      <div class="section-label" data-i18n="mit_label">MIT License</div>
+      <p data-i18n="mit_desc">Codyx-Orchestrator is distributed under the MIT License. The full license text is reproduced below.</p>
+      <div class="mit-block" data-i18n="mit_text"><strong>MIT License
+
+Copyright (c) 2026 Mufasa (M. Farid)</strong>
+
+Portions of this repository are based on the upstream cody project and retain
+their original MIT-licensed notices where present.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the following conditions
+are met:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- What you may do -->
+    <div class="section">
+      <div class="section-label green" data-i18n="permitted_label">What you are permitted to do</div>
+      <div class="perm-grid">
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_1">Use the software privately</span></div>
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_2">Distribute copies as-is</span></div>
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_3">Sublicense with attribution</span></div>
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_4">Build on top of the software</span></div>
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_5">Use for commercial projects</span></div>
+        <div class="perm-item"><span class="icon">✅</span> <span data-i18n="perm_6">Study and inspect the source</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Core modification restriction -->
+    <div class="section">
+      <div class="section-label red" data-i18n="restrict_label">Core modification restriction</div>
+      <div class="restrict-block">
+        <p data-i18n="restrict_p1">
+          While the MIT License grants broad permissions, <strong>modifications to the core system</strong> —
+          including but not limited to the installer pipeline, verification service, launcher logic,
+          orchestration engine, identity and licensing infrastructure — <strong>must not be made,
+          redistributed, or deployed without prior written approval from the administrator.</strong>
+        </p>
+        <p style="margin-top:14px;" data-i18n="restrict_p2">
+          This restriction exists to preserve <strong>system integrity, security, and operational stability</strong>
+          for all users of the platform. Unauthorised modifications to the core may break dependent services,
+          compromise user data safety, or violate third-party service agreements.
+        </p>
+        <p style="margin-top:14px;" data-i18n="restrict_p3">
+          If you have a legitimate need to modify core components — for example, a fork for an internal
+          deployment, a security patch, or an integration contribution — you are <strong>warmly encouraged
+          to reach out</strong>. Most requests are reviewed and responded to promptly.
+        </p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Before you modify the core -->
+    <div class="section">
+      <div class="section-label amber" data-i18n="steps_label">Before modifying the core — required steps</div>
+      <ul class="req-list">
+        <li>
+          <span class="num">01</span>
+          <span data-i18n="step_1">Contact the administrator at one of the addresses below and describe the modification you intend to make, the reason, and the target environment.</span>
+        </li>
+        <li>
+          <span class="num">02</span>
+          <span data-i18n="step_2">Wait for written acknowledgement before proceeding. Silence does not constitute approval.</span>
+        </li>
+        <li>
+          <span class="num">03</span>
+          <span data-i18n="step_3">If approved, retain the original copyright notice and add a clear changelog entry describing your change and the approval reference.</span>
+        </li>
+        <li>
+          <span class="num">04</span>
+          <span data-i18n="step_4">Do not remove, obscure, or alter any existing copyright headers, license texts, or attribution notices in the source files.</span>
+        </li>
       </ul>
     </div>
 
     <div class="divider"></div>
 
+    <!-- Contact administrator -->
     <div class="section">
-      <div class="section-label" data-i18n="verify_label">How verification works</div>
-      <p data-i18n="verify_desc">Email ownership is confirmed with a one-time code sent to your address. The display name you provide is not independently verified. Verification codes are <strong>never</strong> included in any administrator notices.</p>
-    </div>
-
-    <div class="section">
-      <div class="section-label" data-i18n="usage_label">What we do with it</div>
-      <div class="highlight" data-i18n="usage_desc">
-        After verification succeeds, an operational registration notice containing the <strong>display name</strong>, <strong>verified email</strong>, installation identifier, installer version, platform, and verification time is sent to the Codyx administrator.<br><br>
-        This information is used <strong>only</strong> to verify official installer use and to send essential service or security notices. It is <strong>never</strong> used for marketing and does not include source code, prompts, project files, or AI-provider credentials.
+      <div class="section-label green" data-i18n="contact_label">Contact the administrator</div>
+      <p data-i18n="contact_desc">For modification approvals, licensing questions, security reports, or any other concerns, reach out directly:</p>
+      <div class="contact-row">
+        <a class="contact-card" href="mailto:mufasa1611@gmail.com">
+          <div class="contact-icon">✉️</div>
+          <div class="contact-text">
+            <strong data-i18n="contact_primary">Primary — Gmail</strong>
+            <span>mufasa1611@gmail.com</span>
+          </div>
+        </a>
+        <a class="contact-card" href="mailto:mohamedfarid1@hotmail.com">
+          <div class="contact-icon">📬</div>
+          <div class="contact-text">
+            <strong data-i18n="contact_secondary">Secondary — Hotmail</strong>
+            <span>mohamedfarid1@hotmail.com</span>
+          </div>
+        </a>
       </div>
     </div>
 
     <div class="divider"></div>
 
+    <!-- Warranty disclaimer -->
     <div class="section">
-      <div class="section-label" data-i18n="retention_label">Data retention</div>
-      <div class="chips">
-        <span class="chip" data-i18n="retention_item_1">🗂 Installer records — up to 24 months</span>
-        <span class="chip" data-i18n="retention_item_2">🧾 Local verification receipts — 12 months</span>
-      </div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="section">
-      <div class="section-label" data-i18n="deletion_label">Deletion requests</div>
-      <p data-i18n="deletion_desc">You have the right to request deletion of your installer records at any time. Reach out and we will process your request promptly.</p>
-      <div class="contact-card">
-        <div class="contact-icon">✉️</div>
-        <div class="contact-text">
-          <strong data-i18n="contact_title">Privacy Requests</strong>
-          <a href="mailto:${email}">${email}</a>
-        </div>
+      <div class="section-label" data-i18n="warranty_label">Warranty &amp; liability</div>
+      <div class="warranty" data-i18n="warranty_desc">
+        <strong>No warranty is provided.</strong> The software is provided "as is", without warranty of any kind,
+        express or implied, including but not limited to the warranties of merchantability, fitness for a particular
+        purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim,
+        damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of,
+        or in connection with the software or the use or other dealings in the software.
       </div>
     </div>
 
     <div class="footer">
       <p class="footer-sig" data-i18n="footer_sig">
-        Best Regards — <span class="name-gold">M. Farid</span>
+        Copyright &copy; 2026 — <span class="name-gold">M. Farid</span>
         <span class="name-green">(Mufasa)</span>
       </p>
-      <span class="footer-badge">MIT Licensed</span>
+      <div class="footer-meta">
+        <span class="footer-badge">MIT License</span>
+        <span class="footer-badge">v2026</span>
+      </div>
     </div>
 
   </div>
 </div>
+
 <script>
 (function () {
   const canvas = document.getElementById('particles');
@@ -631,10 +720,8 @@ export function privacyPage(email: string) {
     ctx.clearRect(0, 0, W, H);
 
     for (const p of pts) {
-      // sine-wave breathing on alpha
       const a = p.alpha + Math.sin(ts * p.freq + p.phase) * p.amp;
 
-      // mouse repulsion
       const dx = p.x - MOUSE.x;
       const dy = p.y - MOUSE.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -644,31 +731,26 @@ export function privacyPage(email: string) {
         p.vy += (dy / dist) * force * 0.12;
       }
 
-      // dampen velocity so it doesn't fly away
       p.vx *= 0.985;
       p.vy *= 0.985;
 
-      // clamp speed
       const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
       if (spd > 2.2) { p.vx = p.vx / spd * 2.2; p.vy = p.vy / spd * 2.2; }
 
       p.x += p.vx;
       p.y += p.vy;
 
-      // wrap around edges
       if (p.x < -10) p.x = W + 10;
       if (p.x > W + 10) p.x = -10;
       if (p.y < -10) p.y = H + 10;
       if (p.y > H + 10) p.y = -10;
 
-      // draw dot with soft glow
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
       ctx.globalAlpha = Math.max(0, Math.min(1, a));
       ctx.fill();
 
-      // subtle connection lines between nearby dots
       for (const q of pts) {
         if (q === p) continue;
         const lx = p.x - q.x, ly = p.y - q.y;
@@ -702,104 +784,185 @@ export function privacyPage(email: string) {
 (function() {
   const TRANSLATIONS = {
     en: {
-      title: "Codyx Installer — Privacy Notice",
-      badge: "Official Privacy Notice",
-      heading: "Codyx Installer<br>Privacy Notice",
-      subtitle: "How we handle your data during the installation process — transparently and minimally.",
-      collect_label: "What we collect",
-      collect_desc: "The official Windows installer collects only what is strictly necessary to verify your identity and keep you informed:",
-      collect_item_1: "Display name you enter",
-      collect_item_2: "Verified email address",
-      collect_item_3: "Random install identifier",
-      collect_item_4: "Installer version number",
-      collect_item_5: "Windows platform label",
-      collect_item_6: "Verification timestamps",
-      verify_label: "How verification works",
-      verify_desc: "Email ownership is confirmed with a one-time code sent to your address. The display name you provide is not independently verified. Verification codes are <strong>never</strong> included in any administrator notices.",
-      usage_label: "What we do with it",
-      usage_desc: "After verification succeeds, an operational registration notice containing the <strong>display name</strong>, <strong>verified email</strong>, installation identifier, installer version, platform, and verification time is sent to the Codyx administrator.<br><br>This information is used <strong>only</strong> to verify official installer use and to send essential service or security notices. It is <strong>never</strong> used for marketing and does not include source code, prompts, project files, or AI-provider credentials.",
-      retention_label: "Data retention",
-      retention_item_1: "🗂 Installer records — up to 24 months",
-      retention_item_2: "🧾 Local verification receipts — 12 months",
-      deletion_label: "Deletion requests",
-      deletion_desc: "You have the right to request deletion of your installer records at any time. Reach out and we will process your request promptly.",
-      contact_title: "Privacy Requests",
-      footer_sig: "Best Regards — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
+      mit_text: \`<strong>MIT License
+
+Copyright (c) 2026 Mufasa (M. Farid)</strong>
+
+Portions of this repository are based on the upstream cody project and retain
+their original MIT-licensed notices where present.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the 'Software'), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the following conditions
+are met:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.\`,
+      title: "Codyx — License Agreement",
+      badge: "Official License Agreement",
+      heading: "Codyx-Orchestrator<br>License Agreement",
+      subtitle: "This document governs the use, distribution, and modification of the Codyx-Orchestrator software. By installing or using this software you confirm that you have read, understood, and agreed to all terms below.",
+      mit_label: "MIT License",
+      mit_desc: "Codyx-Orchestrator is distributed under the MIT License. The full license text is reproduced below.",
+      permitted_label: "What you are permitted to do",
+      perm_1: "Use the software privately",
+      perm_2: "Distribute copies as-is",
+      perm_3: "Sublicense with attribution",
+      perm_4: "Build on top of the software",
+      perm_5: "Use for commercial projects",
+      perm_6: "Study and inspect the source",
+      restrict_label: "Core modification restriction",
+      restrict_p1: "While the MIT License grants broad permissions, <strong>modifications to the core system</strong> — including but not limited to the installer pipeline, verification service, launcher logic, orchestration engine, identity and licensing infrastructure — <strong>must not be made, redistributed, or deployed without prior written approval from the administrator.</strong>",
+      restrict_p2: "This restriction exists to preserve <strong>system integrity, security, and operational stability</strong> for all users of the platform. Unauthorised modifications to the core may break dependent services, compromise user data safety, or violate third-party service agreements.",
+      restrict_p3: "If you have a legitimate need to modify core components — for example, a fork for an internal deployment, a security patch, or an integration contribution — you are <strong>warmly encouraged to reach out</strong>. Most requests are reviewed and responded to promptly.",
+      steps_label: "Before modifying the core — required steps",
+      step_1: "Contact the administrator at one of the addresses below and describe the modification you intend to make, the reason, and the target environment.",
+      step_2: "Wait for written acknowledgement before proceeding. Silence does not constitute approval.",
+      step_3: "If approved, retain the original copyright notice and add a clear changelog entry describing your change and the approval reference.",
+      step_4: "Do not remove, obscure, or alter any existing copyright headers, license texts, or attribution notices in the source files.",
+      contact_label: "Contact the administrator",
+      contact_desc: "For modification approvals, licensing questions, security reports, or any other concerns, reach out directly:",
+      contact_primary: "Primary — Gmail",
+      contact_secondary: "Secondary — Hotmail",
+      warranty_label: "Warranty & liability",
+      warranty_desc: "<strong>No warranty is provided.</strong> The software is provided 'as is', without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.",
+      footer_sig: "Copyright &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     fr: {
-      title: "Codyx Installer — Notice de Confidentialité",
-      badge: "Notice de Confidentialité Officielle",
-      heading: "Programme d'installation Codyx<br>Notice de Confidentialité",
-      subtitle: "Comment nous traitons vos données lors du processus d'installation — de manière transparente et minimale.",
-      collect_label: "Ce que nous collectons",
-      collect_desc: "Le programme d'installation officiel de Windows collecte uniquement ce qui est strictement nécessaire pour vérifier votre identité et vous tenir informé :",
-      collect_item_1: "Le nom d'affichage que vous saisissez",
-      collect_item_2: "L'adresse e-mail vérifiée",
-      collect_item_3: "Un identifiant d'installation aléatoire",
-      collect_item_4: "Le numéro de version du programme d'installation",
-      collect_item_5: "L'étiquette de la plateforme Windows",
-      collect_item_6: "Les horodatages de vérification",
-      verify_label: "Comment fonctionne la vérification",
-      verify_desc: "La propriété de l'e-mail est confirmée par un code à usage unique envoyé à votre adresse. Le nom d'affichage que vous fournissez n'est pas vérifié de manière indépendante. Les codes de vérification ne sont <strong>jamais</strong> inclus dans les notifications de l'administrateur.",
-      usage_label: "Ce que nous en faisons",
-      usage_desc: "Une fois la vérification réussie, une notification d'enregistrement opérationnel contenant le <strong>nom d'affichage</strong>, <strong>l'e-mail vérifié</strong>, l'identifiant d'installation, la version de l'installateur, la plateforme et l'heure de vérification est envoyée à l'administrateur Codyx.<br><br>Ces informations sont utilisées <strong>uniquement</strong> pour vérifier l'utilisation officielle de l'installateur et pour envoyer des notifications de service ou de sécurité essentielles. Elles ne sont <strong>jamais</strong> utilisées à des fins de marketing et ne contiennent pas de code source, de prompts, de fichiers de projet ou d'identifiants de fournisseurs d'IA.",
-      retention_label: "Rétention des données",
-      retention_item_1: "🗂 Dossiers de l'installateur — jusqu'à 24 mois",
-      retention_item_2: "🧾 Reçus de vérification locaux — 12 mois",
-      deletion_label: "Demandes de suppression",
-      deletion_desc: "Vous avez le droit de demander la suppression de vos dossiers d'installation à tout moment. Contactez-nous et nous traiterons votre demande rapidement.",
-      contact_title: "Demandes de Confidentialité",
-      footer_sig: "Cordialement — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
+      mit_text: \`<strong>Licence MIT
+
+Copyright (c) 2026 Mufasa (M. Farid)</strong>
+
+Certaines parties de ce dépôt sont basées sur le projet cody en amont et conservent leurs avis d'origine sous licence MIT lorsqu'ils sont présents.
+
+L'autorisation est accordée par la présente, gratuitement, à toute personne obtenant une copie de ce logiciel et des fichiers de documentation associés (le 'Logiciel'), de traiter le Logiciel sans restriction, y compris, sans limitation, les droits d'utiliser, de copier, de modifier, de fusionner, de publier, de distribuer, de sous-licencier et/ou de vendre des copies du Logiciel, et d'autoriser les personnes auxquelles le Logiciel est fourni à le faire, sous réserve des conditions suivantes :
+
+L'avis de droit d'auteur ci-dessus et la présente autorisation doivent être inclus dans toutes les copies ou parties substantielles du Logiciel.
+
+LE LOGICIEL EST FOURNI 'EN L'ÉTAT', SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU IMPLICITE, Y COMPRIS MAIS SANS S'Y LIMITER LES GARANTIES DE QUALITÉ MARCHANDE, D'ADÉQUATION À UN USAGE PARTICULIER ET D'ABSENCE DE CONTREFAÇON. EN AUCUN CAS LES AUTEURS OU TITULAIRES DE DROITS D'AUTEUR NE SERONT RESPONSABLES DE TOUTE RÉCLAMATION, DOMMAGES OU AUTRE RESPONSABILITÉ, QUE CE SOIT DANS LE CADRE D'UN CONTRAT, D'UN DÉLIT OU AUTRE, DÉCOULANT DE, LIÉ À OU EN RELATION AVEC LE LOGICIEL OU L'UTILISATION OU D'AUTRES TRANSACTIONS DANS LE LOGICIEL.\`,
+      title: "Codyx — Contrat de Licence",
+      badge: "Contrat de Licence Officiel",
+      heading: "Contrat de Licence<br>Codyx-Orchestrator",
+      subtitle: "Ce document régit l'utilisation, la distribution et la modification du logiciel Codyx-Orchestrator. En installant ou en utilisant ce logiciel, vous confirmez que vous avez lu, compris et accepté toutes les conditions ci-dessous.",
+      mit_label: "Licence MIT",
+      mit_desc: "Codyx-Orchestrator est distribué sous licence MIT. Le texte complet de la licence est reproduit ci-dessous.",
+      permitted_label: "Ce que vous êtes autorisé à faire",
+      perm_1: "Utiliser le logiciel à titre privé",
+      perm_2: "Distribuer des copies en l'état",
+      perm_3: "Sous-licencier avec attribution",
+      perm_4: "Construire sur la base du logiciel",
+      perm_5: "Utiliser pour des projets commerciaux",
+      perm_6: "Étudier et inspecter le code source",
+      restrict_label: "Restriction de modification du cœur",
+      restrict_p1: "Bien que la licence MIT accorde des autorisations étendues, <strong>les modifications apportées au système central (cœur)</strong> — y compris, mais sans s'y limiter, le pipeline d'installation, le service de vérification, la logique du lanceur, le moteur d'orchestration, l'infrastructure d'identité et de licence — <strong>ne doivent pas être effectuées, redistribuées ou déployées sans l'approbation écrite préalable de l'administrateur.</strong>",
+      restrict_p2: "Cette restriction existe pour préserver <strong>l'intégrité du système, la sécurité et la stabilité opérationnelle</strong> pour tous les utilisateurs de la plateforme. Des modifications non autorisées du cœur peuvent perturber les services dépendants, compromettre la sécurité des données des utilisateurs ou enfreindre les accords de services tiers.",
+      restrict_p3: "Si vous avez un besoin légitime de modifier des composants du cœur — par exemple, un fork pour un déploiement interne, un correctif de sécurité ou une contribution d'intégration — vous êtes <strong>chaleureusement encouragé à nous contacter</strong>. La plupart des demandes sont examinées et traitées rapidement.",
+      steps_label: "Avant de modifier le cœur — étapes requises",
+      step_1: "Contactez l'administrateur aux adresses ci-dessous et décrivez la modification envisagée, la raison et l'environnement cible.",
+      step_2: "Attendez l'accord écrit avant de procéder. Le silence ne vaut pas approbation.",
+      step_3: "Si approuvé, conservez l'avis de droit d'auteur original et ajoutez une entrée claire dans le journal des modifications décrivant votre changement et la référence de l'approbation.",
+      step_4: "Ne pas supprimer, masquer ou modifier les en-têtes de droit d'auteur, les textes de licence ou les avis d'attribution existants dans les fichiers sources.",
+      contact_label: "Contacter l'administrateur",
+      contact_desc: "Pour les approbations de modification, les questions de licence, les rapports de sécurité ou toute autre préoccupation, contactez-nous directement :",
+      contact_primary: "Principal — Gmail",
+      contact_secondary: "Secondaire — Hotmail",
+      warranty_label: "Garantie et responsabilité",
+      warranty_desc: "<strong>Aucune garantie n'est fournie.</strong> Le logiciel est fourni 'en l'état', sans garantie d'aucune sorte, expresse ou implicite, y compris mais sans s'y limiter les garanties de qualité marchande, d'adéquation à un usage particulier et d'absence de contrefaçon. En aucun cas les auteurs ou titulaires de droits d'auteur ne seront responsables de toute réclamation, dommages ou autre responsabilité, que ce soit dans le cadre d'un contrat, d'un délit ou autre, découlant de, lié à ou en relation avec le logiciel ou l'utilisation ou d'autres transactions dans le logiciel.",
+      footer_sig: "Droit d'auteur &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     de: {
-      title: "Codyx Installer — Datenschutzhinweis",
-      badge: "Offizieller Datenschutzhinweis",
-      heading: "Codyx Installer<br>Datenschutzhinweis",
-      subtitle: "Wie wir Ihre Daten während des Installationsprozesses verarbeiten — transparent und minimal.",
-      collect_label: "Was wir erfassen",
-      collect_desc: "Das offizielle Windows-Installationsprogramm erfasst nur das, was zur Überprüfung Ihrer Identität und zu Ihrer Information unbedingt erforderlich ist:",
-      collect_item_1: "Den von Ihnen eingegebenen Anzeigenamen",
-      collect_item_2: "Die verifizierte E-Mail-Adresse",
-      collect_item_3: "Eine zufällige Installations-ID",
-      collect_item_4: "Die Versionsnummer des Installationsprogramms",
-      collect_item_5: "Das Windows-Plattform-Label",
-      collect_item_6: "Die Zeitstempel der Verifizierung",
-      verify_label: "Wie die Verifizierung funktioniert",
-      verify_desc: "Die Inhaberschaft der E-Mail-Adresse wird durch einen einmaligen Code bestätigt, der an Ihre Adresse gesendet wird. Der von Ihnen angegebene Anzeigename wird nicht unabhängig überprüft. Verifizierungscodes sind <strong>niemals</strong> in den Benachrichtigungen für den Administrator enthalten.",
-      usage_label: "Was wir damit tun",
-      usage_desc: "Nach erfolgreicher Verifizierung wird eine betriebliche Registrierungsbenachrichtigung mit dem <strong>Anzeigenamen</strong>, der <strong>verifizierten E-Mail-Adresse</strong>, der Installations-ID, der Version des Installationsprogramms, der Plattform und der Verifizierungszeit an den Codyx-Administrator gesendet.<br><br>Diese Informationen werden <strong>nur</strong> verwendet, um die Nutzung des offiziellen Installationsprogramms zu verifizieren und um wichtige Service- oder Sicherheitsmitteilungen zu senden. Sie werden <strong>niemals</strong> für Marketingzwecke verwendet und enthalten keinen Quellcode, Prompts, Projektdateien oder KI-Anbieter-Zugangsdaten.",
-      retention_label: "Datenaufbewahrung",
-      retention_item_1: "🗂 Installationsaufzeichnungen — bis zu 24 Monate",
-      retention_item_2: "🧾 Lokale Verifizierungsbelege — 12 Monate",
-      deletion_label: "Löschanfragen",
-      deletion_desc: "Sie haben das Recht, jederzeit die Löschung Ihrer Installationsaufzeichnungen zu verlangen. Kontaktieren Sie uns, und wir werden Ihre Anfrage umgehend bearbeiten.",
-      contact_title: "Datenschutzanfragen",
-      footer_sig: "Mit freundlichen Grüßen — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
+      mit_text: \`<strong>MIT-Lizenz
+
+Copyright (c) 2026 Mufasa (M. Farid)</strong>
+
+Teile dieses Repositorys basieren auf dem vorgelagerten Cody-Projekt und behalten ihre ursprünglichen MIT-Lizenzhinweise bei, sofern vorhanden.
+
+Hiermit wird jeder Person, die eine Kopie dieser Software und der zugehörigen Dokumentationsdateien (die 'Software') erhält, gebührenfrei die Erlaubnis erteilt, mit der Software ohne Einschränkung zu handeln, einschließlich, aber nicht beschränkt auf die Rechte, sie zu nutzen, zu kopieren, zu ändern, zusammenzuführen, zu veröffentlichen, zu verbreiten, unterzulizenzieren und/oder Kopien der Software zu verkaufen, und Personen, denen die Software zur Verfügung gestellt wird, dies unter den folgenden Bedingungen zu gestatten:
+
+Der obige Urheberrechtshinweis und dieser Genehmigungshinweis müssen in allen Kopien oder wesentlichen Teilen der Software enthalten sein.
+
+DIE SOFTWARE WIRD 'WIE BESEHEN' UND OHNE MÄNGELGEWÄHR ZUR VERFÜGUNG GESTELLT, OHNE JEGLICHE AUSDRÜCKLICHE ODER IMPLIZITE GARANTIE, EINSCHLIESSLICH, ABER NICHT BESCHRÄNKT AUF GARANTIEN DER MARKTREIFE, DER EIGNUNG FÜR EINEN BESTIMMTEN ZWECK UND DER NICHTVERLETZUNG VON RECHTEN DRITTER. IN KEINEM FALL SIND DIE AUTOREN ODER URHEBERRECHTSINHABER FÜR ANSPRÜCHE, SCHÄDEN ODER SONSTIGE HAFTUNG HAFTBAR, SEI ES IN EINER VERTRAGSKLAGE, EINER UNERLAUBTEN HANDLUNG ODER ANDERWEITIG, DIE SICH AUS, IM ZUSAMMENHANG MIT ODER DURCH DIE SOFTWARE ODER DIE NUTZUNG ODER SONSTIGE GESCHÄFTE MIT DER SOFTWARE ERGEBEN.\`,
+      title: "Codyx — Lizenzvereinbarung",
+      badge: "Offizielle Lizenzvereinbarung",
+      heading: "Lizenzvereinbarung<br>Codyx-Orchestrator",
+      subtitle: "Dieses Dokument regelt die Nutzung, Verbreitung und Änderung der Codyx-Orchestrator Software. Durch die Installation oder Nutzung dieser Software bestätigen Sie, dass Sie alle nachstehenden Bedingungen gelesen, verstanden und akzeptiert haben.",
+      mit_label: "MIT-Lizenz",
+      mit_desc: "Codyx-Orchestrator wird unter der MIT-Lizenz verbreitet. Der vollständige Lizenztext ist unten abgedruckt.",
+      permitted_label: "Was Ihnen gestattet ist",
+      perm_1: "Die Software privat nutzen",
+      perm_2: "Kopien unverändert verbreiten",
+      perm_3: "Unterlizenzierung mit Namensnennung",
+      perm_4: "Auf der Software aufbauen",
+      perm_5: "Für kommerzielle Projekte nutzen",
+      perm_6: "Den Quellcode studieren und prüfen",
+      restrict_label: "Einschränkung für Kernänderungen",
+      restrict_p1: "Obwohl die MIT-Lizenz weitreichende Rechte einräumt, <strong>dürfen Änderungen am Kernsystem</strong> — einschließlich, aber nicht beschränkt auf die Installations-Pipeline, den Verifizierungsdienst, die Launcher-Logik, die Orchestrierungs-Engine, die Identitäts- und Lizenzierungsinfrastruktur — <strong>ohne vorherige schriftliche Genehmigung des Administrators nicht vorgenommen, verbreitet oder eingesetzt werden.</strong>",
+      restrict_p2: "Diese Einschränkung dient dazu, die <strong>Systemintegrität, Sicherheit und Betriebsstabilität</strong> für alle Benutzer der Plattform zu wahren. Unbefugte Änderungen am Kern können abhängige Dienste stören, die Sicherheit von Benutzerdaten gefährden oder Vereinbarungen mit Drittanbietern verletzen.",
+      restrict_p3: "Wenn Sie einen berechtigten Bedarf haben, Kernkomponenten zu ändern — zum Beispiel einen Fork für eine interne Bereitstellung, einen Sicherheitspatch oder einen Integrationsbeitrag —, werden Sie <strong>herzlich gebeten, uns zu kontaktieren</strong>. Die meisten Anfragen werden schnell geprüft und beantwortet.",
+      steps_label: "Vor der Änderung des Kerns — erforderliche Schritte",
+      step_1: "Kontaktieren Sie den Administrator unter einer der unten angegebenen Adressen und beschreiben Sie die beabsichtigte Änderung, den Grund und die Zielumgebung.",
+      step_2: "Warten Sie auf eine schriftliche Bestätigung, bevor Sie fortfahren. Schweigen stellt keine Genehmigung dar.",
+      step_3: "Falls genehmigt, behalten Sie den ursprünglichen Urheberrechtshinweis bei und fügen Sie einen klaren Änderungsprotokolleintrag hinzu, der Ihre Änderung und die Genehmigungsreferenz beschreibt.",
+      step_4: "Entfernen, verdecken oder ändern Sie keine vorhandenen Urheberrechts-Header, Lizenztexte oder Namensnennungshinweise in den Quelldateien.",
+      contact_label: "Den Administrator kontaktieren",
+      contact_desc: "Bei Genehmigungen für Änderungen, Lizenzfragen, Sicherheitsberichten oder anderen Anliegen wenden Sie sich bitte direkt an uns:",
+      contact_primary: "Primär — Gmail",
+      contact_secondary: "Sekundär — Hotmail",
+      warranty_label: "Gewährleistung und Haftung",
+      warranty_desc: "<strong>Es wird keine Gewährleistung übernommen.</strong> Die Software wird 'wie besehen' und ohne Mängelgewähr zur Verfügung gestellt, ohne jegliche ausdrückliche oder implizite Garantie, einschließlich, aber nicht beschränkt auf Garantien der Marktreife, der Eignung für einen bestimmten Zweck und der Nichtverletzung von Rechten Dritter. In keinem Fall sind die Autoren oder Urheberrechtsinhaber für Ansprüche, Schäden oder sonstige Haftung haftbar, sei es in einer Vertragsklage, einer unerlaubten Handlung oder anderweitig, die sich aus, im Zusammenhang mit oder durch die Software oder die Nutzung oder sonstige Geschäfte mit der Software ergeben.",
+      footer_sig: "Urheberrecht &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     ar: {
-      title: "Codyx Installer — بيان الخصوصية",
-      badge: "بيان الخصوصية الرسمي",
-      heading: "برنامج تثبيت Codyx<br>بيان الخصوصية",
-      subtitle: "كيفية معالجة بياناتك أثناء عملية التثبيت — بكل شفافية وبأقل قدر ممكن.",
-      collect_label: "البيانات التي نجمعها",
-      collect_desc: "يجمع برنامج التثبيت الرسمي لنظام التشغيل Windows فقط ما هو ضروري للغاية للتحقق من هويتك وإبقائك على اطلاع:",
-      collect_item_1: "اسم العرض الذي تقوم بإدخاله",
-      collect_item_2: "عنوان البريد الإلكتروني الذي تم التحقق منه",
-      collect_item_3: "معرف تثبيت عشوائي",
-      collect_item_4: "رقم إصدار برنامج التثبيت",
-      collect_item_5: "تسمية نظام تشغيل Windows",
-      collect_item_6: "الطوابع الزمنية لعملية التحقق",
-      verify_label: "كيف تتم عملية التحقق",
-      verify_desc: "يتم تأكيد ملكية البريد الإلكتروني برمز لمرة واحدة يتم إرساله إلى عنوانك. لا يتم التحقق من اسم العرض الذي تقدمه بشكل مستقل. لا يتم تضمين رموز التحقق <strong>أبداً</strong> في أي إشعارات للمسؤول.",
-      usage_label: "ماذا نفعل بهذه البيانات",
-      usage_desc: "بعد نجاح عملية التحقق، يتم إرسال إشعار تسجيل تشغيلي يحتوي على <strong>اسم العرض</strong>، و<strong>البريد الإلكتروني الذي تم التحقق منه</strong>، ومعرف التثبيت، وإصدار برنامج التثبيت، والمنصة، ووقت التحقق إلى مسؤول Codyx.<br><br>تُستخدم هذه المعلومات <strong>فقط</strong> للتحقق من استخدام برنامج التثبيت الرسمي ولإرسال إشعارات الخدمة أو الأمان الأساسية. ولا يتم استخدامها <strong>أبداً</strong> للتسويق ولا تشمل الكود المصدري أو المطالبات (prompts) أو ملفات المشروع أو بيانات اعتماد مزود الذكاء الاصطناعي.",
-      retention_label: "الاحتفاظ بالبيانات",
-      retention_item_1: "🗂 سجلات برنامج التثبيت — حتى 24 شهراً",
-      retention_item_2: "🧾 إيصالات التحقق المحلية — 12 شهراً",
-      deletion_label: "طلبات الحذف",
-      deletion_desc: "لديك الحق في طلب حذف سجلات برنامج التثبيت الخاصة بك في أي وقت. تواصل معنا وسنقوم بمعالجة طلبك على الفور.",
-      contact_title: "طلبات الخصوصية",
-      footer_sig: "أطيب التحيات — <span class='name-gold'>محمد فريد</span> <span class='name-green'>(موفاسا)</span>"
+      mit_text: \`<strong>ترخيص MIT
+
+حقوق النشر (c) لعام 2026 محفوظة لموفاسا (م. فريد)</strong>
+
+تستند أجزاء من هذا المستودع إلى مشروع cody الأساسي وتحتفظ بإشعارات ترخيص MIT الأصلية حيثما وجدت.
+
+بموجب هذا، يُمنح الإذن مجاناً لأي شخص يحصل على نسخة من هذا البرنامج وملفات التوثيق المصاحبة له ('البرنامج')، للتعامل في البرنامج دون قيود، بما في ذلك على سبيل المثال لا الحصر حقوق الاستخدام، والنسخ، والتعديل، والدمج، والنشر، والتوزيع، والترخيص الفرعي، و/أو بيع نسخ من البرنامج، والسماح للأشخاص الذين يتم تزويدهم بالبرنامج بالقيام بذلك، وفقاً للشروط التالية:
+
+يجب تضمين إشعار حقوق النشر أعلاه وإشعار الإذن هذا في جميع النسخ أو الأجزاء الجوهرية من البرنامج.
+
+يتم تقديم البرنامج 'كما هو'، دون أي ضمان من أي نوع، صريحاً أو ضمنياً، بما في ذلك على سبيل المثال لا الحصر ضمانات القدرة التسويقية، والملاءمة لغرض معين، وعدم الانتهاك. لا يتحمل المؤلفون أو أصحاب حقوق النشر بأي حال من الأحوال المسؤولية عن أي مطالبات أو أضرار أو مسؤوليات أخرى، سواء كان ذلك في إطار عقد أو ضرر أو غير ذلك، تنشأ عن أو تتصل بالبرنامج أو استخدامه أو التعاملات الأخرى فيه.\`,
+      title: "Codyx — اتفاقية الترخيص",
+      badge: "اتفاقية الترخيص الرسمية",
+      heading: "اتفاقية ترخيص<br>Codyx-Orchestrator",
+      subtitle: "تحكم هذه الوثيقة استخدام برنامج Codyx-Orchestrator وتوزيعه وتعديله. من خلال تثبيت هذا البرنامج أو استخدامه، فإنك تؤكد أنك قد قرأت وفهمت ووافقت على جميع الشروط الواردة أدناه.",
+      mit_label: "ترخيص MIT",
+      mit_desc: "يتم توزيع Codyx-Orchestrator بموجب ترخيص MIT. النص الكامل للترخيص معروض أدناه.",
+      permitted_label: "الأمور المسموح لك بالقيام بها",
+      perm_1: "استخدام البرنامج بشكل شخصي خاص",
+      perm_2: "توزيع نسخ من البرنامج كما هي",
+      perm_3: "منح تراخيص فرعية مع الإسناد",
+      perm_4: "بناء وتطوير أعمال تعتمد على البرنامج",
+      perm_5: "استخدام البرنامج في المشاريع التجارية",
+      perm_6: "دراسة وفحص الكود المصدري للبرنامج",
+      restrict_label: "قيود تعديل النظام الأساسي (النواة)",
+      restrict_p1: "بينما يمنح ترخيص MIT أذونات واسعة، فإن <strong>التعديلات على النظام الأساسي (النواة)</strong> — بما في ذلك على سبيل المثال لا الحصر مسار التثبيت، وخدمة التحقق، ومنطق برنامج التشغيل، ومحرك التنسيق، وبنية الهوية والتراخيص — <strong>يجب ألا يتم إجراؤها أو إعادة توزيعها أو نشرها دون الحصول على موافقة خطية مسبقة من المدير المسؤول.</strong>",
+      restrict_p2: "يأتي هذا القيد للحفاظ على <strong>سلامة النظام، وأمنه، واستقراره التشغيلي</strong> لجميع مستخدمي المنصة. قد تؤدي التعديلات غير المصرح بها على النواة إلى تعطل الخدمات التابعة، أو تعريض سلامة بيانات المستخدمين للخطر، أو انتهاك اتفاقيات خدمة الطرف الثالث.",
+      restrict_p3: "إذا كانت لديك حاجة مشروعة لتعديل مكونات النواة الأساسية — على سبيل المثال، تفريع مخصص لنشر داخلي، أو إصلاح ثغرة أمنية، أو مساهمة دمج — <strong>فنحن نشجعك بشدة على التواصل معنا</strong>. يتم مراجعة معظم الطلبات والرد عليها على الفور.",
+      steps_label: "الخطوات المطلوبة قبل تعديل النواة",
+      step_1: "تواصل مع المدير المسؤول عبر أحد العناوين المذكورة أدناه ووصف التعديل الذي تنوي القيام به، والسبب، والبيئة المستهدفة.",
+      step_2: "انتظر الحصول على إقرار خطي بالموافقة قبل البدء. لا يعتبر الصمت موافقة بأي حال من الأحوال.",
+      step_3: "في حال الموافقة، احتفظ بإشعار حقوق النشر الأصلي وأضف مدخل سجل تغييرات واضح يصف تعديلك ومرجع الموافقة.",
+      step_4: "لا تقم بإزالة أو حجب أو تغيير أي ترويسات لحقوق النشر، أو نصوص التراخيص، أو إشعارات الإسناد الموجودة في ملفات المصدر.",
+      contact_label: "الاتصال بالمدير المسؤول",
+      contact_desc: "للحصول على موافقات التعديل، أو الاستفسار عن التراخيص، أو تقارير الأمان، أو أي مخاوف أخرى، تواصل مباشرة:",
+      contact_primary: "الأساسي — Gmail",
+      contact_secondary: "الثانوي — Hotmail",
+      warranty_label: "الضمان والمسؤولية",
+      warranty_desc: "<strong>لا يتم تقديم أي ضمان.</strong> يتم تقديم البرنامج 'كما هو'، دون أي ضمان من أي نوع، صريحاً أو ضمنياً، بما في ذلك على سبيل المثال لا الحصر ضمانات القدرة التسويقية، والملاءمة لغرض معين، وعدم الانتهاك. لا يتحمل المؤلفون أو أصحاب حقوق النشر بأي حال من الأحوال المسؤولية عن أي مطالبات أو أضرار أو مسؤوليات أخرى، سواء كان ذلك في إطار عقد أو ضرر أو غير ذلك، تنشأ عن أو تتصل بالبرنامج أو استخدامه أو التعاملات الأخرى فيه.",
+      footer_sig: "حقوق النشر &copy; 2026 — <span class='name-gold'>محمد فريد</span> <span class='name-green'>(موفاسا)</span>"
     }
   };
 

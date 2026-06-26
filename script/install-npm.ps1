@@ -239,7 +239,8 @@ function Confirm-LicenseAgreement {
 
   Write-Host "License Agreement" -ForegroundColor Cyan
   Write-Host "codyx-orchestrator is distributed under the MIT License." -ForegroundColor White
-  Write-Host "License: $LicenseUrl" -ForegroundColor DarkGray
+  $ansiLink = "`e]8;;$LicenseUrl`e\\License: $LicenseUrl`e]8;;`e\\"
+  Write-Host $ansiLink -ForegroundColor DarkGray
   Write-Host ""
   Write-Host "By installing, you agree to the license terms and understand that" -ForegroundColor White
   Write-Host "the software is provided AS IS, without warranty of any kind." -ForegroundColor White
