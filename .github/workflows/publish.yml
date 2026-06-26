@@ -455,6 +455,84 @@ jobs:
           name: latest-yml-${{ matrix.settings.target }}
           path: packages/desktop/dist/latest*.yml
 
+  build-android:
+    needs:
+      - version
+    runs-on: ubuntu-24.04
+    if: github.repository == 'mufasa1611/codyx-orchestrator'
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Configure Bubblewrap
+        run: |
+          mkdir -p "$HOME/.bubblewrap"
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > "$HOME/.bubblewrap/config.json"
+
+      - name: Sync Android version
+        working-directory: packages/android
+        run: bun scripts/sync-version.ts
+        env:
+          CODY_VERSION: ${{ needs.version.outputs.version }}
+
+      - name: Restore Android signing key
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        working-directory: packages/android
+        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android.keystore
+
+      - name: Build signed Android package
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        working-directory: packages/android
+        run: |
+          bunx @bubblewrap/cli update --manifest .
+          bunx @bubblewrap/cli build --manifest . --skipPwaValidation --signingKeyPath ./android.keystore --signingKeyAlias codyx
+
+      - name: Build unsigned Android package
+        if: env.ANDROID_KEYSTORE_BASE64 == ''
+        working-directory: packages/android
+        run: |
+          bunx @bubblewrap/cli update --manifest .
+          bunx @bubblewrap/cli build --manifest . --skipPwaValidation --skipSigning
+
+      - name: Upload Android release assets
+        if: needs.version.outputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(packages/android/app-release*.apk packages/android/app-release*.aab)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No Android APK/AAB artifacts were produced"
+            exit 1
+          fi
+          gh release upload "v${{ needs.version.outputs.version }}" \
+            "${files[@]}" \
+            --clobber \
+            --repo "${{ needs.version.outputs.repo }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codyx-android
+          path: |
+            packages/android/app-release*.apk
+            packages/android/app-release*.aab
+
   publish:
     needs:
       - version
@@ -462,6 +540,7 @@ jobs:
       - sign-cli-windows
       - build-launcher-windows
       - build-electron
+      - build-android
     if: always() && !failure() && !cancelled()
     runs-on: ubuntu-24.04
     steps:

@@ -1,0 +1,42 @@
+{
+  "packageId": "ai.codyx.android",
+  "host": "app.codyx.ai",
+  "name": "codyx",
+  "launcherName": "codyx",
+  "display": "standalone",
+  "themeColor": "#111111",
+  "themeColorDark": "#111111",
+  "navigationColor": "#111111",
+  "navigationColorDark": "#111111",
+  "navigationDividerColor": "#111111",
+  "navigationDividerColorDark": "#111111",
+  "backgroundColor": "#111111",
+  "enableNotifications": true,
+  "startUrl": "/?platform=android",
+  "iconUrl": "https://app.codyx.ai/web-app-manifest-512x512.png",
+  "maskableIconUrl": "https://app.codyx.ai/web-app-manifest-512x512.png",
+  "splashScreenFadeOutDuration": 150,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "codyx"
+  },
+  "appVersionName": "1.14.41",
+  "appVersionCode": 1014041,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.codyx.ai/site.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 23,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "appVersion": "1.14.41"
+}

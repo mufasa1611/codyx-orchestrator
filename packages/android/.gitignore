@@ -1,0 +1,13 @@
+.bubblewrap/
+.gradle/
+android.keystore
+app/
+app-release-bundle.aab
+app-release-signed.apk
+app-release-unsigned.apk
+build/
+gradle/
+gradlew
+gradlew.bat
+settings.gradle
+*.iml
