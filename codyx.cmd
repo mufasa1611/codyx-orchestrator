@@ -145,13 +145,13 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
 
 if "%CODY_UPDATED%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Refreshing dependencies after update...
-  call "%BUN%" install --cwd "%ROOT%"
+  call "%BUN%" install --cwd "%ROOT%."
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 
 if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js" (
   echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing. Running bun install...
-  call "%BUN%" install --cwd "%ROOT%"
+  call "%BUN%" install --cwd "%ROOT%."
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 

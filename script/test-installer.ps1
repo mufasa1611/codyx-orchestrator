@@ -83,6 +83,7 @@ Assert-Contains "script/launcher.ps1" 'packages\\codyx\\node_modules\\drizzle-or
 Assert-Contains "codyx.cmd" 'Repair failed\. Stop here so the broken checkout does not launch' "CMD launcher stops after repair failure"
 Assert-Contains "codyx.cmd" 'Refreshing dependencies after update' "CMD launcher refreshes dependencies after repair or pull"
 Assert-Contains "codyx.cmd" 'packages\\codyx\\node_modules\\drizzle-orm\\sqlite-core\\index\.js' "CMD launcher repairs missing runtime dependencies"
+Assert-Contains "codyx.cmd" 'install --cwd "%ROOT%\."' "CMD launcher passes Bun a Windows-safe checkout directory"
 Assert-Contains "script/launcher.ps1" '"clone", "--quiet", "--branch"' "Standalone launcher suppresses git clone progress on stderr"
 Assert-Contains "script/launcher.ps1" 'update-progress\.ps1"[\s\S]*"-Action", "repair"' "Standalone launcher repairs dirty install checkouts before launch"
 Assert-Contains "script/launcher-menu.ps1" 'CLI \(Terminal UI\)' "Interactive launcher menu keeps the CLI option"
