@@ -149,9 +149,12 @@ if "%CODY_UPDATED%"=="1" (
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 
-if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js" (
-  echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing. Running bun install...
-  call "%BUN%" install --cwd "%ROOT%."
+set "CODY_DEPS_BROKEN=0"
+if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js" set "CODY_DEPS_BROKEN=1"
+for /d %%P in ("%ROOT%node_modules\.bun\@anthropic-ai+sdk*") do if not exist "%%~fP\node_modules\@anthropic-ai\sdk\version.mjs" set "CODY_DEPS_BROKEN=1"
+if "%CODY_DEPS_BROKEN%"=="1" (
+  echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing or incomplete. Running bun install --force...
+  call "%BUN%" install --force --cwd "%ROOT%."
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 

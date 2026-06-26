@@ -262,12 +262,14 @@ function Refresh-Install {
   $needInstall = $updated -and (Test-DependencyFilesChanged $beforeHead)
   if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "node_modules"))) { $needInstall = $true }
   if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js"))) { $needInstall = $true }
+  $anthropicStores = Get-ChildItem -LiteralPath (Join-Path $InstallRoot "node_modules\.bun") -Directory -Filter "@anthropic-ai+sdk*" -ErrorAction SilentlyContinue
+  if ($anthropicStores | Where-Object { -not (Test-Path -LiteralPath (Join-Path $_.FullName "node_modules\@anthropic-ai\sdk\version.mjs")) }) { $needInstall = $true }
 
   if ($needInstall) {
     Write-Info "Refreshing dependencies..."
     Push-Location $InstallRoot
     try {
-      $code = Invoke-Native $bun @("install")
+      $code = Invoke-Native $bun @("install", "--force")
       if ($code -ne 0) { throw "bun install failed." }
     } finally {
       Pop-Location
