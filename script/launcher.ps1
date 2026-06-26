@@ -13,7 +13,7 @@
 param(
   [string]$RepoUrl = $(if ($env:CODY_REPO_URL) { $env:CODY_REPO_URL } else { "https://github.com/mufasa1611/codyx-orchestrator.git" }),
   [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "dev" }),
-  [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA "codyx" }),
+  [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { "" }),
   [switch]$AcceptLicense,
   [switch]$NoBuild,
   [switch]$NoLaunch,
@@ -62,12 +62,23 @@ function Test-BunVersion {
   }
 }
 
+function Invoke-Native($Command, [object[]]$Arguments = @()) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & $Command @Arguments
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 function Install-WithWinget($CommandName, $PackageId, $Label) {
   if (Test-Command $CommandName) { return $true }
   if (-not (Test-Command winget)) { return $false }
   Write-Info "$Label not found. Installing with winget..."
-  & winget install --id $PackageId --exact --source winget --silent --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) { return $false }
+  $code = Invoke-Native "winget" @("install", "--id", $PackageId, "--exact", "--source", "winget", "--silent", "--accept-package-agreements", "--accept-source-agreements")
+  if ($code -ne 0) { return $false }
   $env:PATH = "$env:ProgramFiles\Git\cmd;$env:ProgramFiles\nodejs;$env:PATH"
   return (Test-Command $CommandName)
 }
@@ -76,8 +87,8 @@ function Install-WithChoco($CommandName, $PackageId, $Label) {
   if (Test-Command $CommandName) { return $true }
   if (-not (Test-Command choco)) { return $false }
   Write-Info "$Label not found. Installing with Chocolatey..."
-  & choco install $PackageId -y --no-progress | Out-Null
-  if ($LASTEXITCODE -ne 0) { return $false }
+  $code = Invoke-Native "choco" @("install", $PackageId, "-y", "--no-progress")
+  if ($code -ne 0) { return $false }
   refreshenv 2>$null
   return (Test-Command $CommandName)
 }
@@ -105,8 +116,8 @@ function Ensure-Bun {
   }
   Write-Info "Bun 1.3.13+ not found. Installing Bun for the current user..."
   $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-  & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -Command "irm https://bun.sh/install.ps1 | iex"
-  if ($LASTEXITCODE -ne 0) { throw "Bun installation failed." }
+  $code = Invoke-Native $windowsPowerShell @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://bun.sh/install.ps1 | iex")
+  if ($code -ne 0) { throw "Bun installation failed." }
   $env:PATH = "$(Join-Path $env:USERPROFILE ".bun\bin");$(Join-Path $env:APPDATA "npm");$env:PATH"
   if (-not (Test-BunVersion)) { throw "Bun 1.3.13+ is still unavailable after install." }
   Write-Ok "Bun installed."
@@ -121,6 +132,14 @@ function Test-CodyxCheckout($Path) {
   } catch {
     return $false
   }
+}
+
+function Resolve-InstallRoot($RequestedRoot) {
+  if ($RequestedRoot) { return $RequestedRoot }
+
+  $defaultRoot = Join-Path $env:LOCALAPPDATA "codyx"
+  if (Test-CodyxCheckout $defaultRoot) { return $defaultRoot }
+  return (Join-Path $defaultRoot "source")
 }
 
 function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
@@ -145,8 +164,8 @@ function Invoke-FirstRunInstall {
   if ($AcceptLicense -or $env:CODY_ACCEPT_LICENSE -eq "1") { $installerArgs += "-AcceptLicense" }
   if ($NoBuild) { $installerArgs += "-NoBuild" }
   $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-  & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $installer @installerArgs
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  $code = Invoke-Native $windowsPowerShell @(@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installer) + $installerArgs)
+  if ($code -ne 0) { exit $code }
 }
 
 function Sync-Checkout {
@@ -155,8 +174,8 @@ function Sync-Checkout {
   Push-Location $InstallRoot
   try {
     $beforeHead = (& git rev-parse HEAD 2>$null).Trim()
-    & git fetch origin $Branch --quiet
-    if ($LASTEXITCODE -ne 0) {
+    $code = Invoke-Native "git" @("fetch", "origin", $Branch, "--quiet")
+    if ($code -ne 0) {
       Write-Warn "Could not reach origin/$Branch. Launching the installed copy."
       return $false
     }
@@ -168,10 +187,10 @@ function Sync-Checkout {
     }
     if ($currentBranch -ne $Branch) {
       Write-Info "Switching install checkout from $currentBranch to $Branch..."
-      & git switch $Branch
-      if ($LASTEXITCODE -ne 0) {
-        & git switch -C $Branch --track "origin/$Branch"
-        if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
+      $code = Invoke-Native "git" @("switch", $Branch)
+      if ($code -ne 0) {
+        $code = Invoke-Native "git" @("switch", "-C", $Branch, "--track", "origin/$Branch")
+        if ($code -ne 0) { throw "Could not switch to $Branch." }
       }
     }
 
@@ -185,8 +204,8 @@ function Sync-Checkout {
       Write-Warn "Install checkout has local tracked changes or commits. Creating a backup and repairing..."
       $updateScript = Join-Path $InstallRoot "script\update-progress.ps1"
       $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-      & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $updateScript -Action "repair" -Branch $Branch
-      if ($LASTEXITCODE -ne 0) {
+      $code = Invoke-Native $windowsPowerShell @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updateScript, "-Action", "repair", "-Branch", $Branch)
+      if ($code -ne 0) {
         Write-Warn "Repair failed. Launching the installed copy."
         return $false
       }
@@ -199,8 +218,8 @@ function Sync-Checkout {
     }
 
     Write-Info "Updating install checkout..."
-    & git pull --ff-only
-    if ($LASTEXITCODE -ne 0) {
+    $code = Invoke-Native "git" @("pull", "--ff-only")
+    if ($code -ne 0) {
       Write-Warn "Fast-forward update failed. Launching the installed copy."
       return $false
     }
@@ -244,8 +263,8 @@ function Refresh-Install {
     Write-Info "Refreshing dependencies..."
     Push-Location $InstallRoot
     try {
-      & $bun install
-      if ($LASTEXITCODE -ne 0) { throw "bun install failed." }
+      $code = Invoke-Native $bun @("install")
+      if ($code -ne 0) { throw "bun install failed." }
     } finally {
       Pop-Location
     }
@@ -257,8 +276,8 @@ function Refresh-Install {
       Write-Info "Rebuilding Web UI..."
       Push-Location $appDir
       try {
-        & $bun run build
-        if ($LASTEXITCODE -ne 0) { Write-Warn "Web UI build failed. The CLI can still launch." }
+        $code = Invoke-Native $bun @("run", "build")
+        if ($code -ne 0) { Write-Warn "Web UI build failed. The CLI can still launch." }
       } finally {
         Pop-Location
       }
@@ -274,12 +293,14 @@ function Invoke-Codyx {
   $previousSkipUpdate = $env:CODY_SKIP_UPDATE_CHECK
   $env:CODY_SKIP_UPDATE_CHECK = "1"
   try {
-    & $launcher @CodyxArgs
-    exit $LASTEXITCODE
+    $code = Invoke-Native $launcher $CodyxArgs
+    exit $code
   } finally {
     $env:CODY_SKIP_UPDATE_CHECK = $previousSkipUpdate
   }
 }
+
+$InstallRoot = Resolve-InstallRoot $InstallRoot
 
 Write-Host ""
 Write-Host "  codyx Launcher" -ForegroundColor Cyan
@@ -300,8 +321,8 @@ if (-not (Test-CodyxCheckout $InstallRoot)) {
   $parent = Split-Path -Parent $InstallRoot
   if ($parent) { $null = New-Item -ItemType Directory -Force -Path $parent }
   Invoke-WithRetry {
-    & git clone --branch $Branch $RepoUrl $InstallRoot
-    if ($LASTEXITCODE -ne 0) { throw "git clone failed." }
+    $code = Invoke-Native "git" @("clone", "--branch", $Branch, $RepoUrl, $InstallRoot)
+    if ($code -ne 0) { throw "git clone failed." }
   } "git clone"
   git config --global --add safe.directory "$InstallRoot" 2>$null
   Invoke-FirstRunInstall
