@@ -91,6 +91,7 @@ Assert-Contains "codyx.cmd" 'install --cwd "%ROOT%\."' "CMD launcher passes Bun 
 Assert-Contains "script/launcher.ps1" '"clone", "--quiet", "--branch"' "Standalone launcher suppresses git clone progress on stderr"
 Assert-Contains "script/launcher.ps1" 'update-progress\.ps1"[\s\S]*"-Action", "repair"' "Standalone launcher repairs dirty install checkouts before launch"
 Assert-Contains "script/launcher.ps1" 'git" @\("update-index", "-q", "--refresh"\)' "Standalone launcher refreshes the Git index before dirty-checking tracked files"
+Assert-Contains "script/launcher.ps1" 'if \(\$needsFirstRunInstall\) \{[\s\S]*Test-CodyxCheckout \$InstallRoot[\s\S]*Sync-Checkout[\s\S]*Invoke-FirstRunInstall' "Standalone launcher updates incomplete first-run checkouts before verification"
 Assert-Contains "script/update-progress.ps1" 'git fetch origin \$Branch --quiet[\s\S]*git reset --hard "origin/\$Branch"' "Repair script refreshes and resets the install checkout directly"
 Assert-Contains "script/launcher-menu.ps1" 'CLI \(Terminal UI\)' "Interactive launcher menu keeps the CLI option"
 Assert-Contains "script/launcher-menu.ps1" 'Web UI \(Browser\)' "Interactive launcher menu keeps the Web UI option"

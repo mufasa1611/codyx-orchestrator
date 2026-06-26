@@ -347,6 +347,9 @@ if (-not (Test-CodyxCheckout $InstallRoot)) {
 }
 
 if ($needsFirstRunInstall) {
+  if (Test-CodyxCheckout $InstallRoot) {
+    $null = Sync-Checkout
+  }
   Invoke-FirstRunInstall
 } else {
   Refresh-Install
