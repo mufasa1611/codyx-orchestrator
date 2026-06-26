@@ -50,7 +50,7 @@ import { zod } from "@/util/effect-zod"
 import { withStatics } from "@/util/schema"
 import * as EffectLogger from "@cody/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
-import { UserRef } from "@/effect/instance-ref"
+import { InstanceRef, UserRef } from "@/effect/instance-ref"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { EffectBridge } from "@/effect/bridge"
@@ -65,6 +65,11 @@ import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { SessionTable } from "./session.sql"
 import * as AgentHub from "@/server/agent/hub"
+import { Question } from "@/question"
+import { Project } from "@/project/project"
+import { Global } from "@cody/core/global"
+import { Hash } from "@cody/core/util/hash"
+import type { InstanceContext } from "@/project/instance"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -81,6 +86,32 @@ const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested struc
 
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
+const firstInitOfferFile = path.join(Global.Path.data, "first-init-offer.json")
+const firstInitOfferActive = new Set<string>()
+const firstInitYes = "Yes, start"
+const firstInitNo = "Not now"
+type FirstInitOfferStatus = "accepted" | "declined"
+type FirstInitOfferState = Record<string, { status: FirstInitOfferStatus; time: number }>
+
+function isFirstInitOfferStatus(value: unknown): value is FirstInitOfferStatus {
+  return value === "accepted" || value === "declined"
+}
+
+function decodeFirstInitOfferState(value: unknown): FirstInitOfferState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
+      const item = entry as Record<string, unknown>
+      if (!isFirstInitOfferStatus(item.status) || typeof item.time !== "number") return []
+      return [[key, { status: item.status, time: item.time }]]
+    }),
+  )
+}
+
+function firstInitOfferKey(ctx: { project: { id: string }; worktree: string }) {
+  return `${ctx.project.id}:${Hash.fast(ctx.worktree)}`
+}
 
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
@@ -121,7 +152,14 @@ export const layer = Layer.effect(
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
     const hub = yield* AgentHub.Service
+    const question = yield* Question.Service
+    const projects = yield* Project.Service
     const policyViolations = new Map<string, number>()
+    let runFirstInitCommand: (input: {
+      sessionID: SessionID
+      agent: string
+      model?: string
+    }) => Effect.Effect<MessageV2.WithParts> = () => Effect.die("init command is not ready")
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -174,6 +212,107 @@ export const layer = Layer.effect(
       })
       yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
       throw error
+    })
+
+    const readFirstInitOfferState = Effect.fn("SessionPrompt.firstInitOffer.read")(function* () {
+      return decodeFirstInitOfferState(yield* fsys.readJson(firstInitOfferFile).pipe(Effect.orElseSucceed(() => ({}))))
+    })
+
+    const writeFirstInitOfferStatus = Effect.fn("SessionPrompt.firstInitOffer.write")(function* (input: {
+      key: string
+      status: FirstInitOfferStatus
+    }) {
+      yield* fsys.writeWithDirs(
+        firstInitOfferFile,
+        JSON.stringify(
+          {
+            ...(yield* readFirstInitOfferState()),
+            [input.key]: { status: input.status, time: Date.now() },
+          } satisfies FirstInitOfferState,
+          null,
+          2,
+        ),
+        0o600,
+      )
+    })
+
+    const memoUsername = Effect.fn("SessionPrompt.firstInitOffer.username")(function* (worktree: string) {
+      const memo = yield* fsys.readFileStringSafe(path.join(worktree, "memo.md"))
+      return memo?.match(/^\s*-\s*username:\s*(.+)$/m)?.[1]?.trim() || "there"
+    })
+
+    const maybeOfferFirstInit = Effect.fn("SessionPrompt.firstInitOffer.maybe")(function* (input: {
+      session: Session.Info
+      assistantID: MessageID
+      ctx: InstanceContext
+    }) {
+      if (input.session.parentID) return
+      const ctx = input.ctx
+      const offerKey = firstInitOfferKey(ctx)
+      const project = yield* projects.get(ctx.project.id)
+      if (project?.time.initialized) return
+      if ((yield* readFirstInitOfferState())[offerKey]) return
+      if (firstInitOfferActive.has(offerKey)) return
+
+      const messages = yield* sessions.messages({ sessionID: input.session.id })
+      const users = messages.filter(
+        (message): message is MessageV2.WithParts & { info: MessageV2.User } =>
+          message.info.role === "user" &&
+          message.parts.some((part) => part.type === "text" && !part.synthetic && part.text.trim().length > 0),
+      )
+      const assistants = messages.filter(
+        (message): message is MessageV2.WithParts & { info: MessageV2.Assistant } =>
+          message.info.role === "assistant" && !!message.info.finish && !message.info.error,
+      )
+      const firstAssistant = assistants[0]
+      if (users.length !== 1 || assistants.length !== 1 || firstAssistant?.info.id !== input.assistantID) return
+
+      const firstUser = users[0]
+      if (!firstUser) return
+      firstInitOfferActive.add(offerKey)
+      const user = firstUser.info
+      yield* Effect.gen(function* () {
+        const answer = yield* question
+          .ask({
+            sessionID: input.session.id,
+            directory: ctx.directory,
+            questions: [
+              {
+                header: "System scan",
+                custom: false,
+                question: `Hi ${yield* memoUsername(ctx.worktree)}, would you like Codyx to collect useful information about this system to make future work faster and more helpful?`,
+                options: [
+                  {
+                    label: firstInitYes,
+                    description: "Run /init once now so Codyx can inspect the project and save useful local notes.",
+                  },
+                  {
+                    label: firstInitNo,
+                    description: "Skip this for now. You can run /init whenever you want.",
+                  },
+                ],
+              },
+            ],
+          })
+          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+
+        if (!answer) return
+
+        if (answer[0]?.includes(firstInitYes)) {
+          yield* writeFirstInitOfferStatus({ key: offerKey, status: "accepted" }).pipe(Effect.ignore)
+          yield* runFirstInitCommand({
+            sessionID: input.session.id,
+            agent: user.agent,
+            model: `${user.model.providerID}/${user.model.modelID}`,
+          })
+          return
+        }
+
+        yield* writeFirstInitOfferStatus({ key: offerKey, status: "declined" }).pipe(Effect.ignore)
+      }).pipe(
+        Effect.catchCause((cause) => elog.warn("first init offer failed", { sessionID: input.session.id, cause })),
+        Effect.ensuring(Effect.sync(() => firstInitOfferActive.delete(offerKey))),
+      )
     })
 
     const resolvePromptParts = Effect.fn("SessionPrompt.resolvePromptParts")(function* (template: string) {
@@ -1412,39 +1551,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return { info, parts }
     }, Effect.scoped)
 
-    let initializing = false
-
     const promptImpl: (input: PromptInput, options?: { skipPolicy?: boolean }) => Effect.Effect<MessageV2.WithParts> =
       Effect.fn("SessionPrompt.prompt")(function* (input: PromptInput, options?: { skipPolicy?: boolean }) {
         const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
         yield* revert.cleanup(session)
         if (!options?.skipPolicy) {
           yield* assertPromptPolicy({ sessionID: input.sessionID, text: visiblePromptText(input.parts) })
-        }
-
-        if (!initializing) {
-          const ctx = yield* InstanceState.context
-          if (!ctx.project.time.initialized) {
-            initializing = true
-            yield* Effect.fn("SessionPrompt.prompt.init")(
-              function* () {
-                const initAgent = input.agent ?? (yield* agents.defaultAgent())
-                const initModel = input.model ? `${input.model.providerID}/${input.model.modelID}` : undefined
-                yield* command({
-                  sessionID: input.sessionID,
-                  command: Command.Default.INIT,
-                  arguments: "",
-                  agent: initAgent,
-                  model: initModel,
-                })
-              },
-              Effect.ensuring(
-                Effect.sync(() => {
-                  initializing = false
-                }),
-              ),
-            )()
-          }
         }
 
         const message = yield* createUserMessage(input)
@@ -1713,6 +1825,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 yield* sessions.updateMessage(handle.message)
                 return "break" as const
               }
+              const latestUser = (yield* sessions.messages({ sessionID })).findLast((m) => m.info.role === "user")
+              if (latestUser?.info.id !== handle.message.parentID) return "continue" as const
               return "break" as const
             }
 
@@ -1741,7 +1855,17 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }
 
         yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
-        return yield* lastAssistant(sessionID)
+        const result = yield* lastAssistant(sessionID)
+        if (result.info.role === "assistant") {
+          const userRef = yield* UserRef
+          yield* maybeOfferFirstInit({ session, assistantID: result.info.id, ctx }).pipe(
+            Effect.provideService(InstanceRef, ctx),
+            Effect.provideService(UserRef, userRef),
+            Effect.ignore,
+            Effect.forkIn(scope),
+          )
+        }
+        return result
       },
     )
 
@@ -1879,6 +2003,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return result
     })
 
+    runFirstInitCommand = (input) =>
+      command({
+        sessionID: input.sessionID,
+        command: Command.Default.INIT,
+        arguments: "",
+        agent: input.agent,
+        model: input.model,
+      })
+
     return Service.of({
       cancel,
       prompt,
@@ -1913,6 +2046,8 @@ export const defaultLayer = <R>(fs: Layer.Layer<any, never, R> = AppFileSystem.d
       Layer.provide(SessionSummary.defaultLayer),
       Layer.provide(
         Layer.mergeAll(
+          Question.defaultLayer,
+          Project.defaultLayer,
           Agent.defaultLayer,
           SystemPrompt.defaultLayer,
           LLM.defaultLayer,

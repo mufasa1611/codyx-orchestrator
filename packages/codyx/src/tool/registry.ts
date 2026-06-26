@@ -37,7 +37,7 @@ import { CrossSpawnSpawner } from "@cody/core/cross-spawn-spawner"
 import { Ripgrep } from "../file/ripgrep"
 import { Format } from "../format"
 import { InstanceState } from "@/effect/instance-state"
-import { Question } from "../question"
+import { Question } from "@/question"
 import { Todo } from "../session/todo"
 import { LSP } from "@/lsp/lsp"
 import { Instruction } from "../session/instruction"
@@ -155,8 +155,7 @@ export const layer: Layer.Layer<
                 const result = yield* Effect.promise(() => def.execute(args as any, pluginCtx))
                 const output = typeof result === "string" ? result : result.output
                 const metadata = typeof result === "string" ? {} : (result.metadata ?? {})
-                const attachments =
-                  typeof result !== "string" && result.attachments ? result.attachments : undefined
+                const attachments = typeof result !== "string" && result.attachments ? result.attachments : undefined
                 const info = yield* agent.get(toolCtx.agent)
                 const out = yield* truncate.output(output, {}, info)
                 return {
@@ -205,8 +204,7 @@ export const layer: Layer.Layer<
         }
 
         yield* config.get()
-        const questionEnabled =
-          ["app", "cli", "desktop"].includes(Flag.CODY_CLIENT) || Flag.CODY_ENABLE_QUESTION_TOOL
+        const questionEnabled = ["app", "cli", "desktop"].includes(Flag.CODY_CLIENT) || Flag.CODY_ENABLE_QUESTION_TOOL
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -378,4 +376,3 @@ export const defaultLayer = <R>(fs: Layer.Layer<any, never, R> = AppFileSystem.d
   )
 
 export * as ToolRegistry from "./registry"
-

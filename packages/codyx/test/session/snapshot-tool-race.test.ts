@@ -39,7 +39,8 @@ import { Permission } from "../../src/permission"
 import { Plugin } from "../../src/plugin"
 import { Provider as ProviderSvc } from "@/provider/provider"
 import { Env } from "../../src/env"
-import { Question } from "../../src/question"
+import { Question } from "@/question"
+import { Project } from "../../src/project/project"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Todo } from "../../src/session/todo"
@@ -55,6 +56,7 @@ import { AppFileSystem } from "@cody/core/filesystem"
 import { CrossSpawnSpawner } from "@cody/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
+import * as AgentHub from "../../src/server/agent/hub"
 
 void Log.init({ print: false })
 
@@ -117,6 +119,7 @@ function makeHttp() {
     Plugin.defaultLayer,
     Config.defaultLayer,
     ProviderSvc.defaultLayer,
+    Project.defaultLayer,
     lsp,
     mcp,
     AppFileSystem.defaultLayer,
@@ -140,6 +143,7 @@ function makeHttp() {
   return Layer.mergeAll(
     TestLLMServer.layer,
     SessionSummary.defaultLayer,
+    question,
     SessionPrompt.layer.pipe(
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(SessionSummary.defaultLayer),
@@ -150,6 +154,7 @@ function makeHttp() {
       Layer.provideMerge(trunc),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
+      Layer.provide(AgentHub.layer),
       Layer.provideMerge(deps),
     ),
   )

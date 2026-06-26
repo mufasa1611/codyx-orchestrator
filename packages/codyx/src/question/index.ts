@@ -2,6 +2,7 @@ import { Deferred, Effect, Layer, Schema, Context } from "effect"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { InstanceState } from "@/effect/instance-state"
+import { registerDisposer } from "@/effect/instance-registry"
 import { SessionID, MessageID } from "@/session/schema"
 import { zod } from "@/util/effect-zod"
 import * as Log from "@cody/core/util/log"
@@ -107,12 +108,11 @@ export class RejectedError extends Schema.TaggedErrorClass<RejectedError>()("Que
 
 interface PendingEntry {
   info: Request
+  directory: string
   deferred: Deferred.Deferred<ReadonlyArray<Answer>, RejectedError>
 }
 
-interface State {
-  pending: Map<QuestionID, PendingEntry>
-}
+const pending = new Map<QuestionID, PendingEntry>()
 
 // Service
 
@@ -121,6 +121,7 @@ export interface Interface {
     sessionID: SessionID
     questions: ReadonlyArray<Info>
     tool?: Tool
+    directory?: string
   }) => Effect.Effect<ReadonlyArray<Answer>, RejectedError>
   readonly reply: (input: { requestID: QuestionID; answers: ReadonlyArray<Answer> }) => Effect.Effect<void>
   readonly reject: (requestID: QuestionID) => Effect.Effect<void>
@@ -133,22 +134,30 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const bus = yield* Bus.Service
-    const state = yield* InstanceState.make<State>(
-      Effect.fn("Question.state")(function* () {
-        const state = {
-          pending: new Map<QuestionID, PendingEntry>(),
-        }
-
-        yield* Effect.addFinalizer(() =>
+    const owned = new Set<QuestionID>()
+    const currentDirectory = InstanceState.directory.pipe(Effect.catchCause(() => Effect.succeed("")))
+    const rejectPending = Effect.fnUntraced(function* (matches: (item: PendingEntry) => boolean) {
+      const items = Array.from(pending.entries()).filter(([, item]) => matches(item))
+      yield* Effect.forEach(
+        items,
+        ([id, item]) =>
           Effect.gen(function* () {
-            for (const item of state.pending.values()) {
-              yield* Deferred.fail(item.deferred, new RejectedError())
-            }
-            state.pending.clear()
+            pending.delete(id)
+            owned.delete(id)
+            yield* Deferred.fail(item.deferred, new RejectedError())
           }),
-        )
+        { discard: true },
+      )
+    })
+    const off = registerDisposer((directory) =>
+      Effect.runPromise(rejectPending((item) => item.directory === directory)),
+    )
 
-        return state
+    yield* Effect.addFinalizer(() =>
+      Effect.gen(function* () {
+        yield* rejectPending((item) => owned.has(item.info.id))
+        owned.clear()
+        yield* Effect.sync(off)
       }),
     )
 
@@ -156,8 +165,8 @@ export const layer = Layer.effect(
       sessionID: SessionID
       questions: ReadonlyArray<Info>
       tool?: Tool
+      directory?: string
     }) {
-      const pending = (yield* InstanceState.get(state)).pending
       const id = QuestionID.ascending()
       log.info("asking", { id, questions: input.questions.length })
 
@@ -168,13 +177,19 @@ export const layer = Layer.effect(
         questions: input.questions,
         tool: input.tool,
       })
-      pending.set(id, { info, deferred })
+      pending.set(id, {
+        info,
+        deferred,
+        directory: input.directory ?? (yield* currentDirectory),
+      })
+      owned.add(id)
       yield* bus.publish(Event.Asked, info)
 
       return yield* Effect.ensuring(
         Deferred.await(deferred),
         Effect.sync(() => {
           pending.delete(id)
+          owned.delete(id)
         }),
       )
     })
@@ -183,13 +198,13 @@ export const layer = Layer.effect(
       requestID: QuestionID
       answers: ReadonlyArray<Answer>
     }) {
-      const pending = (yield* InstanceState.get(state)).pending
       const existing = pending.get(input.requestID)
       if (!existing) {
         log.warn("reply for unknown request", { requestID: input.requestID })
         return
       }
       pending.delete(input.requestID)
+      owned.delete(input.requestID)
       log.info("replied", { requestID: input.requestID, answers: input.answers })
       yield* bus.publish(Event.Replied, {
         sessionID: existing.info.sessionID,
@@ -200,13 +215,13 @@ export const layer = Layer.effect(
     })
 
     const reject = Effect.fn("Question.reject")(function* (requestID: QuestionID) {
-      const pending = (yield* InstanceState.get(state)).pending
       const existing = pending.get(requestID)
       if (!existing) {
         log.warn("reject for unknown request", { requestID })
         return
       }
       pending.delete(requestID)
+      owned.delete(requestID)
       log.info("rejected", { requestID })
       yield* bus.publish(Event.Rejected, {
         sessionID: existing.info.sessionID,
@@ -216,8 +231,10 @@ export const layer = Layer.effect(
     })
 
     const list = Effect.fn("Question.list")(function* () {
-      const pending = (yield* InstanceState.get(state)).pending
-      return Array.from(pending.values(), (x) => x.info)
+      const directory = yield* currentDirectory
+      return Array.from(pending.values())
+        .filter((x) => !directory || x.directory === directory)
+        .map((x) => x.info)
     })
 
     return Service.of({ ask, reply, reject, list })

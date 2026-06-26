@@ -16,7 +16,7 @@ import { Plugin } from "../../src/plugin"
 import { Provider as ProviderSvc } from "@/provider/provider"
 import { Env } from "../../src/env"
 import { ModelID, ProviderID } from "../../src/provider/schema"
-import { Question } from "../../src/question"
+import { Question } from "@/question"
 import { Todo } from "../../src/session/todo"
 import { Session } from "@/session/session"
 import { SessionMessageTable } from "../../src/session/session.sql"
@@ -32,6 +32,7 @@ import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
+import { Project } from "../../src/project/project"
 import { SessionV2 } from "../../src/v2/session"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
@@ -168,6 +169,7 @@ function makeHttp() {
     Plugin.defaultLayer,
     Config.defaultLayer,
     ProviderSvc.defaultLayer,
+    Project.defaultLayer,
     lsp,
     mcp,
     AppFileSystem.defaultLayer,
@@ -190,6 +192,7 @@ function makeHttp() {
   const compact = SessionCompaction.layer.pipe(Layer.provideMerge(proc), Layer.provideMerge(deps))
   return Layer.mergeAll(
     TestLLMServer.layer,
+    question,
     SessionPrompt.layer.pipe(
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(summary),
@@ -208,6 +211,32 @@ function makeHttp() {
 
 const it = testEffect(makeHttp())
 const unix = process.platform !== "win32" ? it.live : it.live.skip
+
+const questions = Question.Service.use((svc) => svc.list())
+const waitForQuestions = (count: number) =>
+  Effect.gen(function* () {
+    for (let i = 0; i < 100; i++) {
+      const pending = yield* questions
+      if (pending.length === count) return pending
+      yield* Effect.sleep("10 millis")
+    }
+    return yield* Effect.fail(new Error(`timed out waiting for ${count} pending question(s)`))
+  })
+const waitForMessageText = (input: { sessionID: SessionID; text: string }) =>
+  Session.Service.use((sessions) =>
+    Effect.gen(function* () {
+      for (let i = 0; i < 100; i++) {
+        const messages = yield* sessions.messages({ sessionID: input.sessionID })
+        if (
+          messages.some((message) => message.parts.some((part) => part.type === "text" && part.text === input.text))
+        ) {
+          return messages
+        }
+        yield* Effect.sleep("10 millis")
+      }
+      return yield* Effect.fail(new Error(`timed out waiting for message text: ${input.text}`))
+    }),
+  )
 
 // Config that registers a custom "test" provider with a "test-model" model
 // so provider model lookup succeeds inside the loop.
@@ -401,6 +430,66 @@ it.live("loop stops after one normal text response", () =>
       expect(messages.filter((message) => message.info.role === "assistant")).toHaveLength(1)
       expect(yield* llm.calls).toBe(1)
       expect(yield* llm.pending).toBe(1)
+    }),
+    { git: true, config: providerCfg },
+  ),
+)
+
+it.live("offers /init after the first assistant reply without auto-running it", () =>
+  provideTmpdirServer(
+    Effect.fnUntraced(function* ({ llm }) {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* llm.text("first reply")
+
+      const result = yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "hello" }],
+      })
+      const pending = yield* waitForQuestions(1)
+      const messages = yield* sessions.messages({ sessionID: chat.id })
+
+      expect(result.parts.some((part) => part.type === "text" && part.text === "first reply")).toBe(true)
+      expect(pending[0]?.questions[0]?.question).toContain("would you like Codyx to collect useful information")
+      expect(pending[0]?.questions[0]?.options.map((option) => option.label)).toEqual(["Yes, start", "Not now"])
+      expect(messages.filter((message) => message.info.role === "user")).toHaveLength(1)
+      expect(yield* llm.calls).toBe(1)
+    }),
+    { git: true, config: providerCfg },
+  ),
+)
+
+it.live("runs /init only after the first init offer is accepted", () =>
+  provideTmpdirServer(
+    Effect.fnUntraced(function* ({ llm }) {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const question = yield* Question.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* llm.text("first reply")
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "hello" }],
+      })
+
+      const [offer] = yield* waitForQuestions(1)
+      yield* llm.text("init done")
+      yield* question.reply({ requestID: offer.id, answers: [["Yes, start"]] })
+
+      const messages = yield* waitForMessageText({ sessionID: chat.id, text: "init done" })
+      expect(messages.filter((message) => message.info.role === "user")).toHaveLength(2)
+      expect(
+        messages.some((message) => message.parts.some((part) => part.type === "text" && part.text === "init done")),
+      ).toBe(true)
     }),
     { git: true, config: providerCfg },
   ),

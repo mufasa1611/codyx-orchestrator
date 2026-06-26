@@ -678,11 +678,8 @@ SOFTWARE.</div>
     <div class="section">
       <div class="section-label" data-i18n="warranty_label">Warranty &amp; liability</div>
       <div class="warranty" data-i18n="warranty_desc">
-        <strong>No warranty is provided.</strong> The software is provided "as is", without warranty of any kind,
-        express or implied, including but not limited to the warranties of merchantability, fitness for a particular
-        purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim,
-        damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of,
-        or in connection with the software or the use or other dealings in the software.
+        <strong>Warranty and liability follow the MIT disclaimer reproduced above.</strong> No separate warranty is
+        added by this page.
       </div>
     </div>
 
@@ -857,7 +854,7 @@ SOFTWARE.\`,
       contact_primary: "Primary — Gmail",
       contact_secondary: "Secondary — Hotmail",
       warranty_label: "Warranty & liability",
-      warranty_desc: "<strong>No warranty is provided.</strong> The software is provided 'as is', without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.",
+      warranty_desc: "<strong>Warranty and liability follow the MIT disclaimer reproduced above.</strong> No separate warranty is added by this page.",
       footer_sig: "Copyright &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     fr: {
@@ -902,7 +899,7 @@ LE LOGICIEL EST FOURNI 'EN L'ÉTAT', SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU I
       contact_primary: "Principal — Gmail",
       contact_secondary: "Secondaire — Hotmail",
       warranty_label: "Garantie et responsabilité",
-      warranty_desc: "<strong>Aucune garantie n'est fournie.</strong> Le logiciel est fourni 'en l'état', sans garantie d'aucune sorte, expresse ou implicite, y compris mais sans s'y limiter les garanties de qualité marchande, d'adéquation à un usage particulier et d'absence de contrefaçon. En aucun cas les auteurs ou titulaires de droits d'auteur ne seront responsables de toute réclamation, dommages ou autre responsabilité, que ce soit dans le cadre d'un contrat, d'un délit ou autre, découlant de, lié à ou en relation avec le logiciel ou l'utilisation ou d'autres transactions dans le logiciel.",
+      warranty_desc: "<strong>La garantie et la responsabilité suivent l'avis de non-garantie MIT reproduit ci-dessus.</strong> Aucune garantie distincte n'est ajoutée par cette page.",
       footer_sig: "Droit d'auteur &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     de: {
@@ -947,7 +944,7 @@ DIE SOFTWARE WIRD 'WIE BESEHEN' UND OHNE MÄNGELGEWÄHR ZUR VERFÜGUNG GESTELLT,
       contact_primary: "Primär — Gmail",
       contact_secondary: "Sekundär — Hotmail",
       warranty_label: "Gewährleistung und Haftung",
-      warranty_desc: "<strong>Es wird keine Gewährleistung übernommen.</strong> Die Software wird 'wie besehen' und ohne Mängelgewähr zur Verfügung gestellt, ohne jegliche ausdrückliche oder implizite Garantie, einschließlich, aber nicht beschränkt auf Garantien der Marktreife, der Eignung für einen bestimmten Zweck und der Nichtverletzung von Rechten Dritter. In keinem Fall sind die Autoren oder Urheberrechtsinhaber für Ansprüche, Schäden oder sonstige Haftung haftbar, sei es in einer Vertragsklage, einer unerlaubten Handlung oder anderweitig, die sich aus, im Zusammenhang mit oder durch die Software oder die Nutzung oder sonstige Geschäfte mit der Software ergeben.",
+      warranty_desc: "<strong>Gewährleistung und Haftung folgen dem oben wiedergegebenen MIT-Haftungsausschluss.</strong> Durch diese Seite wird keine separate Gewährleistung hinzugefügt.",
       footer_sig: "Urheberrecht &copy; 2026 — <span class='name-gold'>M. Farid</span> <span class='name-green'>(Mufasa)</span>"
     },
     ar: {
@@ -992,7 +989,7 @@ DIE SOFTWARE WIRD 'WIE BESEHEN' UND OHNE MÄNGELGEWÄHR ZUR VERFÜGUNG GESTELLT,
       contact_primary: "الأساسي — Gmail",
       contact_secondary: "الثانوي — Hotmail",
       warranty_label: "الضمان والمسؤولية",
-      warranty_desc: "<strong>لا يتم تقديم أي ضمان.</strong> يتم تقديم البرنامج 'كما هو'، دون أي ضمان من أي نوع، صريحاً أو ضمنياً، بما في ذلك على سبيل المثال لا الحصر ضمانات القدرة التسويقية، والملاءمة لغرض معين، وعدم الانتهاك. لا يتحمل المؤلفون أو أصحاب حقوق النشر بأي حال من الأحوال المسؤولية عن أي مطالبات أو أضرار أو مسؤوليات أخرى، سواء كان ذلك في إطار عقد أو ضرر أو غير ذلك، تنشأ عن أو تتصل بالبرنامج أو استخدامه أو التعاملات الأخرى فيه.",
+      warranty_desc: "<strong>تخضع الضمانات والمسؤولية لإخلاء المسؤولية في ترخيص MIT المعروض أعلاه.</strong> لا تضيف هذه الصفحة أي ضمان منفصل.",
       footer_sig: "حقوق النشر &copy; 2026 — <span class='name-gold'>محمد فريد</span> <span class='name-green'>(موفاسا)</span>"
     }
   };
