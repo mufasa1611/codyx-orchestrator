@@ -27,6 +27,10 @@
         "turbo": "2.8.13",
       },
     },
+    "packages/android": {
+      "name": "@cody/android",
+      "version": "1.14.41",
+    },
     "packages/app": {
       "name": "@cody/app",
       "version": "1.14.41",
@@ -1088,6 +1092,8 @@
     "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20251118.0", "", { "os": "win32", "cpu": "x64" }, "sha512-2LV99AHSlpr8WcCb/BYbU2QsYkXLUL1izN6YKWkN9Eibv80JKX0RtgmD3dfmajE5sNvClavxZejgzVvHD9N9Ag=="],
 
     "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20251008.0", "", {}, "sha512-dZLkO4PbCL0qcCSKzuW7KE4GYe49lI12LCfQ5y9XeSwgYBoAUbwH4gmJ6A0qUIURiTJTkGkRkhVPqpq2XNgYRA=="],
+
+    "@cody/android": ["@cody/android@workspace:packages/android"],
 
     "@cody/app": ["@cody/app@workspace:packages/app"],
 
