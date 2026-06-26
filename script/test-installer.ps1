@@ -114,7 +114,7 @@ Assert-Contains "packages/launcher/Program.cs" 'identity and email verification'
 Assert-Contains "packages/launcher/Program.cs" 'RedirectStandardInput = true' "Windows launcher accepts setup answers inside the UI"
 Assert-Contains "packages/launcher/Program.cs" 'setupPromptActive' "Windows launcher only accepts answers while a setup prompt is active"
 Assert-Contains "packages/launcher/Program.cs" 'Waiting for installer prompt' "Windows launcher does not invite blind input before prompts"
-Assert-Contains "packages/codyx/src/cli/logo.ts" 'left: \["Codyx-"\][\s\S]*right: \["orchestrator"\]' "Codyx banner uses the literal orchestrator name"
+Assert-Contains "packages/codyx/src/cli/logo.ts" '╔═╗╔═╗╔╦╗╦ ╦═╗ ╦─[\s\S]*╔═╗╦═╗╔═╗╦ ╦╔═╗╔═╗╔╦╗╦═╗╔═╗╔╦╗╔═╗╦═╗' "Codyx banner uses the stylized orchestrator name"
 Assert-Contains "packages/codyx/src/cli/cmd/tui/component/logo.tsx" 'build\(codyX\)' "TUI banner uses the Codyx logo shape"
 Assert-Contains "packages/codyx/src/cli/ui.ts" 'const glyphs = codyX' "CLI banner uses the Codyx logo shape"
 Assert-Contains "packages/launcher/Program.cs" '-NoLaunch' "Windows launcher completes setup before launching codyx"
