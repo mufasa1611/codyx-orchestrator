@@ -3,6 +3,8 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -13,6 +15,8 @@ namespace Codyx.Launcher;
 
 public static class Program
 {
+  public const string LicenseUrl = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE";
+
   [STAThread]
   public static void Main(string[] args)
   {
@@ -31,11 +35,16 @@ public sealed class LauncherWindow : Window
   readonly Button primaryButton = new();
   readonly Button detailsButton = new();
   readonly Border licensePanel = new();
+  readonly Border setupInputPanel = new();
+  readonly TextBox setupInput = new();
+  readonly Button setupSendButton = new();
   readonly StackPanel stepPanel = new();
   readonly TextBlock statusText = new();
   readonly string installRoot;
   string launcherScript = "";
   bool detailsVisible;
+  Process? setupProcess;
+  RoutedEventHandler? primaryHandler;
 
   public LauncherWindow()
   {
@@ -49,9 +58,9 @@ public sealed class LauncherWindow : Window
   {
     Title = "codyx Launcher";
     Width = 720;
-    Height = 760;
+    Height = 860;
     MinWidth = 620;
-    MinHeight = 680;
+    MinHeight = 760;
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
     Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
   }
@@ -107,6 +116,7 @@ public sealed class LauncherWindow : Window
     AddStep("Prerequisites", "Check Git and Bun");
     AddStep("Source", "Clone or update codyx");
     AddStep("Setup", "Run license, identity, and email verification");
+    AddStep("Models", "Check Ollama and scan local models");
     AddStep("Launch", "Open the codyx experience");
     body.Children.Add(stepPanel);
 
@@ -127,7 +137,7 @@ public sealed class LauncherWindow : Window
       Margin = new Thickness(0, 18, 0, 0),
     };
 
-    detailsButton.Content = "View details";
+    detailsButton.Content = "Show process";
     detailsButton.Margin = new Thickness(0, 0, 10, 0);
     detailsButton.Padding = new Thickness(16, 8, 16, 8);
     detailsButton.Click += (_, _) => ToggleDetails();
@@ -150,8 +160,56 @@ public sealed class LauncherWindow : Window
     logBox.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
     body.Children.Add(logBox);
 
+    setupInputPanel.Visibility = Visibility.Collapsed;
+    setupInputPanel.Margin = new Thickness(0, 12, 0, 0);
+    setupInputPanel.Padding = new Thickness(12);
+    setupInputPanel.CornerRadius = new CornerRadius(8);
+    setupInputPanel.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    setupInputPanel.BorderThickness = new Thickness(1);
+    setupInputPanel.Background = new SolidColorBrush(Color.FromRgb(12, 18, 28));
+    setupInputPanel.Child = BuildSetupInputPanel();
+    body.Children.Add(setupInputPanel);
+
     root.Children.Add(body);
     return root;
+  }
+
+  UIElement BuildSetupInputPanel()
+  {
+    var panel = new StackPanel();
+    panel.Children.Add(new TextBlock
+    {
+      Text = "Answer the setup prompt",
+      Foreground = Brushes.White,
+      FontWeight = FontWeights.SemiBold,
+      Margin = new Thickness(0, 0, 0, 8),
+    });
+
+    var row = new Grid();
+    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+    setupInput.Margin = new Thickness(0, 0, 10, 0);
+    setupInput.MinHeight = 34;
+    setupInput.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
+    setupInput.Foreground = Brushes.White;
+    setupInput.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    setupInput.KeyDown += (_, e) =>
+    {
+      if (e.Key != Key.Enter) return;
+      SendSetupInput();
+      e.Handled = true;
+    };
+    row.Children.Add(setupInput);
+
+    setupSendButton.Content = "Send";
+    setupSendButton.Padding = new Thickness(16, 8, 16, 8);
+    setupSendButton.Click += (_, _) => SendSetupInput();
+    Grid.SetColumn(setupSendButton, 1);
+    row.Children.Add(setupSendButton);
+
+    panel.Children.Add(row);
+    return panel;
   }
 
   UIElement BuildBanner()
@@ -221,10 +279,19 @@ public sealed class LauncherWindow : Window
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 0, 0, 12),
     });
+    var licenseLink = new Hyperlink(new Run($"License: {Program.LicenseUrl}"))
+    {
+      NavigateUri = new Uri(Program.LicenseUrl),
+      Foreground = new SolidColorBrush(Color.FromRgb(77, 190, 255)),
+    };
+    licenseLink.RequestNavigate += (_, e) =>
+    {
+      Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+      e.Handled = true;
+    };
     panel.Children.Add(new TextBlock
     {
-      Text = "License: https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE",
-      Foreground = new SolidColorBrush(Color.FromRgb(77, 190, 255)),
+      Inlines = { licenseLink },
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 0, 0, 14),
     });
@@ -279,8 +346,7 @@ public sealed class LauncherWindow : Window
       statusText.Text = "First run needs your license agreement and verification.";
       SetStep(1, Directory.Exists(installRoot) ? StepState.Done : StepState.Active);
       SetStep(2, StepState.Active);
-      primaryButton.Content = "Agree in the license panel";
-      primaryButton.IsEnabled = false;
+      SetPrimaryAction("Agree in the license panel", false, null);
       licensePanel.Visibility = Visibility.Visible;
       return;
     }
@@ -291,10 +357,12 @@ public sealed class LauncherWindow : Window
   async Task ContinueFirstRunAsync()
   {
     licensePanel.Visibility = Visibility.Collapsed;
-    primaryButton.Content = "Setup window open";
-    primaryButton.IsEnabled = false;
-    statusText.Text = "Complete identity and email verification in the setup window.";
-    AppendLog("Opening interactive setup with explicit license acceptance.");
+    SetPrimaryAction("Setup running...", false, null);
+    statusText.Text = "Complete identity and email verification below.";
+    AppendLog("Starting setup with explicit license acceptance.");
+    AppendLog("When setup asks for your name, email, or code, type the answer in the box below and press Enter.");
+    ShowDetails(true);
+    ShowSetupInput(true);
 
     SetStep(1, StepState.Done);
     SetStep(2, StepState.Active);
@@ -304,18 +372,17 @@ public sealed class LauncherWindow : Window
     {
       SetStep(2, StepState.Done);
       SetStep(3, StepState.Done);
-      statusText.Text = "codyx setup finished.";
-      primaryButton.Content = "Done";
-      primaryButton.IsEnabled = true;
-      primaryButton.Click += (_, _) => Close();
+      SetStep(4, StepState.Active);
+      LaunchCodyx(true);
+      SetStep(4, StepState.Done);
+      statusText.Text = "codyx setup finished and launched.";
+      SetPrimaryAction("Close", true, (_, _) => Close());
       return;
     }
 
     SetStep(2, StepState.Error);
     statusText.Text = "Setup did not finish. View details or run again.";
-    primaryButton.Content = "Try again";
-    primaryButton.IsEnabled = true;
-    primaryButton.Click += async (_, _) => await ContinueFirstRunAsync();
+    SetPrimaryAction("Try again", true, async (_, _) => await ContinueFirstRunAsync());
   }
 
   async Task RunUpdateThenLaunchAsync()
@@ -329,21 +396,18 @@ public sealed class LauncherWindow : Window
     {
       SetStep(1, StepState.Error);
       statusText.Text = "Update check failed. View details for the launcher log.";
-      primaryButton.Content = "Open interactive setup";
-      primaryButton.IsEnabled = true;
-      primaryButton.Click += async (_, _) => await ContinueFirstRunAsync();
+      SetPrimaryAction("Open interactive setup", true, async (_, _) => await ContinueFirstRunAsync());
       return;
     }
 
     SetStep(1, StepState.Done);
     SetStep(2, StepState.Done);
-    SetStep(3, StepState.Active);
-    LaunchCodyx();
     SetStep(3, StepState.Done);
+    SetStep(4, StepState.Active);
+    LaunchCodyx(false);
+    SetStep(4, StepState.Done);
     statusText.Text = "codyx is launching.";
-    primaryButton.Content = "Close";
-    primaryButton.IsEnabled = true;
-    primaryButton.Click += (_, _) => Close();
+    SetPrimaryAction("Close", true, (_, _) => Close());
   }
 
   async Task<int> RunHiddenLauncherAsync()
@@ -363,32 +427,54 @@ public sealed class LauncherWindow : Window
   async Task<int> RunInteractiveLauncherAsync(bool acceptedLicense)
   {
     var licenseArg = acceptedLicense ? " -AcceptLicense" : "";
-    using var process = Process.Start(new ProcessStartInfo
+    using var process = new Process
     {
-      FileName = PowerShellPath(),
-      Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{launcherScript}\"{licenseArg}",
-      UseShellExecute = true,
-      WindowStyle = ProcessWindowStyle.Normal,
-      WorkingDirectory = AppContext.BaseDirectory,
-    });
-    if (process == null) return 1;
+      StartInfo = new ProcessStartInfo
+      {
+        FileName = PowerShellPath(),
+        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{launcherScript}\"{licenseArg} -NoLaunch",
+        UseShellExecute = false,
+        RedirectStandardInput = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true,
+        WorkingDirectory = AppContext.BaseDirectory,
+      },
+    };
+    if (!process.Start()) return 1;
+    setupProcess = process;
+    var output = PumpOutputAsync(process.StandardOutput);
+    var error = PumpOutputAsync(process.StandardError);
     await process.WaitForExitAsync();
+    await Task.WhenAll(output, error);
+    setupProcess = null;
+    ShowSetupInput(false);
     return process.ExitCode;
   }
 
   async Task<int> RunProcessAsync(ProcessStartInfo startInfo)
   {
     using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-    process.OutputDataReceived += (_, eventArgs) => AppendLog(eventArgs.Data);
-    process.ErrorDataReceived += (_, eventArgs) => AppendLog(eventArgs.Data);
     if (!process.Start()) return 1;
-    process.BeginOutputReadLine();
-    process.BeginErrorReadLine();
+    var output = PumpOutputAsync(process.StandardOutput);
+    var error = PumpOutputAsync(process.StandardError);
     await process.WaitForExitAsync();
+    await Task.WhenAll(output, error);
     return process.ExitCode;
   }
 
-  void LaunchCodyx()
+  async Task PumpOutputAsync(StreamReader reader)
+  {
+    var buffer = new char[256];
+    while (true)
+    {
+      var count = await reader.ReadAsync(buffer);
+      if (count <= 0) return;
+      AppendOutput(new string(buffer, 0, count));
+    }
+  }
+
+  void LaunchCodyx(bool firstChatPrompt)
   {
     var command = IOPath.Combine(installRoot, "codyx.cmd");
     if (!File.Exists(command))
@@ -397,14 +483,17 @@ public sealed class LauncherWindow : Window
       return;
     }
 
-    Process.Start(new ProcessStartInfo
+    var startInfo = new ProcessStartInfo
     {
       FileName = "cmd.exe",
-      Arguments = $"/d /s /c \"\"{command}\"\"",
+      Arguments = firstChatPrompt
+        ? $"/d /s /k \"set CODY_FIRST_CHAT_PROMPT=1&& \"\"{command}\"\"\""
+        : $"/d /s /k \"\"{command}\"\"",
       UseShellExecute = true,
       WorkingDirectory = installRoot,
       WindowStyle = ProcessWindowStyle.Normal,
-    });
+    };
+    Process.Start(startInfo);
   }
 
   string ExtractLauncherScript()
@@ -453,19 +542,70 @@ public sealed class LauncherWindow : Window
 
   void ToggleDetails()
   {
-    detailsVisible = !detailsVisible;
+    ShowDetails(!detailsVisible);
+  }
+
+  void ShowDetails(bool visible)
+  {
+    detailsVisible = visible;
     logBox.Visibility = detailsVisible ? Visibility.Visible : Visibility.Collapsed;
-    detailsButton.Content = detailsVisible ? "Hide details" : "View details";
+    detailsButton.Content = detailsVisible ? "Hide process" : "Show process";
   }
 
   void AppendLog(string? line)
   {
     if (string.IsNullOrWhiteSpace(line)) return;
+    AppendOutput(line + Environment.NewLine);
+  }
+
+  void AppendOutput(string text)
+  {
+    if (string.IsNullOrEmpty(text)) return;
     Dispatcher.Invoke(() =>
     {
-      logBox.AppendText(line + Environment.NewLine);
+      if (text.Contains("installer email verification", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("verification code", StringComparison.OrdinalIgnoreCase))
+      {
+        SetStep(2, StepState.Active);
+      }
+      if (text.Contains("[codyx:model-scan]", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("Model discovery", StringComparison.OrdinalIgnoreCase))
+      {
+        SetStep(3, StepState.Active);
+      }
+      logBox.AppendText(text);
       logBox.ScrollToEnd();
     });
+  }
+
+  void SendSetupInput()
+  {
+    var value = setupInput.Text.Trim();
+    if (string.IsNullOrEmpty(value)) return;
+    if (setupProcess == null || setupProcess.HasExited) return;
+    setupInput.Clear();
+    setupProcess.StandardInput.WriteLine(value);
+    AppendLog($"> {(value.Length == 6 && value.All(char.IsDigit) ? "******" : value)}");
+  }
+
+  void ShowSetupInput(bool visible)
+  {
+    Dispatcher.Invoke(() =>
+    {
+      setupInputPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+      setupInput.IsEnabled = visible;
+      setupSendButton.IsEnabled = visible;
+      if (visible) setupInput.Focus();
+    });
+  }
+
+  void SetPrimaryAction(string content, bool enabled, RoutedEventHandler? handler)
+  {
+    if (primaryHandler != null) primaryButton.Click -= primaryHandler;
+    primaryHandler = handler;
+    if (primaryHandler != null) primaryButton.Click += primaryHandler;
+    primaryButton.Content = content;
+    primaryButton.IsEnabled = enabled;
   }
 
   void SetStep(int index, StepState state)

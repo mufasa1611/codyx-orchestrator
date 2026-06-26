@@ -50,6 +50,10 @@ function Test-EmailAddress($Value) {
   }
 }
 
+function Test-DisplayName($Value) {
+  return -not [string]::IsNullOrWhiteSpace($Value) -and $Value.Trim().Length -le 100
+}
+
 function Get-ErrorResponse($ErrorRecord) {
   $statusCode = 0
   $retryAfter = $null
@@ -200,15 +204,25 @@ Write-Host "Codyx collects your email address to verify email ownership and send
 Write-Host "essential installer, service, or security notices."
 Write-Host "No source code, prompts, project content, or model conversations are collected by this step."
 Write-Host "Verified registration data is retained for up to 24 months."
-Write-Host "Privacy: https://install.kingkung.men/privacy"
+$privacyLink = "`e]8;;$ServiceUrl/privacy`e\\$ServiceUrl/privacy`e]8;;`e\\"
+Write-Host "Privacy: $privacyLink"
 Write-Host "Deletion requests: privacy@kingkung.men"
 Write-Host "wish you smooth installation (Mufasa)"
 Write-Host ""
 
 $email = $null
 
-if (-not $DisplayName) {
-  Write-VerificationWarn "No display name provided. Verification will proceed without a name."
+while (-not (Test-DisplayName $DisplayName)) {
+  $value = (Read-InstallerValue "Display name (required, or 'cancel')").Trim()
+  if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-VerificationWarn "Installation cancelled before registration."
+    return New-VerificationResult $false "cancelled"
+  }
+  if (-not (Test-DisplayName $value)) {
+    Write-VerificationWarn "Enter a name between 1 and 100 characters."
+    continue
+  }
+  $DisplayName = $value
 }
 
 while ($true) {

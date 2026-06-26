@@ -75,6 +75,71 @@ function Add-OllamaModel([string]$Name, [string]$Source) {
   Show-CodyScan "found Ollama model: $model"
 }
 
+function Get-OllamaCommand {
+  $cmd = Get-Command ollama -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  foreach ($candidate in @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
+    (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
+  )) {
+    if (Test-Path -LiteralPath $candidate) { return $candidate }
+  }
+  return $null
+}
+
+function Test-OllamaApi {
+  try {
+    $null = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 2
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Install-OllamaIfMissing {
+  if (Get-OllamaCommand) { return }
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    $notes.Add("Ollama was not installed and winget was unavailable.")
+    Show-CodyScan "Ollama executable not found; winget unavailable, skipping automatic install"
+    return
+  }
+  Show-CodyScan "Ollama executable not found; installing Ollama with winget"
+  & winget install --id Ollama.Ollama --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) {
+    $notes.Add("Ollama automatic install failed.")
+    Show-CodyScan "Ollama install failed; checking manifests only"
+    return
+  }
+  $env:PATH = "$(Join-Path $env:LOCALAPPDATA "Programs\Ollama");$env:PATH"
+  Show-CodyScan "Ollama installed"
+}
+
+function Start-OllamaIfNeeded {
+  if (Test-OllamaApi) {
+    Show-CodyScan "Ollama API is already running"
+    return
+  }
+
+  $ollama = Get-OllamaCommand
+  if (-not $ollama) {
+    Show-CodyScan "Ollama executable unavailable; checking manifests only"
+    return
+  }
+
+  Show-CodyScan "Ollama API is not responding; starting ollama serve in the background"
+  Start-Process -FilePath $ollama -ArgumentList "serve" -WindowStyle Hidden | Out-Null
+  foreach ($attempt in 1..10) {
+    Start-Sleep -Milliseconds 700
+    if (Test-OllamaApi) {
+      Show-CodyScan "Ollama API is running"
+      return
+    }
+    Show-CodyScan "waiting for Ollama API ($attempt/10)"
+  }
+  $notes.Add("Ollama was installed or started, but the local API did not become ready.")
+  Show-CodyScan "Ollama API did not become ready; checking manifests only"
+}
+
 function Add-GgufModel([string]$Path) {
   if ([string]::IsNullOrWhiteSpace($Path)) { return }
   $full = [System.IO.Path]::GetFullPath($Path)
@@ -146,6 +211,8 @@ function Add-OllamaManifestModels([string]$ManifestRoot) {
 
 function Find-OllamaModels {
   Show-CodyScan "checking Ollama local registry"
+  Install-OllamaIfMissing
+  Start-OllamaIfNeeded
   try {
     $timeout = [math]::Max(1, [math]::Min(5, [math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)))
     $response = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec $timeout

@@ -253,6 +253,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     renderer,
   })
   const [ready, setReady] = createSignal(false)
+  let firstInitPromptStarted = false
   TuiPluginRuntime.init({
     api,
     config: tuiConfig,
@@ -388,6 +389,59 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
       },
     ),
   )
+
+  async function showFirstInitPrompt() {
+    const memo = await Bun.file("memo.md")
+      .text()
+      .catch(() => "")
+    const username = memo.match(/^\s*-\s*username:\s*(.+)$/m)?.[1]?.trim() || "there"
+    dialog.replace(() => (
+      <DialogSelect
+        title={`Hi ${username}, should Codyx learn this system now?`}
+        renderFilter={false}
+        options={[
+          {
+            title: "Yes, start",
+            description: "Run /init now so the agent can inspect the system and write helpful memo notes.",
+            value: "yes",
+            onSelect: (d) => {
+              kv.set("first_system_init_prompt_answered", true)
+              d.clear()
+              promptRef.current?.set({ input: "/init", parts: [] })
+              promptRef.current?.submit()
+            },
+          },
+          {
+            title: "No",
+            description: "Skip for now.",
+            value: "no",
+            onSelect: (d) => {
+              kv.set("first_system_init_prompt_answered", true)
+              d.clear()
+              toast.show({
+                variant: "info",
+                message: "No problem. Use /init whenever you want Codyx to learn this system.",
+                duration: 8000,
+              })
+            },
+          },
+        ]}
+      />
+    ))
+  }
+
+  createEffect(() => {
+    if (firstInitPromptStarted) return
+    if (process.env.CODY_FIRST_CHAT_PROMPT !== "1") return
+    if (!kv.ready) return
+    if (kv.get("first_system_init_prompt_answered", false)) return
+    if (sync.status !== "complete") return
+    if (sync.data.provider.length === 0) return
+    if (route.data.type !== "home") return
+    if (!promptRef.current) return
+    firstInitPromptStarted = true
+    void showFirstInitPrompt()
+  })
 
   const connected = useConnected()
   const appCommands = createMemo(() =>
