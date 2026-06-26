@@ -15,12 +15,24 @@ export function setupAutoUpdater() {
   autoUpdater.allowPrerelease = false
   autoUpdater.allowDowngrade = true
   autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.autoInstallOnAppQuit = true
   logger.log("auto updater configured", {
     channel: autoUpdater.channel,
     allowPrerelease: autoUpdater.allowPrerelease,
     allowDowngrade: autoUpdater.allowDowngrade,
+    autoInstallOnAppQuit: autoUpdater.autoInstallOnAppQuit,
     currentVersion: app.getVersion(),
+  })
+}
+
+export function checkForUpdatesInBackground() {
+  if (!UPDATER_ENABLED) return
+  void checkUpdate().then((result) => {
+    if (!result.updateAvailable) return
+    logger.log("background update downloaded", {
+      version: result.version ?? null,
+      install: "on app quit",
+    })
   })
 }
 

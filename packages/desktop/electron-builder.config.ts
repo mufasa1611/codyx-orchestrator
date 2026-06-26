@@ -26,6 +26,17 @@ const channel = (() => {
   return "dev"
 })()
 
+function githubPublish(channelName = "latest"): Configuration["publish"] {
+  const repo = process.env.GH_REPO ?? process.env.GITHUB_REPOSITORY ?? "mufasa1611/codyx-orchestrator"
+  const [owner, name] = repo.split("/")
+  return {
+    provider: "github",
+    owner: owner ?? "mufasa1611",
+    repo: name ?? "codyx-orchestrator",
+    channel: channelName,
+  }
+}
+
 const getBase = (): Configuration => ({
   artifactName: "cody-desktop-${os}-${arch}.${ext}",
   directories: {
@@ -96,7 +107,7 @@ function getConfig() {
         appId: "ai.cody.desktop.beta",
         productName: "Cody Beta",
         protocols: { name: "Cody Beta", schemes: ["cody"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "cody-beta", channel: "latest" },
+        publish: githubPublish(),
         rpm: { packageName: "cody-beta" },
       }
     }
@@ -106,7 +117,7 @@ function getConfig() {
         appId: "ai.cody.desktop",
         productName: "Cody",
         protocols: { name: "Cody", schemes: ["cody"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "cody", channel: "latest" },
+        publish: githubPublish(),
         rpm: { packageName: "cody" },
       }
     }

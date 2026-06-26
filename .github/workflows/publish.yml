@@ -137,9 +137,9 @@ jobs:
           signing-account-name: ${{ env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
           files: |
-            ${{ github.workspace }}\packages\cody\dist\cody-windows-arm64\bin\cody.exe
-            ${{ github.workspace }}\packages\cody\dist\cody-windows-x64\bin\cody.exe
-            ${{ github.workspace }}\packages\cody\dist\cody-windows-x64-baseline\bin\cody.exe
+            ${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64\bin\cody.exe
+            ${{ github.workspace }}\packages\codyx\dist\cody-windows-x64\bin\cody.exe
+            ${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline\bin\cody.exe
           exclude-environment-credential: true
           exclude-workload-identity-credential: true
           exclude-managed-identity-credential: true
@@ -155,9 +155,9 @@ jobs:
         shell: pwsh
         run: |
           $files = @(
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-arm64\bin\cody.exe",
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-x64\bin\cody.exe",
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-x64-baseline\bin\cody.exe"
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64\bin\cody.exe",
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64\bin\cody.exe",
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline\bin\cody.exe"
           )
 
           foreach ($file in $files) {
@@ -182,9 +182,9 @@ jobs:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: |
           gh release upload "v${{ needs.version.outputs.version }}" `
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-arm64.zip" `
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-x64.zip" `
-            "${{ github.workspace }}\packages\cody\dist\cody-windows-x64-baseline.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline.zip" `
             --clobber `
             --repo "${{ needs.version.outputs.repo }}"
 
@@ -195,6 +195,73 @@ jobs:
             packages/codyx/dist/cody-windows-arm64
             packages/codyx/dist/cody-windows-x64
             packages/codyx/dist/cody-windows-x64-baseline
+
+  build-launcher-windows:
+    needs:
+      - version
+    runs-on: windows-2025
+    if: github.repository == 'mufasa1611/codyx-orchestrator'
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup git committer
+        id: committer
+        uses: ./.github/actions/setup-git-committer
+        with:
+          cody-app-id: ${{ vars.CODY_APP_ID }}
+          cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build launcher exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Install-Module ps2exe -Force -Scope CurrentUser -Repository PSGallery
+          Invoke-ps2exe `
+            -inputFile script\launcher.ps1 `
+            -outputFile dist\codyx-launcher-windows-x64.exe `
+            -title "codyx Launcher" `
+            -description "codyx source checkout auto-update launcher" `
+            -product "codyx" `
+            -company "Mufasa" `
+            -iconFile packages\desktop\icons\prod\icon.ico
+
+      - name: Sign launcher exe
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File script\sign-windows.ps1 dist\codyx-launcher-windows-x64.exe
+
+      - name: Verify launcher signature
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist\codyx-launcher-windows-x64.exe
+          if ($env:AZURE_TRUSTED_SIGNING_ACCOUNT_NAME -and $sig.Status -ne "Valid") {
+            throw "Invalid signature for launcher: $($sig.Status)"
+          }
+
+      - name: Upload launcher release asset
+        if: needs.version.outputs.release != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
+        run: gh release upload "v${{ needs.version.outputs.version }}" dist\codyx-launcher-windows-x64.exe --clobber --repo "${{ needs.version.outputs.repo }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codyx-launcher-windows
+          path: dist/codyx-launcher-windows-x64.exe
 
   build-electron:
     needs:
@@ -320,6 +387,7 @@ jobs:
         timeout-minutes: 60
         env:
           CODY_CHANNEL: ${{ (github.ref_name == 'beta' && 'beta') || 'prod' }}
+          GH_REPO: ${{ needs.version.outputs.repo }}
           GH_TOKEN: ${{ steps.committer.outputs.token }}
           CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -334,6 +402,7 @@ jobs:
         timeout-minutes: 60
         env:
           CODY_CHANNEL: ${{ (github.ref_name == 'beta' && 'beta') || 'prod' }}
+          GH_REPO: ${{ needs.version.outputs.repo }}
 
       - name: Create and upload macOS .app.tar.gz
         if: runner.os == 'macOS' && needs.version.outputs.release
@@ -391,6 +460,7 @@ jobs:
       - version
       - build-cli
       - sign-cli-windows
+      - build-launcher-windows
       - build-electron
     if: always() && !failure() && !cancelled()
     runs-on: ubuntu-24.04

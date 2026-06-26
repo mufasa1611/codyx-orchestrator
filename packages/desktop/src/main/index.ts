@@ -35,7 +35,7 @@ import {
   setDockIcon,
 } from "./windows"
 import { migrate } from "./migrate"
-import { checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from "./updater"
+import { checkForUpdatesInBackground, checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from "./updater"
 import { Deferred, Effect, Fiber } from "effect"
 
 const APP_NAMES: Record<string, string> = {
@@ -245,6 +245,7 @@ const main = Effect.gen(function* () {
   registerRendererProtocol()
   setDockIcon()
   setupAutoUpdater()
+  checkForUpdatesInBackground()
 
   const needsMigration = ((): boolean => {
     if (process.env.CODY_DB === ":memory:") return false
