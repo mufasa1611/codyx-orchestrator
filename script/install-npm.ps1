@@ -27,7 +27,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$LicenseUrl = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE"
+$LicenseUrl = "https://install.kingkung.men/license"
 $InstallerStateDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
 $InstallerMarkerPath = Join-Path $InstallerStateDir "install-marker.json"
 

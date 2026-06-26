@@ -70,7 +70,7 @@ try {
             }
             $null = Invoke-WithSparklingProgress -ScriptBlock $resetBlock -ArgumentList @($cwd, $Branch, $tempFile) -StatusText "Repairing install checkout..."
             
-            $exitCode = Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue
+            $exitCode = (Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue).Trim()
             if ($exitCode -eq "0") {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repair complete. Install checkout is now in sync."
             } else {
@@ -87,7 +87,7 @@ try {
             }
             $null = Invoke-WithSparklingProgress -ScriptBlock $pullBlock -ArgumentList @($cwd, $tempFile) -StatusText "Update in progress..."
             
-            $exitCode = Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue
+            $exitCode = (Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue).Trim()
             if ($exitCode -eq "0") {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Update complete. Install checkout is now in sync."
             } else {
@@ -103,7 +103,7 @@ try {
             }
             $null = Invoke-WithSparklingProgress -ScriptBlock $npmBlock -ArgumentList @($tempFile) -StatusText "Updating codyx-ai..."
             
-            $exitCode = Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue
+            $exitCode = (Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue).Trim()
             if ($exitCode -eq "0") {
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m NPM update complete."
             } else {

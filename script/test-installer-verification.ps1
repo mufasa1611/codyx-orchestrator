@@ -106,8 +106,9 @@ Invoke-Test "first verification saves only receipt metadata" {
     Assert-True ($state.verifies -eq 1) "Expected one code verification request."
     $saved = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
     $properties = @($saved.psobject.Properties.Name | Sort-Object)
-    Assert-True (($properties -join ",") -eq "expires_at,install_id,receipt,version") "Receipt file contains unexpected fields."
+    Assert-True (($properties -join ",") -eq "expires_at,install_id,receipt,server_url,version") "Receipt file contains unexpected fields."
     Assert-True ($saved.receipt -eq "new.receipt") "Receipt was not saved."
+    Assert-True ($saved.server_url -eq "https://install.kingkung.men") "Receipt server URL was not saved."
   } finally {
     Remove-Item -LiteralPath $directory -Recurse -Force
   }

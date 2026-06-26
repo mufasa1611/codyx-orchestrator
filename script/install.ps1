@@ -42,7 +42,7 @@ $Script:CODY_VERSION = "1.0.0"
 $Script:REPO_URL = "https://github.com/mufasa1611/codyx-orchestrator.git"
 $Script:CREDITS = "Builder: M. Farid (Mufasa) | Repo: $REPO_URL"
 $Script:VERIFICATION_URL = "https://install.kingkung.men"
-$Script:LICENSE_URL = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE"
+$Script:LICENSE_URL = "https://install.kingkung.men/license"
 
 # Configuration
 $RepoUrl = $Script:REPO_URL
@@ -83,6 +83,16 @@ function Write-Section($Number, $Label) {
   Write-Host "=== $Number. $Label ===" -ForegroundColor Cyan
 }
 
+function Read-CodyxInstallerInput($Prompt) {
+  if ($env:CODY_LAUNCHER_UI -eq "1") {
+    Write-Host "::codyx-prompt::$Prompt"
+    $value = [Console]::In.ReadLine()
+    if ($null -eq $value) { return "" }
+    return $value
+  }
+  return Read-Host $Prompt
+}
+
 $Script:CodyxUserName = ""
 
 function Ensure-UserMemo {
@@ -106,7 +116,7 @@ function Ensure-UserMemo {
 
   Write-Step "Saving your username to memo.md..."
   while ($true) {
-    $value = (Read-Host "What would you like codyx to call you?").Trim()
+    $value = (Read-CodyxInstallerInput "What would you like codyx to call you?").Trim()
     if ($value.Length -lt 1) {
       Write-Warn "Enter a name."
       continue
@@ -402,7 +412,7 @@ function Confirm-LicenseAgreement {
   }
 
   while ($true) {
-    $choice = (Read-Host "Type A to agree or D to disagree").Trim().ToLowerInvariant()
+    $choice = (Read-CodyxInstallerInput "Type A to agree or D to disagree").Trim().ToLowerInvariant()
     if ($choice -in @("a", "agree", "y", "yes")) {
       Write-Host "[x] Agree" -ForegroundColor Green
       Write-Ok "License accepted."
@@ -801,7 +811,7 @@ if (-not $NoScan) {
     & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
   } else {
     Write-Host ""
-    $scan = Read-Host "Scan for local Ollama/GGUF models? [y/N] "
+    $scan = Read-CodyxInstallerInput "Scan for local Ollama/GGUF models? [y/N]"
     if ($scan -eq "y") {
       & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
     } else {

@@ -127,6 +127,12 @@ function Invoke-VerificationApi($Method, $Path, $Body = $null) {
 }
 
 function Read-InstallerValue($Prompt) {
+  if ($env:CODY_LAUNCHER_UI -eq "1") {
+    Write-Host "::codyx-prompt::$Prompt"
+    $value = [Console]::In.ReadLine()
+    if ($null -eq $value) { return "" }
+    return $value
+  }
   return [string](& $ReadAction $Prompt)
 }
 
@@ -204,7 +210,8 @@ Write-Host "Codyx collects your email address to verify email ownership and send
 Write-Host "essential installer, service, or security notices."
 Write-Host "No source code, prompts, project content, or model conversations are collected by this step."
 Write-Host "Verified registration data is retained for up to 24 months."
-$privacyLink = "`e]8;;$ServiceUrl/privacy`e\\$ServiceUrl/privacy`e]8;;`e\\"
+$privacyUrl = "$($ServiceUrl.TrimEnd('/'))/privacy"
+$privacyLink = "`e]8;;$privacyUrl`e\\$privacyUrl`e]8;;`e\\"
 Write-Host "Privacy: $privacyLink"
 Write-Host "Deletion requests: privacy@kingkung.men"
 Write-Host "wish you smooth installation (Mufasa)"
@@ -227,7 +234,7 @@ while (-not (Test-DisplayName $DisplayName)) {
 
 while ($true) {
   while (-not $email) {
-    $value = (Read-InstallerValue "Email address (or 'cancel')").Trim()
+    $value = (Read-InstallerValue "Email address (privacy: $privacyUrl, or 'cancel')").Trim()
     if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
       Write-VerificationWarn "Installation cancelled before registration."
       return New-VerificationResult $false "cancelled"

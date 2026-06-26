@@ -15,7 +15,7 @@ namespace Codyx.Launcher;
 
 public static class Program
 {
-  public const string LicenseUrl = "https://github.com/mufasa1611/codyx-orchestrator/blob/dev/LICENSE";
+  public const string LicenseUrl = "https://install.kingkung.men/license";
 
   [STAThread]
   public static void Main(string[] args)
@@ -36,6 +36,7 @@ public sealed class LauncherWindow : Window
   readonly Button detailsButton = new();
   readonly Border licensePanel = new();
   readonly Border setupInputPanel = new();
+  readonly TextBlock setupPromptText = new();
   readonly TextBox setupInput = new();
   readonly Button setupSendButton = new();
   readonly StackPanel stepPanel = new();
@@ -45,6 +46,7 @@ public sealed class LauncherWindow : Window
   bool detailsVisible;
   Process? setupProcess;
   RoutedEventHandler? primaryHandler;
+  bool setupPromptActive;
 
   public LauncherWindow()
   {
@@ -177,13 +179,12 @@ public sealed class LauncherWindow : Window
   UIElement BuildSetupInputPanel()
   {
     var panel = new StackPanel();
-    panel.Children.Add(new TextBlock
-    {
-      Text = "Answer the setup prompt",
-      Foreground = Brushes.White,
-      FontWeight = FontWeights.SemiBold,
-      Margin = new Thickness(0, 0, 0, 8),
-    });
+    setupPromptText.Text = "Waiting for installer prompt...";
+    setupPromptText.Foreground = Brushes.White;
+    setupPromptText.FontWeight = FontWeights.SemiBold;
+    setupPromptText.Margin = new Thickness(0, 0, 0, 8);
+    setupPromptText.TextWrapping = TextWrapping.Wrap;
+    panel.Children.Add(setupPromptText);
 
     var row = new Grid();
     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -194,6 +195,7 @@ public sealed class LauncherWindow : Window
     setupInput.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
     setupInput.Foreground = Brushes.White;
     setupInput.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    setupInput.IsEnabled = false;
     setupInput.KeyDown += (_, e) =>
     {
       if (e.Key != Key.Enter) return;
@@ -204,6 +206,7 @@ public sealed class LauncherWindow : Window
 
     setupSendButton.Content = "Send";
     setupSendButton.Padding = new Thickness(16, 8, 16, 8);
+    setupSendButton.IsEnabled = false;
     setupSendButton.Click += (_, _) => SendSetupInput();
     Grid.SetColumn(setupSendButton, 1);
     row.Children.Add(setupSendButton);
@@ -360,9 +363,9 @@ public sealed class LauncherWindow : Window
     SetPrimaryAction("Setup running...", false, null);
     statusText.Text = "Complete identity and email verification below.";
     AppendLog("Starting setup with explicit license acceptance.");
-    AppendLog("When setup asks for your name, email, or code, type the answer in the box below and press Enter.");
+    AppendLog("The answer box will unlock only when the installer asks for a real answer.");
     ShowDetails(true);
-    ShowSetupInput(true);
+    ShowSetupInput(false, "Waiting for installer prompt...");
 
     SetStep(1, StepState.Done);
     SetStep(2, StepState.Active);
@@ -441,6 +444,7 @@ public sealed class LauncherWindow : Window
         WorkingDirectory = AppContext.BaseDirectory,
       },
     };
+    process.StartInfo.EnvironmentVariables["CODY_LAUNCHER_UI"] = "1";
     if (!process.Start()) return 1;
     setupProcess = process;
     var output = PumpOutputAsync(process.StandardOutput);
@@ -448,7 +452,7 @@ public sealed class LauncherWindow : Window
     await process.WaitForExitAsync();
     await Task.WhenAll(output, error);
     setupProcess = null;
-    ShowSetupInput(false);
+    Dispatcher.Invoke(() => ShowSetupInput(false, "Setup finished."));
     return process.ExitCode;
   }
 
@@ -465,12 +469,11 @@ public sealed class LauncherWindow : Window
 
   async Task PumpOutputAsync(StreamReader reader)
   {
-    var buffer = new char[256];
     while (true)
     {
-      var count = await reader.ReadAsync(buffer);
-      if (count <= 0) return;
-      AppendOutput(new string(buffer, 0, count));
+      var line = await reader.ReadLineAsync();
+      if (line == null) return;
+      AppendOutputLine(line);
     }
   }
 
@@ -558,6 +561,19 @@ public sealed class LauncherWindow : Window
     AppendOutput(line + Environment.NewLine);
   }
 
+  void AppendOutputLine(string line)
+  {
+    const string promptMarker = "::codyx-prompt::";
+    if (line.StartsWith(promptMarker, StringComparison.Ordinal))
+    {
+      var prompt = line[promptMarker.Length..].Trim();
+      Dispatcher.Invoke(() => ShowSetupInput(true, prompt));
+      AppendOutput($"? {prompt}{Environment.NewLine}");
+      return;
+    }
+    AppendOutput(line + Environment.NewLine);
+  }
+
   void AppendOutput(string text)
   {
     if (string.IsNullOrEmpty(text)) return;
@@ -582,21 +598,22 @@ public sealed class LauncherWindow : Window
   {
     var value = setupInput.Text.Trim();
     if (string.IsNullOrEmpty(value)) return;
+    if (!setupPromptActive) return;
     if (setupProcess == null || setupProcess.HasExited) return;
     setupInput.Clear();
+    ShowSetupInput(false, "Waiting for next installer prompt...");
     setupProcess.StandardInput.WriteLine(value);
     AppendLog($"> {(value.Length == 6 && value.All(char.IsDigit) ? "******" : value)}");
   }
 
-  void ShowSetupInput(bool visible)
+  void ShowSetupInput(bool active, string prompt)
   {
-    Dispatcher.Invoke(() =>
-    {
-      setupInputPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-      setupInput.IsEnabled = visible;
-      setupSendButton.IsEnabled = visible;
-      if (visible) setupInput.Focus();
-    });
+    setupInputPanel.Visibility = Visibility.Visible;
+    setupPromptActive = active;
+    setupPromptText.Text = prompt;
+    setupInput.IsEnabled = active;
+    setupSendButton.IsEnabled = active;
+    if (active) setupInput.Focus();
   }
 
   void SetPrimaryAction(string content, bool enabled, RoutedEventHandler? handler)

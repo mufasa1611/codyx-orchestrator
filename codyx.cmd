@@ -4,6 +4,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "ROOT=%~dp0"
 set "CODY_INSTALL_ROOT=%ROOT%"
 set "BUN="
+set "CODY_UPDATED=0"
 
 where bun >nul 2>nul
 if %ERRORLEVEL%==0 set "BUN=bun"
@@ -121,13 +122,37 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
     )
     if "!CODY_NEEDS_REPAIR!"=="1" (
       powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "repair" -Branch "!CODY_CURRENT_BRANCH!"
+      if errorlevel 1 (
+        popd
+        echo %ESC%[91m[Codyx]%ESC%[0m Repair failed. Stop here so the broken checkout does not launch.
+        exit /b 1
+      )
+      set "CODY_UPDATED=1"
     ) else if /I not "!CODY_BEHIND!"=="0" (
       powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-progress.ps1" -Action "pull"
+      if errorlevel 1 (
+        popd
+        echo %ESC%[91m[Codyx]%ESC%[0m Update failed. Stop here so the broken checkout does not launch.
+        exit /b 1
+      )
+      set "CODY_UPDATED=1"
     ) else if not defined CODY_FETCH_FAILED (
       echo %ESC%[94m[Codyx]%ESC%[0m Up to date.
     )
   )
   popd
+)
+
+if "%CODY_UPDATED%"=="1" (
+  echo %ESC%[94m[Codyx]%ESC%[0m Refreshing dependencies after update...
+  call "%BUN%" install --cwd "%ROOT%"
+  if errorlevel 1 exit /b %ERRORLEVEL%
+)
+
+if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core" (
+  echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing. Running bun install...
+  call "%BUN%" install --cwd "%ROOT%"
+  if errorlevel 1 exit /b %ERRORLEVEL%
 )
 
 rem -- npm update check (for npm-installed users without .git) ----------

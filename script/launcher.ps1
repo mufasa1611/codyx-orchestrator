@@ -210,8 +210,7 @@ function Sync-Checkout {
       $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
       $code = Invoke-Native $windowsPowerShell @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updateScript, "-Action", "repair", "-Branch", $Branch)
       if ($code -ne 0) {
-        Write-Warn "Repair failed. Launching the installed copy."
-        return $false
+        throw "Repair failed. Stop here so the broken checkout does not launch."
       }
       return $true
     }
@@ -262,6 +261,7 @@ function Refresh-Install {
   $updated = Sync-Checkout
   $needInstall = $updated -and (Test-DependencyFilesChanged $beforeHead)
   if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "node_modules"))) { $needInstall = $true }
+  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot "packages\codyx\node_modules\drizzle-orm\sqlite-core"))) { $needInstall = $true }
 
   if ($needInstall) {
     Write-Info "Refreshing dependencies..."
