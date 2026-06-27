@@ -59,6 +59,7 @@ export const layer = Layer.effect(
             `  Today's date: ${new Date().toDateString()}`,
             `</env>`,
             `Critical tool-use instruction: If the user asks about real-world facts, current events, sports results, dates, or any information not directly present in the codebase or your offline training data, you MUST use the search/websearch tool first to verify the facts before responding. Do not guess or answer from offline memory.`,
+            `Critical reasoning/thinking instruction: If you output a thinking/reasoning process (such as using <think>...</think> tags or reasoning_content): You MUST ONLY use the thinking space for your internal, step-by-step reasoning. You MUST NOT place your final response or final answers inside the thinking space. Once you finish reasoning and close the thinking space (e.g. after the </think> tag), you MUST write your actual final response to the user. Never stop responding immediately after the thinking block; always output a clean final message outside of the thinking block.`,
           ].join("\n"),
         ]
       }),
