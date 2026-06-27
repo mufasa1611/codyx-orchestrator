@@ -562,6 +562,98 @@ describe("session.llm.stream", () => {
     })
   })
 
+  test("omits tool definitions for models without tool call capability", async () => {
+    const server = state.server
+    if (!server) {
+      throw new Error("Server not initialized")
+    }
+
+    const providerID = "no-tools-runtime"
+    const modelID = "gemma4:latest"
+
+    const request = waitRequest(
+      "/chat/completions",
+      new Response(createChatStream("Hello"), {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    )
+
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(
+          path.join(dir, "cody.json"),
+          JSON.stringify({
+            $schema: "https://cody.dev/config.json",
+            enabled_providers: [providerID],
+            provider: {
+              [providerID]: {
+                name: "No Tools Runtime",
+                npm: "@ai-sdk/openai-compatible",
+                env: [],
+                models: {
+                  [modelID]: {
+                    name: "Gemma 4",
+                    tool_call: false,
+                    limit: { context: 8192, output: 2048 },
+                  },
+                },
+                options: {
+                  apiKey: "test-key",
+                  baseURL: `${server.url.origin}/v1`,
+                },
+              },
+            },
+          }),
+        )
+      },
+    })
+
+    await WithInstance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const resolved = await getModel(ProviderID.make(providerID), ModelID.make(modelID))
+        const sessionID = SessionID.make("session-test-no-tool-model")
+        const agent = {
+          name: "test",
+          mode: "primary",
+          options: {},
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        } satisfies Agent.Info
+
+        const user = {
+          id: MessageID.make("user-no-tool-model"),
+          sessionID,
+          role: "user",
+          time: { created: Date.now() },
+          agent: agent.name,
+          model: { providerID: ProviderID.make(providerID), modelID: resolved.id },
+        } satisfies MessageV2.User
+
+        await drain({
+          user,
+          sessionID,
+          model: resolved,
+          agent,
+          system: ["You are a helpful assistant."],
+          messages: [{ role: "user", content: "Hello" }],
+          tools: {
+            question: tool({
+              description: "Ask a question",
+              inputSchema: z.object({}),
+              execute: async () => ({ output: "" }),
+            }),
+          },
+          toolChoice: "required",
+        })
+
+        const capture = await request
+        expect(capture.body.tools).toBeUndefined()
+        expect(capture.body.tool_choice).not.toBe("required")
+      },
+    })
+  })
+
   test("sends responses API payload for OpenAI models", async () => {
     const server = state.server
     if (!server) {

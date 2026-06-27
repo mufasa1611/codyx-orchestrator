@@ -1137,6 +1137,54 @@ test("provider with custom npm package", async () => {
   })
 })
 
+test("local openai-compatible models are tool-call capable unless explicitly disabled", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await Bun.write(
+        path.join(dir, "cody.json"),
+        JSON.stringify({
+          $schema: "https://cody.dev/config.json",
+          provider: {
+            ollama: {
+              name: "Ollama",
+              npm: "@ai-sdk/openai-compatible",
+              env: [],
+              models: {
+                "gemma4:latest": {
+                  name: "Gemma 4",
+                  limit: { context: 8192, output: 2048 },
+                },
+                "qwen3-coder:latest": {
+                  name: "Qwen3 Coder",
+                  limit: { context: 8192, output: 2048 },
+                },
+                "text-only-local": {
+                  name: "Text Only Local",
+                  tool_call: false,
+                  limit: { context: 8192, output: 2048 },
+                },
+              },
+              options: {
+                apiKey: "not-needed",
+                baseURL: "http://localhost:11434/v1",
+              },
+            },
+          },
+        }),
+      )
+    },
+  })
+  await WithInstance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const providers = await list()
+      expect(providers[ProviderID.make("ollama")].models["gemma4:latest"].capabilities.toolcall).toBe(true)
+      expect(providers[ProviderID.make("ollama")].models["qwen3-coder:latest"].capabilities.toolcall).toBe(true)
+      expect(providers[ProviderID.make("ollama")].models["text-only-local"].capabilities.toolcall).toBe(false)
+    },
+  })
+})
+
 // Edge cases for model configuration
 
 test("model alias name defaults to alias key when id differs", async () => {

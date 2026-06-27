@@ -101,4 +101,25 @@ describe("tool.webfetch", () => {
       },
     )
   })
+
+  test("returns diagnostic output when extracted content is empty", async () => {
+    await withFetch(
+      () =>
+        new Response("<html><head><script>window.__app = true</script></head><body></body></html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      async (url) => {
+        await WithInstance.provide({
+          directory: projectRoot,
+          fn: async () => {
+            const result = await exec({ url: new URL("/app", url).toString(), format: "markdown" })
+            expect(result.output).toContain("No readable markdown content was extracted")
+            expect(result.output).toContain("use websearch")
+            expect(result.metadata.empty).toBe(true)
+          },
+        })
+      },
+    )
+  })
 })

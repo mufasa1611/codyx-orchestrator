@@ -53,8 +53,41 @@ const log = Log.create({ service: "tool.registry" })
 export function webSearchEnabled(
   providerID: ProviderID,
   flags = { exa: Flag.CODY_ENABLE_EXA, parallel: Flag.CODY_ENABLE_PARALLEL },
+  local = false,
 ) {
-  return providerID === ProviderID.cody || flags.exa || flags.parallel
+  return providerID === ProviderID.cody || local || flags.exa || flags.parallel
+}
+
+function localOpenAICompatible(provider: Provider.Info | undefined, model: Provider.Model | undefined) {
+  if (model?.api.npm !== "@ai-sdk/openai-compatible") return false
+  const id = provider?.id.toLowerCase() ?? ""
+  const baseURL = String(provider?.options?.baseURL ?? model.api.url ?? "").toLowerCase()
+  const localBaseURL = (() => {
+    try {
+      const host = new URL(baseURL).hostname.toLowerCase()
+      return (
+        host === "localhost" ||
+        host === "host.docker.internal" ||
+        host === "::1" ||
+        host === "0.0.0.0" ||
+        host.endsWith(".local") ||
+        host.startsWith("127.") ||
+        host.startsWith("10.") ||
+        host.startsWith("192.168.") ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+      )
+    } catch {
+      return (
+        baseURL.includes("localhost") ||
+        baseURL.includes("127.0.0.1") ||
+        baseURL.includes("[::1]") ||
+        baseURL.includes("::1") ||
+        baseURL.includes("0.0.0.0") ||
+        baseURL.includes("host.docker.internal")
+      )
+    }
+  })()
+  return /(^|[-_])(ollama|lmstudio|lm-studio|llama-cpp|llamacpp|local)($|[-_])/.test(id) || localBaseURL
 }
 
 type TaskDef = Tool.InferDef<typeof TaskTool>
@@ -104,6 +137,7 @@ export const layer: Layer.Layer<
     const agents = yield* Agent.Service
     const skill = yield* Skill.Service
     const truncate = yield* Truncate.Service
+    const providers = yield* Provider.Service
 
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
@@ -303,9 +337,16 @@ export const layer: Layer.Layer<
     })
 
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
+      const provider = yield* providers
+        .getProvider(input.providerID)
+        .pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const model = yield* providers
+        .getModel(input.providerID, input.modelID)
+        .pipe(Effect.catch(() => Effect.succeed(undefined)))
+      const local = localOpenAICompatible(provider, model)
       const filtered = (yield* all()).filter((tool) => {
         if (tool.id === WebSearchTool.id) {
-          return webSearchEnabled(input.providerID)
+          return webSearchEnabled(input.providerID, undefined, local)
         }
 
         const usePatch =

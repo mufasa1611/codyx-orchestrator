@@ -23,6 +23,7 @@ import { Format } from "@/format"
 import { Ripgrep } from "@/file/ripgrep"
 import * as Truncate from "@/tool/truncate"
 import { InstanceState } from "@/effect/instance-state"
+import { ProviderID, ModelID } from "@/provider/schema"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
@@ -183,6 +184,50 @@ describe("tool.registry", () => {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
       expect(ids).toContain("cowsay")
+    }),
+  )
+
+  it.instance("enables websearch for custom local-network providers", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(test.directory, "cody.json"),
+          JSON.stringify({
+            $schema: "https://cody.dev/config.json",
+            provider: {
+              "custom-ai": {
+                name: "Custom AI",
+                npm: "@ai-sdk/openai-compatible",
+                env: [],
+                models: {
+                  "any-local-model": {
+                    name: "Any Local Model",
+                    limit: { context: 8192, output: 2048 },
+                  },
+                },
+                options: {
+                  apiKey: "not-needed",
+                  baseURL: "http://192.168.1.7:11434/v1",
+                },
+              },
+            },
+          }),
+        ),
+      )
+
+      const registry = yield* ToolRegistry.Service
+      const tools = yield* registry.tools({
+        providerID: ProviderID.make("custom-ai"),
+        modelID: ModelID.make("any-local-model"),
+        agent: {
+          name: "build",
+          mode: "primary",
+          options: {},
+          permission: [],
+        },
+      })
+      expect(tools.map((tool) => tool.id)).toContain("websearch")
     }),
   )
 })

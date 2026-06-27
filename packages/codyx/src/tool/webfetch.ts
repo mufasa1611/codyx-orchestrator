@@ -122,37 +122,47 @@ export const WebFetchTool = Tool.define(
           }
 
           const content = new TextDecoder().decode(arrayBuffer)
+          const format = params.format ?? "markdown"
 
           // Handle content based on requested format and actual content type
-          switch (params.format) {
+          switch (format) {
             case "markdown":
               if (contentType.includes("text/html")) {
                 const markdown = convertHTMLToMarkdown(content)
-                return {
-                  output: markdown,
-                  title,
-                  metadata: {},
-                }
+                return result(params.url, format, contentType, markdown, title)
               }
-              return { output: content, title, metadata: {} }
+              return result(params.url, format, contentType, content, title)
 
             case "text":
               if (contentType.includes("text/html")) {
                 const text = yield* Effect.promise(() => extractTextFromHTML(content))
-                return { output: text, title, metadata: {} }
+                return result(params.url, format, contentType, text, title)
               }
-              return { output: content, title, metadata: {} }
+              return result(params.url, format, contentType, content, title)
 
             case "html":
-              return { output: content, title, metadata: {} }
+              return result(params.url, format, contentType, content, title)
 
             default:
-              return { output: content, title, metadata: {} }
+              return result(params.url, format, contentType, content, title)
           }
         }).pipe(Effect.orDie),
     }
   }),
 )
+
+function result(url: string, format: string, contentType: string, output: string, title: string) {
+  if (output.trim()) return { output, title, metadata: {} }
+  return {
+    output: [
+      `No readable ${format} content was extracted from ${url}.`,
+      "The page may be JavaScript-rendered, blocked, or mostly empty after scripts/styles are removed.",
+      "For current facts, use websearch with a specific query or try another source URL.",
+    ].join("\n"),
+    title,
+    metadata: { empty: true, contentType },
+  }
+}
 
 async function extractTextFromHTML(html: string) {
   let text = ""
