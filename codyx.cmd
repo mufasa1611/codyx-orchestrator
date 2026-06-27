@@ -185,14 +185,42 @@ if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
 )
 
 if /I "%~1"=="--launcher-web" (
-  echo %ESC%[94m[Codyx]%ESC%[0m Building and starting web UI...
-  call "%BUN%" run --cwd "%ROOT%packages\app" build
+  call :ensure_web_build
   if errorlevel 1 exit /b %ERRORLEVEL%
   pushd "%ROOT%"
   call "%BUN%" run codyx web
   set "CODY_EXIT_CODE=%ERRORLEVEL%"
   popd
-  exit /b !CODY_EXIT_CODE!
+exit /b !CODY_EXIT_CODE!
+
+rem ------------------------------------------------------------------
+rem Smart Web UI build: only rebuild when source changes are detected
+rem ------------------------------------------------------------------
+:ensure_web_build
+  set "CODY_APP_DIST=%ROOT%packages\app\dist"
+  set "CODY_BUILD_HASH_FILE=!CODY_APP_DIST!\.build-hash"
+  set "CODY_NEED_WEB_BUILD=0"
+
+  if not exist "!CODY_APP_DIST!\index.html" (
+    set "CODY_NEED_WEB_BUILD=1"
+  ) else (
+    set "CODY_APP_CURRENT_HASH="
+    for /f "delims=" %%H in ('git -C "%ROOT%." log -1 --format^=%%H -- packages/app packages/ui 2^>nul') do set "CODY_APP_CURRENT_HASH=%%H"
+    set "CODY_APP_SAVED_HASH="
+    if exist "!CODY_BUILD_HASH_FILE!" set /p CODY_APP_SAVED_HASH=<"!CODY_BUILD_HASH_FILE!"
+    if not "!CODY_APP_CURRENT_HASH!"=="!CODY_APP_SAVED_HASH!" set "CODY_NEED_WEB_BUILD=1"
+  )
+
+  if "!CODY_NEED_WEB_BUILD!"=="1" (
+    echo %ESC%[94m[Codyx]%ESC%[0m Building web UI...
+    call "%BUN%" run --cwd "%ROOT%packages\app" build
+    if errorlevel 1 exit /b %ERRORLEVEL%
+    echo !CODY_APP_CURRENT_HASH!>"!CODY_BUILD_HASH_FILE!"
+  ) else (
+    echo %ESC%[94m[Codyx]%ESC%[0m Web UI is up to date.
+  )
+  echo %ESC%[94m[Codyx]%ESC%[0m Starting web UI...
+  exit /b 0
 )
 
 if not "%~1"=="" (
@@ -206,8 +234,7 @@ set "CODY_CHOICE=%ERRORLEVEL%"
 if "%CODY_CHOICE%"=="255" exit /b 0
 
 if "%CODY_CHOICE%"=="1" (
-  echo %ESC%[94m[Codyx]%ESC%[0m Building and starting web UI...
-  call "%BUN%" run --cwd "%ROOT%packages\app" build
+  call :ensure_web_build
   set "CODY_EXIT_CODE=%ERRORLEVEL%"
   if not "!CODY_EXIT_CODE!"=="0" goto cody_done
   pushd "%ROOT%"

@@ -272,7 +272,14 @@ function Sync-Checkout {
       $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
       $code = Invoke-Native $windowsPowerShell @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updateScript, "-Action", "repair", "-Branch", $Branch)
       if ($code -ne 0) {
-        throw "Repair failed. Stop here so the broken checkout does not launch."
+        Write-Warn "update-progress.ps1 failed. Falling back to direct git reset..."
+        $code = Invoke-Native "git" @("fetch", "origin", $Branch, "--quiet")
+        if ($code -eq 0) {
+          $code = Invoke-Native "git" @("reset", "--hard", "origin/$Branch")
+        }
+        if ($code -ne 0) {
+          throw "Repair failed. Stop here so the broken checkout does not launch."
+        }
       }
       $null = Enable-CodyxSlimCheckout
       return $true
