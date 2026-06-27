@@ -408,12 +408,50 @@ function Test-SafeInstallRootCleanup {
   return $false
 }
 
+function Test-SafePartialInstallRoot {
+  param([string]$Path)
+
+  if (-not $Path) { return $false }
+  try {
+    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+    $default = [System.IO.Path]::GetFullPath($DefaultParent).TrimEnd("\")
+    if ($full.Equals($default, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($full.StartsWith("$default\", [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if (Test-Path -LiteralPath (Join-Path $full ".git")) { return $true }
+  } catch {}
+  return $false
+}
+
+function Remove-PartialInstallRoot {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  if (Test-Path -LiteralPath (Join-Path $Path "codyx.cmd")) { return }
+  if (-not (Test-SafePartialInstallRoot $Path)) {
+    Write-Err "Directory $Path exists but is not a codyx checkout."
+    Write-Err "Move it away or remove it, then rerun."
+    exit 1
+  }
+  Write-Warn "Removing incomplete install folder before retry: $Path"
+  Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+}
+
 function Invoke-CodyxTraceCleanup {
   Write-Step "Cleaning codyx installation traces..."
 
   if (Test-Command npm) {
-    & npm uninstall -g codyx-ai | Out-Null
-    if ($LASTEXITCODE -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+    Write-Step "Removing global npm package codyx-ai if present..."
+    try {
+      $process = Start-Process -FilePath "npm" -ArgumentList @("uninstall", "-g", "codyx-ai", "--silent") -NoNewWindow -PassThru
+      if ($process.WaitForExit(20000)) {
+        if ($process.ExitCode -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+      } else {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Write-Warn "npm global package cleanup timed out and was skipped."
+      }
+    } catch {
+      Write-Warn "npm global package cleanup failed."
+    }
   }
 
   foreach ($name in @("codyx.cmd", "codyx.ps1", "codyx.exe", "codyx")) {
@@ -574,6 +612,24 @@ function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
   }
 }
 
+function Get-CodyxSparseCheckoutPaths {
+  return @(
+    "packages/codyx", "packages/sdk", "packages/plugin",
+    "packages/gitlab-auth", "packages/poe-auth", "packages/script",
+    "packages/app", "packages/ui", "packages/core", "packages/slack",
+    "patches", "script"
+  )
+}
+
+function Enable-CodyxSlimCheckout {
+  Write-Step "Ensuring slim end-user checkout..."
+  & git sparse-checkout init --cone
+  if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout init failed" }
+  $sparsePaths = Get-CodyxSparseCheckoutPaths
+  & git sparse-checkout set @sparsePaths
+  if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout set failed" }
+}
+
 function Sync-InstallCheckout($TargetBranch) {
   Write-VerboseMsg "Fetching origin/$TargetBranch..."
   & git fetch origin $TargetBranch --quiet
@@ -626,6 +682,8 @@ function Sync-InstallCheckout($TargetBranch) {
   } else {
     Write-Ok "Repository already up to date."
   }
+
+  Enable-CodyxSlimCheckout
 }
 
 # Banner
@@ -635,6 +693,7 @@ Write-Host "  =======================================" -ForegroundColor Cyan
 Write-Host "       codyx Windows Installer v$($Script:CODY_VERSION)" -ForegroundColor Cyan
 Write-Host "  =======================================" -ForegroundColor Cyan
 Write-Host "  $($Script:CREDITS)" -ForegroundColor DarkGray
+Write-Host "  Mode: End-user (slim clone)" -ForegroundColor DarkGray
 
 if (-not (Confirm-LicenseAgreement)) {
   exit 1
@@ -743,18 +802,31 @@ if ($IsStandalone) {
     if (Test-Path (Join-Path $Root "codyx.cmd")) {
       Write-Ok "Existing checkout found at $Root"
     } else {
-      Write-Err "Directory $Root exists but is not a codyx checkout."
-      Write-Err "Move it away or remove it, then rerun."
-      exit 1
+      Remove-PartialInstallRoot $Root
     }
-  } else {
-    Write-Step "Cloning codyx from $RepoUrl (branch: $Branch)..."
+  }
+
+  if (-not (Test-Path (Join-Path $Root "codyx.cmd"))) {
     $null = New-Item -ItemType Directory -Force -Path $DefaultParent
     $activity = "Cloning codyx repository"
+    Write-Step "Cloning codyx (slim end-user clone) from $RepoUrl (branch: $Branch)..."
     Invoke-WithRetry {
-      & git clone --branch $Branch $RepoUrl $Root
+      if (Test-Path (Join-Path $Root "codyx.cmd")) { return }
+      if ((Test-Path $Root) -and (Get-ChildItem -LiteralPath $Root -Force | Select-Object -First 1)) {
+        Remove-PartialInstallRoot $Root
+      }
+      & git clone --filter=blob:none --no-checkout --branch $Branch $RepoUrl $Root
       if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
-    } "git clone"
+      Push-Location $Root
+      try {
+        & git sparse-checkout init --cone
+        $sparsePaths = Get-CodyxSparseCheckoutPaths
+        & git sparse-checkout set @sparsePaths
+        if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout set failed" }
+        & git checkout $Branch
+        if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
+      } finally { Pop-Location }
+    } "git clone (sparse)"
     git config --global --add safe.directory "$Root" 2>$null
     $Script:CreatedRepo = $true
     Write-Ok "Cloned to $Root"
@@ -785,8 +857,14 @@ Write-Step "Installing dependencies..."
 $activity = "Installing npm/bun dependencies"
 Write-Progress -Activity $activity -Status "Running bun install..." -PercentComplete 30
 Invoke-WithRetry {
-  & bun install
-  if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
+  $previousHusky = $env:HUSKY
+  $env:HUSKY = "0"
+  try {
+    & bun install
+    if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
+  } finally {
+    $env:HUSKY = $previousHusky
+  }
 } "bun install"
 Write-Progress -Activity $activity -Completed
 
@@ -951,6 +1029,10 @@ if (Test-Path -LiteralPath $markerPath) {
 }
 foreach ($path in @($InstallerMarkerPath, $markerPath)) {
   Write-CodyxAdminUninstallMarker $path
+}
+$markerRefreshScript = Join-Path $Root "script\update-install-marker.ps1"
+if (Test-Path -LiteralPath $markerRefreshScript) {
+  & $markerRefreshScript -Root $Root
 }
 
 # Done

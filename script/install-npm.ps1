@@ -129,6 +129,50 @@ function Write-CodyxMarker($Marker) {
   )
 }
 
+function Set-CodyxMarkerValue($Marker, [string]$Name, $Value) {
+  if ($Marker.PSObject.Properties.Name -contains $Name) {
+    $Marker.$Name = $Value
+    return
+  }
+  $Marker | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+}
+
+function Add-UniqueMarkerString($Marker, [string]$Name, [string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return }
+  if (-not ($Marker.PSObject.Properties.Name -contains $Name)) {
+    $Marker | Add-Member -NotePropertyName $Name -NotePropertyValue @()
+  }
+  $items = @(Get-ObjectArray $Marker.$Name)
+  if ($items -notcontains $Value) { $Marker.$Name = @($items + $Value) }
+}
+
+function Update-CodyxNpmInstallMarker([string]$PackageSpec) {
+  $marker = Read-CodyxMarker
+  if (-not $marker) { $marker = [pscustomobject]@{} }
+
+  Set-CodyxMarkerValue $marker "jsInstall" ([pscustomobject]@{
+    manager = "npm"
+    packageName = "codyx-ai"
+    packageSpec = $PackageSpec
+  })
+
+  Add-UniqueMarkerString $marker "markerPaths" $InstallerMarkerPath
+
+  $globalBin = Get-NpmGlobalBin
+  if (-not $globalBin) { $globalBin = Join-Path $env:APPDATA "npm" }
+  foreach ($name in @("codyx", "cody", "cody-x", "codyx-ai")) {
+    foreach ($extension in @(".cmd", ".ps1", ".exe", "")) {
+      $candidate = Join-Path $globalBin "$name$extension"
+      if (Test-Path -LiteralPath $candidate) {
+        Add-UniqueMarkerString $marker "shims" $candidate
+        Add-UniqueMarkerString $marker "installed" $candidate
+      }
+    }
+  }
+
+  Write-CodyxMarker $marker
+}
+
 function Test-SameManagedTool($Left, $Right) {
   return (
     "$($Left.name)" -eq "$($Right.name)" -and
@@ -213,8 +257,18 @@ function Invoke-CodyxTraceCleanup {
   Write-Info "Cleaning codyx installation traces..."
 
   if (Get-Command npm -ErrorAction SilentlyContinue) {
-    npm uninstall -g codyx-ai | Out-Null
-    if ($LASTEXITCODE -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+    Write-Info "Removing global npm package codyx-ai if present..."
+    try {
+      $process = Start-Process -FilePath "npm" -ArgumentList @("uninstall", "-g", "codyx-ai", "--silent") -NoNewWindow -PassThru
+      if ($process.WaitForExit(20000)) {
+        if ($process.ExitCode -eq 0) { Write-Ok "Removed global npm package codyx-ai." }
+      } else {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Write-Warn "npm global package cleanup timed out and was skipped."
+      }
+    } catch {
+      Write-Warn "npm global package cleanup failed."
+    }
   }
 
   $globalBin = Get-NpmGlobalBin
@@ -342,6 +396,7 @@ Write-Ok "$pkgSpec installed."
 
 Refresh-Path
 Add-PathForSession (Get-NpmGlobalBin)
+Update-CodyxNpmInstallMarker $pkgSpec
 
 $codyx = Find-CodyxCommand
 if (-not $NoVerify) {

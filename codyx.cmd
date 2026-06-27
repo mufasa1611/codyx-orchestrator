@@ -145,7 +145,10 @@ if exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
 
 if "%CODY_UPDATED%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Refreshing dependencies after update...
+  set "CODY_PREVIOUS_HUSKY=!HUSKY!"
+  set "HUSKY=0"
   call "%BUN%" install --cwd "%ROOT%."
+  set "HUSKY=!CODY_PREVIOUS_HUSKY!"
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
 
@@ -154,8 +157,15 @@ if not exist "%ROOT%packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js
 for /d %%P in ("%ROOT%node_modules\.bun\@anthropic-ai+sdk*") do if not exist "%%~fP\node_modules\@anthropic-ai\sdk\version.mjs" set "CODY_DEPS_BROKEN=1"
 if "%CODY_DEPS_BROKEN%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing or incomplete. Running bun install --force...
+  set "CODY_PREVIOUS_HUSKY=!HUSKY!"
+  set "HUSKY=0"
   call "%BUN%" install --force --cwd "%ROOT%."
+  set "HUSKY=!CODY_PREVIOUS_HUSKY!"
   if errorlevel 1 exit /b %ERRORLEVEL%
+)
+
+if exist "%ROOT%script\update-install-marker.ps1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\update-install-marker.ps1" -Root "%ROOT%." >nul 2>nul
 )
 
 rem -- npm update check (for npm-installed users without .git) ----------

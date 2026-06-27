@@ -745,6 +745,27 @@ function Invoke-CodyxManagedToolCleanup {
   }
 }
 
+function Invoke-CodyxNpmCleanup {
+  $npm = Get-Command npm -ErrorAction SilentlyContinue
+  if (-not $npm) { return }
+  Write-Host "[info] Removing global npm package codyx-ai if present."
+  try {
+    $process = Start-Process -FilePath $npm.Source -ArgumentList @("uninstall", "-g", "codyx-ai", "--silent") -NoNewWindow -PassThru
+    if ($process.WaitForExit(20000)) {
+      if ($process.ExitCode -eq 0) {
+        Write-Host "[ok] npm global package cleanup finished."
+      } else {
+        Write-Host "[warn] npm global package cleanup exited with code $($process.ExitCode)."
+      }
+      return
+    }
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    Write-Host "[warn] npm global package cleanup timed out and was skipped."
+  } catch {
+    Write-Host "[warn] npm global package cleanup failed."
+  }
+}
+
 $local = [Environment]::GetFolderPath("LocalApplicationData")
 $roaming = [Environment]::GetFolderPath("ApplicationData")
 $user = [Environment]::GetFolderPath("UserProfile")
@@ -778,15 +799,8 @@ foreach ($path in @(
   Remove-CodyxPath $path
 }
 
-$npm = Get-Command npm -ErrorAction SilentlyContinue
-if ($npm) {
-  try {
-    Write-Host "[info] Removing global npm package codyx-ai if present."
-    & $npm.Source uninstall -g codyx-ai --silent
-  } catch {
-    Write-Host "[warn] npm global package cleanup failed."
-  }
-}
+Invoke-CodyxNpmCleanup
+Write-Host "[ok] codyx uninstall cleanup finished."
 
 $self = $MyInvocation.MyCommand.Path
 $parent = Split-Path -Parent $self

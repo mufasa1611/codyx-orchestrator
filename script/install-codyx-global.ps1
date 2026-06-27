@@ -187,6 +187,11 @@ Write-Section 5 "Install marker"
 $markerJson = $marker | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText($markerPath, $markerJson, [System.Text.UTF8Encoding]::new($false))
 Write-Ok "Install marker: $markerPath"
+$markerRefreshScript = Join-Path $Root "script\update-install-marker.ps1"
+if (Test-Path -LiteralPath $markerRefreshScript) {
+  & $markerRefreshScript -Root $Root
+  Write-Ok "Install marker refreshed."
+}
 
 # Done
 Write-Host ""

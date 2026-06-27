@@ -146,6 +146,60 @@ function Resolve-InstallRoot($RequestedRoot) {
   return (Join-Path $defaultRoot "source")
 }
 
+function Get-CodyxSparseCheckoutPaths {
+  return @(
+    "packages/codyx", "packages/sdk", "packages/plugin",
+    "packages/gitlab-auth", "packages/poe-auth", "packages/script",
+    "packages/app", "packages/ui", "packages/core", "packages/slack",
+    "patches", "script"
+  )
+}
+
+function Enable-CodyxSlimCheckout {
+  if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot ".git"))) { return $false }
+
+  Write-Info "Ensuring slim end-user checkout..."
+  Push-Location $InstallRoot
+  try {
+    $code = Invoke-Native "git" @("sparse-checkout", "init", "--cone")
+    if ($code -ne 0) { throw "git sparse-checkout init failed." }
+    $code = Invoke-Native "git" (@("sparse-checkout", "set") + (Get-CodyxSparseCheckoutPaths))
+    if ($code -ne 0) { throw "git sparse-checkout set failed." }
+    return $true
+  } finally {
+    Pop-Location
+  }
+}
+
+function Update-CodyxInstallMarker {
+  $markerScript = Join-Path $InstallRoot "script\update-install-marker.ps1"
+  if (-not (Test-Path -LiteralPath $markerScript)) { return }
+  $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  $null = Invoke-Native $windowsPowerShell @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $markerScript, "-Root", $InstallRoot)
+}
+
+function Test-SafePartialInstallRoot($Path) {
+  if (-not $Path) { return $false }
+  try {
+    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+    $defaultRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "codyx")).TrimEnd("\")
+    if ($full.Equals($defaultRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($full.StartsWith("$defaultRoot\", [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if (Test-Path -LiteralPath (Join-Path $full ".git")) { return $true }
+  } catch {}
+  return $false
+}
+
+function Remove-PartialInstallRoot($Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  if (Test-CodyxCheckout $Path) { return }
+  if (-not (Test-SafePartialInstallRoot $Path)) {
+    throw "$Path exists but is not a codyx checkout. Move it away or set CODY_INSTALL_ROOT."
+  }
+  Write-Warn "Removing incomplete install folder before retry: $Path"
+  Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+}
+
 function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
   $backoff = 1
   for ($i = 0; $i -lt $MaxRetries; $i++) {
@@ -220,12 +274,15 @@ function Sync-Checkout {
       if ($code -ne 0) {
         throw "Repair failed. Stop here so the broken checkout does not launch."
       }
+      $null = Enable-CodyxSlimCheckout
       return $true
     }
 
+    $sparseChanged = Enable-CodyxSlimCheckout
+
     if ($behind -eq 0) {
       Write-Ok "Install checkout is up to date."
-      return $false
+      return $sparseChanged
     }
 
     Write-Info "Updating install checkout..."
@@ -236,7 +293,8 @@ function Sync-Checkout {
     }
 
     $afterHead = (& git rev-parse HEAD 2>$null).Trim()
-    return ($beforeHead -and $afterHead -and $beforeHead -ne $afterHead)
+    $sparseChanged = Enable-CodyxSlimCheckout
+    return ($sparseChanged -or ($beforeHead -and $afterHead -and $beforeHead -ne $afterHead))
   } finally {
     Pop-Location
   }
@@ -276,13 +334,18 @@ function Refresh-Install {
   if ($needInstall) {
     Write-Info "Refreshing dependencies..."
     Push-Location $InstallRoot
+    $previousHusky = $env:HUSKY
+    $env:HUSKY = "0"
     try {
       $code = Invoke-Native $bun @("install", "--force")
       if ($code -ne 0) { throw "bun install failed." }
     } finally {
+      $env:HUSKY = $previousHusky
       Pop-Location
     }
   }
+
+  Update-CodyxInstallMarker
 
   if (-not $NoBuild -and $updated) {
     $appDir = Join-Path $InstallRoot "packages\app"
@@ -321,6 +384,7 @@ Write-Host "  codyx Launcher" -ForegroundColor Cyan
 Write-Host "  Repo:   $RepoUrl" -ForegroundColor DarkGray
 Write-Host "  Branch: $Branch" -ForegroundColor DarkGray
 Write-Host "  Root:   $InstallRoot" -ForegroundColor DarkGray
+Write-Host "  Mode:   End-user (slim clone)" -ForegroundColor DarkGray
 Write-Host ""
 
 Ensure-Git
@@ -330,16 +394,28 @@ $needsFirstRunInstall = -not (Test-CodyxInstallComplete $InstallRoot)
 
 if (-not (Test-CodyxCheckout $InstallRoot)) {
   if ((Test-Path -LiteralPath $InstallRoot) -and (Get-ChildItem -LiteralPath $InstallRoot -Force | Select-Object -First 1)) {
-    throw "$InstallRoot exists but is not a codyx checkout. Move it away or set CODY_INSTALL_ROOT."
+    Remove-PartialInstallRoot $InstallRoot
   }
 
-  Write-Info "Cloning codyx..."
   $parent = Split-Path -Parent $InstallRoot
   if ($parent) { $null = New-Item -ItemType Directory -Force -Path $parent }
+  Write-Info "Cloning codyx (slim end-user clone)..."
   Invoke-WithRetry {
-    $code = Invoke-Native "git" @("clone", "--quiet", "--branch", $Branch, $RepoUrl, $InstallRoot)
+    if (Test-CodyxCheckout $InstallRoot) { return }
+    if ((Test-Path -LiteralPath $InstallRoot) -and (Get-ChildItem -LiteralPath $InstallRoot -Force | Select-Object -First 1)) {
+      Remove-PartialInstallRoot $InstallRoot
+    }
+    $code = Invoke-Native "git" @("clone", "--filter=blob:none", "--no-checkout", "--quiet", "--branch", $Branch, $RepoUrl, $InstallRoot)
     if ($code -ne 0) { throw "git clone failed." }
-  } "git clone"
+    Push-Location $InstallRoot
+    try {
+      $null = Invoke-Native "git" @("sparse-checkout", "init", "--cone")
+      $code = Invoke-Native "git" (@("sparse-checkout", "set") + (Get-CodyxSparseCheckoutPaths))
+      if ($code -ne 0) { throw "git sparse-checkout set failed." }
+      $code = Invoke-Native "git" @("checkout", $Branch)
+      if ($code -ne 0) { throw "git checkout failed." }
+    } finally { Pop-Location }
+  } "git clone (sparse)"
   git config --global --add safe.directory "$InstallRoot" 2>$null
   $needsFirstRunInstall = $true
 } else {

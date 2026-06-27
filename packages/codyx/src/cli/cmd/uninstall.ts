@@ -19,6 +19,9 @@ interface UninstallArgs {
 
 interface RemovalTargets {
   directories: Array<{ path: string; label: string; keep: boolean }>
+  markedPaths: Array<{ path: string; label: string }>
+  pathEntries: string[]
+  packageCommands: Array<{ label: string; command: string[] }>
   shellConfig: string | null
   binary: string | null
   startMenu: string[]
@@ -26,7 +29,7 @@ interface RemovalTargets {
   managedTools: ManagedTool[]
   envProxy: string | null
   installRoot: string | null
-  installMarker: string | null
+  installMarkers: string[]
 }
 
 interface ManagedTool {
@@ -43,7 +46,26 @@ interface InstallMarker {
   pathAdds?: string[]
   shortcuts?: string[]
   shims?: string[]
+  markerPaths?: string[]
+  jsInstall?: {
+    manager?: string
+    packageName?: string
+    packageSpec?: string
+  }
   managedTools?: ManagedTool[]
+}
+
+function packageCommandForMethod(method: Installation.Method, packageName = "codyx-ai") {
+  const commands: Partial<Record<Installation.Method, string[]>> = {
+    npm: ["npm", "uninstall", "-g", packageName],
+    pnpm: ["pnpm", "uninstall", "-g", packageName],
+    bun: ["bun", "remove", "-g", packageName],
+    yarn: ["yarn", "global", "remove", packageName],
+    brew: ["brew", "uninstall", "codyx"],
+    choco: ["choco", "uninstall", "codyx"],
+    scoop: ["scoop", "uninstall", "codyx"],
+  }
+  return commands[method]
 }
 
 export const UninstallCommand = {
@@ -142,17 +164,31 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
 
   // Find .env.proxy
   const envProxy = await findEnvProxy(marker)
+  const installRoot = marker?.root ?? process.env.CODY_INSTALL_ROOT ?? (await findDefaultInstallRoot())
+  const installMarkers = uniqueStrings(
+    [...(marker?.markerPaths ?? []), ...(installRoot ? [path.join(installRoot, ".codyx-install-marker")] : [])].filter(
+      (entry) => path.basename(entry) === ".codyx-install-marker" || entry.endsWith("install-marker.json"),
+    ),
+  )
 
   return {
     directories,
+    markedPaths: findMarkedPaths(marker, [
+      ...startMenu,
+      ...globalShims,
+      ...(envProxy ? [envProxy] : []),
+      ...installMarkers,
+    ]),
+    pathEntries: uniqueStrings(marker?.pathAdds ?? []),
+    packageCommands: await findPackageCommands(method, marker),
     shellConfig,
     binary,
     startMenu,
     globalShims,
     managedTools: marker?.managedTools ?? [],
     envProxy,
-    installRoot: marker?.root ?? process.env.CODY_INSTALL_ROOT ?? null,
-    installMarker: marker?.root ? path.join(marker.root, ".codyx-install-marker") : null,
+    installRoot,
+    installMarkers,
   }
 }
 
@@ -182,6 +218,18 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
     prompts.log.info(`  ✓ Shim: ${shortenPath(shim)}`)
   }
 
+  for (const markedPath of targets.markedPaths) {
+    prompts.log.info(`  ✓ Marked install path: ${shortenPath(markedPath.path)}`)
+  }
+
+  for (const entry of targets.pathEntries) {
+    prompts.log.info(`  ✓ PATH entry: ${shortenPath(entry)}`)
+  }
+
+  for (const marker of targets.installMarkers) {
+    prompts.log.info(`  ✓ Install marker: ${shortenPath(marker)}`)
+  }
+
   for (const tool of targets.managedTools) {
     prompts.log.info(`  ✓ Tool installed by codyx: ${formatManagedTool(tool)}`)
   }
@@ -202,17 +250,8 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
     prompts.log.info(`  ✓ Shell PATH in ${shortenPath(targets.shellConfig)}`)
   }
 
-  if (method !== "curl" && method !== "unknown") {
-    const cmds: Record<string, string> = {
-      npm: "npm uninstall -g codyx-ai",
-      pnpm: "pnpm uninstall -g codyx-ai",
-      bun: "bun remove -g codyx-ai",
-      yarn: "yarn global remove codyx-ai",
-      brew: "brew uninstall codyx",
-      choco: "choco uninstall codyx",
-      scoop: "scoop uninstall codyx",
-    }
-    if (cmds[method]) prompts.log.info(`  ✓ Package: ${cmds[method]}`)
+  for (const item of targets.packageCommands) {
+    prompts.log.info(`  ✓ Package: ${item.command.join(" ")}`)
   }
 }
 
@@ -296,6 +335,43 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     }
   }
 
+  for (const entry of targets.pathEntries) {
+    spinner.start(`Removing PATH entry: ${shortenPath(entry)}...`)
+    const err = await removePathEntry(entry).catch((e) => e)
+    if (err) {
+      spinner.stop("Failed to remove PATH entry", 1)
+      errors.push(`PATH ${entry}: ${err.message}`)
+      continue
+    }
+    removed.push(`PATH entry: ${entry}`)
+    spinner.stop("Removed PATH entry")
+  }
+
+  for (const item of targets.markedPaths) {
+    if (
+      targets.installRoot &&
+      (item.path === targets.installRoot || item.path.startsWith(`${targets.installRoot}${path.sep}`))
+    ) {
+      prompts.log.step(`Deferring ${item.label} cleanup to install root removal`)
+      continue
+    }
+    const exists = await fs
+      .access(item.path)
+      .then(() => true)
+      .catch(() => false)
+    if (!exists) continue
+
+    spinner.start(`Removing ${item.label}: ${path.basename(item.path)}...`)
+    const err = await fs.rm(item.path, { recursive: true, force: true }).catch((e) => e)
+    if (err) {
+      spinner.stop(`Failed to remove ${item.label}`, 1)
+      errors.push(`${item.label} ${item.path}: ${err.message}`)
+      continue
+    }
+    removed.push(item.path)
+    spinner.stop(`Removed ${item.label}`)
+  }
+
   // Remove .env.proxy
   if (targets.envProxy) {
     spinner.start("Removing .env.proxy...")
@@ -309,19 +385,26 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     }
   }
 
-  if (targets.installMarker) {
+  for (const marker of targets.installMarkers) {
+    if (
+      targets.installRoot &&
+      (marker === targets.installRoot || marker.startsWith(`${targets.installRoot}${path.sep}`))
+    ) {
+      prompts.log.step("Deferring install marker cleanup to install root removal")
+      continue
+    }
     const exists = await fs
-      .access(targets.installMarker)
+      .access(marker)
       .then(() => true)
       .catch(() => false)
     if (exists) {
       spinner.start("Removing install marker...")
-      const err = await fs.rm(targets.installMarker, { force: true }).catch((e) => e)
+      const err = await fs.rm(marker, { force: true }).catch((e) => e)
       if (err) {
         spinner.stop("Failed to remove install marker", 1)
         errors.push(`Install marker: ${err.message}`)
       } else {
-        removed.push(targets.installMarker)
+        removed.push(marker)
         spinner.stop("Removed install marker")
       }
     }
@@ -339,34 +422,20 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     }
   }
 
-  // Package manager uninstall
-  if (method !== "curl" && method !== "unknown") {
-    const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "codyx-ai"],
-      pnpm: ["pnpm", "uninstall", "-g", "codyx-ai"],
-      bun: ["bun", "remove", "-g", "codyx-ai"],
-      yarn: ["yarn", "global", "remove", "codyx-ai"],
-      brew: ["brew", "uninstall", "codyx"],
-      choco: ["choco", "uninstall", "codyx"],
-      scoop: ["scoop", "uninstall", "codyx"],
-    }
-
-    const cmd = cmds[method]
-    if (cmd) {
-      spinner.start(`Running ${cmd.join(" ")}...`)
-      const result = await Process.run(cmd, { nothrow: true })
-      if (result.code !== 0) {
-        spinner.stop(`Package manager uninstall failed: exit code ${result.code}`, 1)
-        const text = `${result.stdout.toString("utf8")}\n${result.stderr.toString("utf8")}`
-        if (method === "choco" && text.includes("not running from an elevated command shell")) {
-          prompts.log.warn("Run choco uninstall from an elevated command shell")
-        } else {
-          prompts.log.warn("Run manually: " + cmd.join(" "))
-        }
+  for (const item of targets.packageCommands) {
+    spinner.start(`Running ${item.command.join(" ")}...`)
+    const result = await runCommandWithTimeout(item.command, 20_000)
+    if (result.code !== 0) {
+      spinner.stop(`Package cleanup failed: exit code ${result.code}`, 1)
+      const text = `${result.stdout.toString("utf8")}\n${result.stderr.toString("utf8")}`
+      if (item.command[0] === "choco" && text.includes("not running from an elevated command shell")) {
+        prompts.log.warn("Run choco uninstall from an elevated command shell")
       } else {
-        removed.push(`package: ${method}`)
-        spinner.stop("Package removed")
+        prompts.log.warn("Run manually: " + item.command.join(" "))
       }
+    } else {
+      removed.push(`package: ${item.label}`)
+      spinner.stop("Package removed")
     }
   }
 
@@ -416,7 +485,12 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
 }
 
 async function generateRemovalLog(log: { removed: string[]; errors: string[] }) {
-  const logDir = path.join(os.homedir(), ".codyx")
+  if (log.errors.length === 0) {
+    prompts.log.info("No uninstall errors. No removal log was written.")
+    return
+  }
+
+  const logDir = os.tmpdir()
   await fs.mkdir(logDir, { recursive: true }).catch(() => {})
   const logPath = path.join(logDir, `uninstall-${Date.now()}.log`)
   const lines = [
@@ -483,7 +557,7 @@ async function removeManagedTools(tools: ManagedTool[], removed: string[], error
     if (!cmd) continue
 
     spinner.start(`Removing ${tool.name || tool.packageId || "tool"} installed by codyx...`)
-    const result = await Process.run(cmd, { nothrow: true })
+    const result = await runCommandWithTimeout(cmd, 30_000)
     if (result.code !== 0) {
       spinner.stop(`Failed to remove ${tool.name || tool.packageId || "tool"}`, 1)
       prompts.log.warn(`Run manually: ${cmd.join(" ")}`)
@@ -500,6 +574,20 @@ async function askRemoveOptionalDeps(managedTools: ManagedTool[]) {
   prompts.log.info(
     "Git, Bun, Node.js, and cloudflared were not marked as installed by codyx, so they were left installed.",
   )
+}
+
+async function runCommandWithTimeout(command: string[], ms: number) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await Process.run(command, {
+      nothrow: true,
+      abort: controller.signal,
+      timeout: 1_000,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function removePathEntry(entry: string) {
@@ -559,25 +647,33 @@ function uniqueManagedTools(tools: ManagedTool[]) {
 }
 
 async function readInstallMarker(): Promise<InstallMarker | null> {
-  const paths = [
+  const localAppData = process.env.LOCALAPPDATA
+  const defaultRoot = localAppData ? path.join(localAppData, "codyx") : ""
+  const initialPaths = [
     ...(process.env.CODY_INSTALL_ROOT ? [path.join(process.env.CODY_INSTALL_ROOT, ".codyx-install-marker")] : []),
-    ...(process.env.LOCALAPPDATA
-      ? [path.join(process.env.LOCALAPPDATA, "codyx-installer", "install-marker.json")]
-      : []),
+    ...(defaultRoot ? [path.join(defaultRoot, "source", ".codyx-install-marker")] : []),
+    ...(defaultRoot ? [path.join(defaultRoot, ".codyx-install-marker")] : []),
+    ...(localAppData ? [path.join(localAppData, "codyx-installer", "install-marker.json")] : []),
   ]
-  const markers = (
-    await Promise.all(
-      paths.map(async (markerPath) => {
-        const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
-        if (!content) return null
-        try {
-          return JSON.parse(content.replace(/^\uFEFF/, "")) as InstallMarker
-        } catch {
-          return null
-        }
-      }),
-    )
-  ).filter((marker): marker is InstallMarker => Boolean(marker))
+
+  const readMarker = async (markerPath: string): Promise<InstallMarker | null> => {
+    const content = await fs.readFile(markerPath, "utf-8").catch(() => "")
+    if (!content) return null
+    try {
+      const parsed = JSON.parse(content.replace(/^\uFEFF/, "")) as InstallMarker
+      return { ...parsed, markerPaths: uniqueStrings([markerPath, ...(parsed.markerPaths ?? [])]) }
+    } catch {
+      return null
+    }
+  }
+
+  const firstPass = (await Promise.all(uniqueStrings(initialPaths).map(readMarker))).filter(
+    (marker): marker is InstallMarker => Boolean(marker),
+  )
+  const paths = uniqueStrings([...initialPaths, ...firstPass.flatMap((marker) => marker.markerPaths ?? [])])
+  const markers = (await Promise.all(paths.map(readMarker))).filter((marker): marker is InstallMarker =>
+    Boolean(marker),
+  )
   if (markers.length === 0) return null
 
   return {
@@ -586,8 +682,46 @@ async function readInstallMarker(): Promise<InstallMarker | null> {
     pathAdds: uniqueStrings(markers.flatMap((marker) => marker.pathAdds ?? [])),
     shortcuts: uniqueStrings(markers.flatMap((marker) => marker.shortcuts ?? [])),
     shims: uniqueStrings(markers.flatMap((marker) => marker.shims ?? [])),
+    markerPaths: uniqueStrings(markers.flatMap((marker) => marker.markerPaths ?? [])),
+    jsInstall: markers.find((marker) => marker.jsInstall)?.jsInstall,
     managedTools: uniqueManagedTools(markers.flatMap((marker) => marker.managedTools ?? [])),
   }
+}
+
+function findMarkedPaths(marker: InstallMarker | null, excluded: string[]) {
+  const excludedSet = new Set(excluded.map((item) => path.resolve(item).toLowerCase()))
+  return uniqueStrings(marker?.installed ?? [])
+    .filter((item) => !excludedSet.has(path.resolve(item).toLowerCase()))
+    .map((item) => ({ path: item, label: "marked install path" }))
+}
+
+async function findPackageCommands(method: Installation.Method, marker: InstallMarker | null) {
+  const commands: Array<{ label: string; command: string[] }> = []
+  const add = (label: string, command: string[] | undefined) => {
+    if (!command) return
+    if (commands.some((item) => item.command.join("\0") === command.join("\0"))) return
+    commands.push({ label, command })
+  }
+
+  const markedManager = marker?.jsInstall?.manager as Installation.Method | undefined
+  const markedPackage = marker?.jsInstall?.packageName || "codyx-ai"
+  if (markedManager) add(`${markedManager}:${markedPackage}`, packageCommandForMethod(markedManager, markedPackage))
+  if (method !== "curl" && method !== "unknown") add(method, packageCommandForMethod(method))
+
+  return commands
+}
+
+async function findDefaultInstallRoot() {
+  const localAppData = process.env.LOCALAPPDATA
+  if (!localAppData) return null
+  for (const candidate of [path.join(localAppData, "codyx", "source"), path.join(localAppData, "codyx")]) {
+    const exists = await fs
+      .access(path.join(candidate, "package.json"))
+      .then(() => true)
+      .catch(() => false)
+    if (exists) return candidate
+  }
+  return null
 }
 
 async function findStartMenuShortcut(marker: InstallMarker | null): Promise<string[]> {
