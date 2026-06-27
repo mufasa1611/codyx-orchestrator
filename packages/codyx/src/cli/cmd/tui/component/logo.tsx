@@ -945,14 +945,48 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean; aut
           flexDirection="row"
           justifyContent="center"
         >
-          <text selectable={false}>multi Agent build by </text>
-          <text fg={RGBA.fromHex("#ff8c00")} attributes={TextAttributes.BOLD} selectable={false}>
-            M.Farid
-          </text>
-          <text selectable={false}> </text>
-          <text fg={RGBA.fromHex("#90ee90")} attributes={TextAttributes.BOLD} selectable={false}>
-            (Mufasa)
-          </text>
+          <box flexDirection="row">
+            {renderLine(
+              "multi Agent build by ",
+              3,
+              theme.textMuted,
+              false,
+              Math.floor(((ctx.FULL[0]?.length ?? 52) - 37) / 2),
+              frame(),
+              dusk(),
+              idleState(),
+            )}
+            {renderLine(
+              "M.Farid",
+              3,
+              RGBA.fromHex("#ff8c00"),
+              true,
+              Math.floor(((ctx.FULL[0]?.length ?? 52) - 37) / 2) + 21,
+              frame(),
+              dusk(),
+              idleState(),
+            )}
+            {renderLine(
+              " ",
+              3,
+              theme.textMuted,
+              false,
+              Math.floor(((ctx.FULL[0]?.length ?? 52) - 37) / 2) + 28,
+              frame(),
+              dusk(),
+              idleState(),
+            )}
+            {renderLine(
+              "(Mufasa)",
+              3,
+              RGBA.fromHex("#90ee90"),
+              true,
+              Math.floor(((ctx.FULL[0]?.length ?? 52) - 37) / 2) + 29,
+              frame(),
+              dusk(),
+              idleState(),
+            )}
+          </box>
         </box>
       )}
     </box>
