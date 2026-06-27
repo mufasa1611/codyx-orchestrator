@@ -554,7 +554,7 @@ function buildIdleState(t: number, ctx: LogoContext): IdleState {
 
 export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = {}) {
   const ctx = props.shape ? build(props.shape) : DEFAULT
-  const showCredit = false
+  const showCredit = true
   const { theme } = useTheme()
   const renderer = useRenderer()
   const [rings, setRings] = createSignal<Ring[]>([])
@@ -869,13 +869,13 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
         {(line, index) => (
           <box flexDirection="row" gap={1}>
             <box flexDirection="row">
-              {renderLine(line, index(), props.ink ?? theme.textMuted, !!props.ink, 0, frame(), dusk(), idleState())}
+              {renderLine(line, index(), props.ink ?? theme.text, !!props.ink, 0, frame(), dusk(), idleState())}
             </box>
             <box flexDirection="row">
               {renderLine(
                 ctx.shape.right[index()],
                 index(),
-                props.ink ?? theme.text,
+                props.ink ?? RGBA.fromHex("#23e17e"),
                 true,
                 ctx.LEFT + GAP,
                 frame(),
@@ -886,8 +886,14 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
           </box>
         )}
       </For>
-      {showCredit && (
-        <box width={ctx.FULL[0]?.length ?? 0} alignItems="center" flexDirection="row" justifyContent="center">
+      {showCredit && ctx.shape === codyX && (
+        <box
+          marginTop={1}
+          width={ctx.FULL[0]?.length ?? 0}
+          alignItems="center"
+          flexDirection="row"
+          justifyContent="center"
+        >
           <text selectable={false}>multi Agent build by </text>
           <text fg={RGBA.fromHex("#ff8c00")} attributes={TextAttributes.BOLD} selectable={false}>
             M.Farid
