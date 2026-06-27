@@ -605,12 +605,6 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
   }
 
   const triggerAutoBurst = () => {
-    try {
-      require("node:fs").appendFileSync(
-        "x:\\codyx-orchestrator\\debug-tui.log",
-        `triggerAutoBurst called at ${Date.now()}\n`,
-      )
-    } catch {}
     const x = Math.floor((ctx.FULL[0]?.length ?? 52) / 2)
     const y = 1
     const t = performance.now()
