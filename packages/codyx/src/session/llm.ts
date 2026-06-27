@@ -24,6 +24,8 @@ import { InstallationVersion } from "@cody/core/installation/version"
 import { EffectBridge } from "@/effect/bridge"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
+import { Question } from "@/question"
+import { Ollama } from "@/provider/ollama"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -63,7 +65,7 @@ export class Service extends Context.Service<Service, Interface>()("@cody/LLM") 
 const live: Layer.Layer<
   Service,
   never,
-  Auth.Service | Config.Service | Provider.Service | Plugin.Service | Permission.Service
+  Auth.Service | Config.Service | Provider.Service | Plugin.Service | Permission.Service | Question.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -72,6 +74,7 @@ const live: Layer.Layer<
     const provider = yield* Provider.Service
     const plugin = yield* Plugin.Service
     const perm = yield* Permission.Service
+    const question = yield* Question.Service
 
     const run = Effect.fn("LLM.run")(function* (input: StreamRequest) {
       const l = log
@@ -87,15 +90,12 @@ const live: Layer.Layer<
         providerID: input.model.providerID,
       })
 
-      const [language, cfg, item, info] = yield* Effect.all(
-        [
-          provider.getLanguage(input.model),
-          config.get(),
-          provider.getProvider(input.model.providerID),
-          auth.get(input.model.providerID),
-        ],
+      const [cfg, item, info] = yield* Effect.all(
+        [config.get(), provider.getProvider(input.model.providerID), auth.get(input.model.providerID)],
         { concurrency: "unbounded" },
       )
+      yield* ensureOllama(input, item, question)
+      const language = yield* provider.getLanguage(input.model)
 
       // TODO: move this to a proper hook
       const isOpenaiOauth = item.id === "openai" && info?.type === "oauth"
@@ -445,8 +445,47 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Config.defaultLayer),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Plugin.defaultLayer),
+    Layer.provide(Question.defaultLayer),
   ),
 )
+
+function ensureOllama(input: StreamRequest, provider: Provider.Info, question: Question.Interface) {
+  return Effect.gen(function* () {
+    const status = yield* Effect.promise(() => Ollama.check({ provider, model: input.model }))
+    if (status.type !== "missing-model") return
+
+    const pull = "Pull model"
+    const answers = yield* question
+      .ask({
+        sessionID: SessionID.make(input.sessionID),
+        questions: [
+          {
+            header: "Ollama model",
+            custom: false,
+            question: `The local Ollama model "${status.model}" is not installed. Pull it now?`,
+            options: [
+              { label: pull, description: "Download the model with Ollama and continue this chat." },
+              { label: "Not now", description: "Stop this request. You can pull the model later." },
+            ],
+          },
+        ],
+      })
+      .pipe(Effect.catchCause(() => Effect.succeed([])))
+
+    if (!answers[0]?.includes(pull)) {
+      yield* Effect.fail(
+        new Error(`Ollama model "${status.model}" is not installed. Pull it with "ollama pull ${status.model}".`),
+      )
+      return
+    }
+
+    yield* Effect.promise(() => Ollama.pull({ endpoint: status.endpoint, model: status.model }))
+    const verified = yield* Effect.promise(() => Ollama.check({ provider, model: input.model }))
+    if (verified.type === "missing-model") {
+      yield* Effect.fail(new Error(`Ollama model "${status.model}" was pulled but is still not listed by Ollama.`))
+    }
+  })
+}
 
 function resolveTools(input: Pick<StreamInput, "tools" | "agent" | "permission" | "user">) {
   const disabled = Permission.disabled(

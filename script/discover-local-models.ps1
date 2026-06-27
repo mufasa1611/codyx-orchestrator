@@ -101,24 +101,6 @@ function Test-OllamaApi {
   }
 }
 
-function Install-OllamaIfMissing {
-  if (Get-OllamaCommand) { return }
-  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    $notes.Add("Ollama was not installed and winget was unavailable.")
-    Show-CodyScan "Ollama executable not found; winget unavailable, skipping automatic install"
-    return
-  }
-  Show-CodyScan "Ollama executable not found; installing Ollama with winget"
-  & winget install --id Ollama.Ollama --exact --source winget --silent --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) {
-    $notes.Add("Ollama automatic install failed.")
-    Show-CodyScan "Ollama install failed; checking manifests only"
-    return
-  }
-  $env:PATH = "$(Join-Path $env:LOCALAPPDATA "Programs\Ollama");$env:PATH"
-  Show-CodyScan "Ollama installed"
-}
-
 function Start-OllamaIfNeeded {
   if (Test-OllamaApi) {
     $script:ollamaApiReady = $true
@@ -128,7 +110,7 @@ function Start-OllamaIfNeeded {
 
   $ollama = Get-OllamaCommand
   if (-not $ollama) {
-    Show-CodyScan "Ollama executable unavailable; checking manifests only"
+    Show-CodyScan "Ollama executable unavailable; skipping Ollama API startup"
     return
   }
   $script:ollamaExecutablePath = $ollama
@@ -221,9 +203,13 @@ function Add-OllamaManifestModels([string]$ManifestRoot) {
 
 function Find-OllamaModels {
   Show-CodyScan "checking Ollama local registry"
-  Install-OllamaIfMissing
   $command = Get-OllamaCommand
-  if ($command) { $script:ollamaExecutablePath = $command }
+  if (-not $command) {
+    $notes.Add("Ollama executable was not found; skipped Ollama model discovery.")
+    Show-CodyScan "Ollama executable not found; skipping Ollama model discovery"
+    return
+  }
+  $script:ollamaExecutablePath = $command
   Start-OllamaIfNeeded
   try {
     $timeout = [math]::Max(1, [math]::Min(5, [math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)))

@@ -151,6 +151,18 @@ function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Get-CodyxOllamaCommand {
+  $cmd = Get-Command ollama -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  foreach ($candidate in @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
+    (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
+  )) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) { return $candidate }
+  }
+  return $null
+}
+
 function Test-BunVersion {
   if (-not (Test-Command bun)) { return $false }
   try {
@@ -931,16 +943,22 @@ NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 Write-Section 6 "Model discovery"
 
 if (-not $NoScan) {
-  if ($Yes) {
+  $ollama = Get-CodyxOllamaCommand
+  if (-not $ollama) {
+    Write-Ok "Ollama not found. Local Ollama model discovery skipped."
+    Write-Ok "Install Ollama later and run: .\script\discover-local-models.ps1 -Refresh"
+  } elseif ($Yes) {
+    Write-Ok "Ollama found: $ollama"
     Write-Step "Running model discovery..."
     & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
   } else {
+    Write-Ok "Ollama found: $ollama"
     Write-Host ""
-    $scan = Read-CodyxInstallerInput "Scan for local Ollama/GGUF models? [y/N]"
+    $scan = Read-CodyxInstallerInput "Scan local Ollama models now? [y/N]"
     if ($scan -eq "y") {
       & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
     } else {
-      Write-Ok "Model discovery skipped. Run later: .\script\discover-local-models.ps1"
+      Write-Ok "Model discovery skipped. Run later: .\script\discover-local-models.ps1 -Refresh"
     }
   }
 } else {

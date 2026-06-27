@@ -113,6 +113,30 @@ function firstInitOfferKey(ctx: { project: { id: string }; worktree: string }) {
   return `${ctx.project.id}:${Hash.fast(ctx.worktree)}`
 }
 
+function isCompactionUserMessage(message: MessageV2.WithParts) {
+  return message.info.role === "user" && message.parts.some((part) => part.type === "compaction")
+}
+
+function isCompactionContinueMessage(message: MessageV2.WithParts) {
+  return (
+    message.info.role === "user" &&
+    message.parts.some((part) => part.type === "text" && part.metadata?.["compaction_continue"] === true)
+  )
+}
+
+function compactableUserTurnCount(messages: MessageV2.WithParts[]) {
+  return messages.filter(
+    (message) =>
+      message.info.role === "user" && !isCompactionUserMessage(message) && !isCompactionContinueMessage(message),
+  ).length
+}
+
+export function shouldAutoCompactForMessages(input: { messages: MessageV2.WithParts[]; cfg: Config.Info }) {
+  const tailTurns = input.cfg.compaction?.tail_turns ?? SessionCompaction.DEFAULT_TAIL_TURNS
+  if (tailTurns <= 0) return compactableUserTurnCount(input.messages) > 0
+  return compactableUserTurnCount(input.messages) > tailTurns
+}
+
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
   readonly prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts>
@@ -1669,6 +1693,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             lastFinished.summary !== true &&
             (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
           ) {
+            if (!shouldAutoCompactForMessages({ messages: msgs, cfg: yield* config.get() })) {
+              yield* slog.info("skipping auto-compaction; no compactable user history")
+              break
+            }
             yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
             continue
           }
