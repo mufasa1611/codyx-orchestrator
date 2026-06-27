@@ -604,26 +604,6 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     timer = setInterval(tick, 16)
   }
 
-  const triggerAutoBurst = () => {
-    const x = Math.floor((ctx.FULL[0]?.length ?? 52) / 2)
-    const y = 1
-    const t = performance.now()
-    setRelease({ x, y, at: t, glyph: undefined, level: 1.0, rise: 1.0 })
-    setRings((list) => [
-      ...list,
-      {
-        x: x + 0.5,
-        y: y * 2 + 1,
-        at: t,
-        force: 2.55,
-        kick: 0.32 + KICK,
-      },
-    ])
-    setNow(t)
-    start()
-    Sound.pulse(1.0)
-  }
-
   onCleanup(() => {
     stop()
     hum = false
@@ -631,10 +611,7 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
   })
 
   onMount(() => {
-    if (!props.idle) {
-      setTimeout(triggerAutoBurst, 150)
-      return
-    }
+    if (!props.idle) return
     setNow(performance.now())
     start()
   })
