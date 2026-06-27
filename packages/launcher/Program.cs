@@ -108,14 +108,45 @@ public sealed class LauncherWindow : Window
       Margin = new Thickness(0, 0, 0, 2),
     });
 
-    body.Children.Add(new TextBlock
+    body.Children.Add(new Grid
     {
-      Text = "codyx multi agent build",
-      Foreground = new SolidColorBrush(Color.FromRgb(214, 220, 231)),
-      FontSize = 17,
-      HorizontalAlignment = HorizontalAlignment.Center,
+      Height = 28,
+      ClipToBounds = true,
       Margin = new Thickness(0, 0, 0, 24),
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Children =
+      {
+        new Rectangle
+        {
+          Fill = new LinearGradientBrush(
+            [
+              new GradientStop(Color.FromArgb(0, 28, 216, 117), 0),
+              new GradientStop(Color.FromArgb(100, 28, 216, 117), 0.45),
+              new GradientStop(Color.FromArgb(0, 28, 216, 117), 1),
+            ],
+            0),
+          Width = 280,
+          Opacity = 0.35,
+          HorizontalAlignment = HorizontalAlignment.Left,
+          RenderTransform = new TranslateTransform(-280, 0),
+        },
+        new TextBlock
+        {
+          Text = "codyx multi agent build",
+          Foreground = new SolidColorBrush(Color.FromRgb(214, 220, 231)),
+          FontSize = 17,
+          HorizontalAlignment = HorizontalAlignment.Center,
+        },
+      },
     });
+    var subtitleGlow = (Rectangle)((Grid)body.Children[^1]).Children[0];
+    ((TranslateTransform)subtitleGlow.RenderTransform).BeginAnimation(
+      TranslateTransform.XProperty,
+      new DoubleAnimation(-280, 800, TimeSpan.FromSeconds(4.2))
+      {
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+      });
 
     statusText.Text = "Getting codyx ready";
     statusText.Foreground = new SolidColorBrush(Color.FromRgb(165, 176, 195));
