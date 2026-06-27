@@ -4,6 +4,7 @@ import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "sol
 import { useTheme, tint } from "@tui/context/theme"
 import * as Sound from "@tui/util/sound"
 import { codyX, go } from "@/cli/logo"
+import { useKV } from "../context/kv"
 
 export type LogoShape = {
   left: string[]
@@ -87,6 +88,8 @@ const TRACE = 0.033
 const TAIL = 1.8
 const TRACE_IN = 200
 const GLOW_OUT = 1600
+const STARTUP_PLAY_MS = 5000
+const STARTUP_RELEASE_MS = STARTUP_PLAY_MS - LIFE
 const PEAK = RGBA.fromInts(255, 255, 255)
 
 type Ring = {
@@ -102,6 +105,8 @@ type Hold = {
   y: number
   at: number
   glyph: number | undefined
+  autoReleaseAt?: number
+  silent?: boolean
 }
 
 type Release = {
@@ -305,6 +310,20 @@ function build(shape: LogoShape): LogoContext {
 
 const DEFAULT = build(codyX)
 const GO = build(go)
+
+function startupPoint(ctx: LogoContext) {
+  const cells = Array.from(ctx.MAP.glyph.keys()).map((item) => {
+    const [x, y] = item.split(",").map(Number)
+    return { x, y }
+  })
+  const target = {
+    x: (ctx.FULL[0]?.length ?? 1) * 0.52,
+    y: ctx.FULL.length * 0.48,
+  }
+  return cells.toSorted(
+    (a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y),
+  )[0]
+}
 
 function shimmer(x: number, y: number, frame: Frame, ctx: LogoContext) {
   return frame.list.reduce((best, item) => {
@@ -552,11 +571,12 @@ function buildIdleState(t: number, ctx: LogoContext): IdleState {
   return { cfg, reach, rings, active }
 }
 
-export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = {}) {
+export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean; autoplay?: boolean } = {}) {
   const ctx = props.shape ? build(props.shape) : DEFAULT
   const showCredit = true
   const { theme } = useTheme()
   const renderer = useRenderer()
+  const kv = useKV()
   const [rings, setRings] = createSignal<Ring[]>([])
   const [hold, setHold] = createSignal<Hold>()
   const [release, setRelease] = createSignal<Release>()
@@ -576,11 +596,11 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     const t = performance.now()
     setNow(t)
     const item = hold()
-    if (item && !hum && t - item.at >= HOLD) {
+    if (item && !item.silent && !hum && t - item.at >= HOLD) {
       hum = true
       Sound.start()
     }
-    if (item && t - item.at >= CHARGE) {
+    if (item && t - item.at >= (item.autoReleaseAt ?? CHARGE)) {
       burst(item.x, item.y)
     }
     let live = false
@@ -610,12 +630,6 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     Sound.dispose()
   })
 
-  onMount(() => {
-    if (!props.idle) return
-    setNow(performance.now())
-    start()
-  })
-
   const hit = (x: number, y: number) => {
     const char = ctx.FULL[y]?.[x]
     return char !== undefined && char !== " "
@@ -631,24 +645,19 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     start()
   }
 
-  const burst = (x: number, y: number) => {
-    const item = hold()
-    if (!item) return
+  const emit = (item: Hold, t: number, rise: number, playSound: boolean) => {
     hum = false
-    const t = performance.now()
-    const age = t - item.at
-    const rise = ramp(age, HOLD, CHARGE)
     const level = push(rise)
     setHold(undefined)
-    setRelease({ x, y, at: t, glyph: item.glyph, level, rise })
+    setRelease({ x: item.x, y: item.y, at: t, glyph: item.glyph, level, rise })
     if (item.glyph !== undefined) {
       setGlow({ glyph: item.glyph, at: t, force: lerp(0.18, 1.5, rise * level) })
     }
     setRings((list) => [
       ...list,
       {
-        x: x + 0.5,
-        y: y * 2 + 1,
+        x: item.x + 0.5,
+        y: item.y * 2 + 1,
         at: t,
         force: lerp(0.82, 2.55, level),
         kick: lerp(0.32, 0.32 + KICK, level),
@@ -656,8 +665,41 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     ])
     setNow(t)
     start()
-    Sound.pulse(lerp(0.8, 1, level))
+    if (playSound) Sound.pulse(lerp(0.8, 1, level))
   }
+
+  const burst = (x: number, y: number) => {
+    const item = hold()
+    if (!item) return
+    const t = performance.now()
+    const age = t - item.at
+    const rise = ramp(age, HOLD, CHARGE)
+    emit(item, t, rise, item.silent !== true)
+  }
+
+  onMount(() => {
+    const t = performance.now()
+    if (props.idle) {
+      setNow(t)
+      start()
+      return
+    }
+    if ((props.autoplay ?? !props.shape) === false) return
+    if (!kv.get("animations_enabled", true)) return
+    const point = startupPoint(ctx)
+    if (!point) return
+    setNow(t)
+    setRelease(undefined)
+    setHold({
+      x: point.x,
+      y: point.y,
+      at: t,
+      glyph: select(point.x, point.y, ctx),
+      autoReleaseAt: STARTUP_RELEASE_MS,
+      silent: true,
+    })
+    start()
+  })
 
   const frame = createMemo(() => {
     const t = now()
