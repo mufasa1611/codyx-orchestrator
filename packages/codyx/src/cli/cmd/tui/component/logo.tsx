@@ -686,19 +686,28 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean; aut
     }
     if ((props.autoplay ?? !props.shape) === false) return
     if (!kv.get("animations_enabled", true)) return
-    const point = startupPoint(ctx)
-    if (!point) return
-    setNow(t)
-    setRelease(undefined)
-    setHold({
-      x: point.x,
-      y: point.y,
-      at: t,
-      glyph: select(point.x, point.y, ctx),
-      autoReleaseAt: STARTUP_RELEASE_MS,
-      silent: true,
-    })
-    start()
+
+    const trigger = () => {
+      const point = startupPoint(ctx)
+      if (!point) return
+      const nowTime = performance.now()
+      setNow(nowTime)
+      setRelease(undefined)
+      setHold({
+        x: point.x,
+        y: point.y,
+        at: nowTime,
+        glyph: select(point.x, point.y, ctx),
+        autoReleaseAt: STARTUP_RELEASE_MS,
+        silent: true,
+      })
+      start()
+    }
+
+    trigger()
+
+    const interval = setInterval(trigger, 10000)
+    onCleanup(() => clearInterval(interval))
   })
 
   const frame = createMemo(() => {
