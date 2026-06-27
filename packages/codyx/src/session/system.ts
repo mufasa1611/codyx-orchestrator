@@ -58,6 +58,7 @@ export const layer = Layer.effect(
             `  Platform: ${process.platform}`,
             `  Today's date: ${new Date().toDateString()}`,
             `</env>`,
+            `Critical tool-use instruction: If the user asks about real-world facts, current events, sports results, dates, or any information not directly present in the codebase or your offline training data, you MUST use the search/websearch tool first to verify the facts before responding. Do not guess or answer from offline memory.`,
           ].join("\n"),
         ]
       }),
