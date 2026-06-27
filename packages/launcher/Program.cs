@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -42,6 +43,7 @@ public sealed class LauncherWindow : Window
   readonly Border setupInputPanel = new();
   readonly TextBlock setupPromptText = new();
   readonly TextBox setupInput = new();
+  readonly TextBox[] codeBoxes = new TextBox[6];
   readonly Button setupSendButton = new();
   readonly Button setupCancelButton = new();
   readonly StackPanel stepPanel = new();
@@ -167,26 +169,26 @@ public sealed class LauncherWindow : Window
     actions.Children.Add(primaryButton);
     body.Children.Add(actions);
 
-    logBox.Visibility = Visibility.Collapsed;
-    logBox.IsReadOnly = true;
-    logBox.TextWrapping = TextWrapping.Wrap;
-    logBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-    logBox.Height = 140;
-    logBox.Margin = new Thickness(0, 16, 0, 0);
-    logBox.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
-    logBox.Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224));
-    logBox.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
-    body.Children.Add(logBox);
-
     setupInputPanel.Visibility = Visibility.Collapsed;
-    setupInputPanel.Margin = new Thickness(0, 12, 0, 0);
-    setupInputPanel.Padding = new Thickness(12);
-    setupInputPanel.CornerRadius = new CornerRadius(8);
+    setupInputPanel.Margin = new Thickness(0, 8, 0, 0);
+    setupInputPanel.Padding = new Thickness(8, 6);
+    setupInputPanel.CornerRadius = new CornerRadius(6);
     setupInputPanel.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
     setupInputPanel.BorderThickness = new Thickness(1);
     setupInputPanel.Background = new SolidColorBrush(Color.FromRgb(12, 18, 28));
     setupInputPanel.Child = BuildSetupInputPanel();
     body.Children.Add(setupInputPanel);
+
+    logBox.Visibility = Visibility.Collapsed;
+    logBox.IsReadOnly = true;
+    logBox.TextWrapping = TextWrapping.Wrap;
+    logBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+    logBox.Height = 140;
+    logBox.Margin = new Thickness(0, 8, 0, 0);
+    logBox.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
+    logBox.Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224));
+    logBox.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
+    body.Children.Add(logBox);
 
     var scroll = new ScrollViewer
     {
@@ -205,7 +207,8 @@ public sealed class LauncherWindow : Window
     setupPromptText.Text = "Waiting for installer prompt...";
     setupPromptText.Foreground = Brushes.White;
     setupPromptText.FontWeight = FontWeights.SemiBold;
-    setupPromptText.Margin = new Thickness(0, 0, 0, 8);
+    setupPromptText.FontSize = 13;
+    setupPromptText.Margin = new Thickness(0, 0, 0, 6);
     setupPromptText.TextWrapping = TextWrapping.Wrap;
     panel.Children.Add(setupPromptText);
 
@@ -215,7 +218,8 @@ public sealed class LauncherWindow : Window
     row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
     setupInput.Margin = new Thickness(0, 0, 10, 0);
-    setupInput.MinHeight = 34;
+    setupInput.MinHeight = 28;
+    setupInput.FontSize = 13;
     setupInput.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
     setupInput.Foreground = Brushes.White;
     setupInput.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
@@ -228,9 +232,58 @@ public sealed class LauncherWindow : Window
     };
     row.Children.Add(setupInput);
 
+    var codeRow = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      Margin = new Thickness(0, 0, 10, 0),
+      Visibility = Visibility.Collapsed,
+    };
+    for (int i = 0; i < 6; i++)
+    {
+      var idx = i;
+      var box = new TextBox
+      {
+        Width = 34,
+        MinHeight = 34,
+        FontSize = 18,
+        FontWeight = FontWeights.Bold,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        MaxLength = 1,
+        Margin = new Thickness(0, 0, i < 5 ? 6 : 0, 0),
+        Background = new SolidColorBrush(Color.FromRgb(7, 10, 15)),
+        Foreground = Brushes.White,
+        BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83)),
+        IsEnabled = false,
+        CaretBrush = Brushes.Transparent,
+      };
+      box.PreviewTextInput += (_, e) =>
+      {
+        if (!char.IsDigit(e.Text, 0)) { e.Handled = true; return; }
+        box.Text = e.Text;
+        if (idx < 5) codeBoxes[idx + 1].Focus();
+        else SendSetupInput();
+        e.Handled = true;
+      };
+      box.PreviewKeyDown += (_, e) =>
+      {
+        if (e.Key == Key.Back && string.IsNullOrEmpty(box.Text) && idx > 0)
+        {
+          codeBoxes[idx - 1].Focus();
+          codeBoxes[idx - 1].Text = "";
+        }
+      };
+      codeBoxes[i] = box;
+      codeRow.Children.Add(box);
+    }
+    Grid.SetColumn(codeRow, 0);
+    row.Children.Add(codeRow);
+
     setupCancelButton.Content = "Cancel";
-    setupCancelButton.Padding = new Thickness(14, 8, 14, 8);
-    setupCancelButton.Margin = new Thickness(0, 0, 10, 0);
+    setupCancelButton.Padding = new Thickness(14, 6, 14, 6);
+    setupCancelButton.FontSize = 13;
+    setupCancelButton.Margin = new Thickness(0, 0, 8, 0);
     setupCancelButton.IsEnabled = false;
     setupCancelButton.Visibility = Visibility.Collapsed;
     setupCancelButton.Click += (_, _) => SendSetupInput("cancel");
@@ -238,7 +291,8 @@ public sealed class LauncherWindow : Window
     row.Children.Add(setupCancelButton);
 
     setupSendButton.Content = "Send";
-    setupSendButton.Padding = new Thickness(16, 8, 16, 8);
+    setupSendButton.Padding = new Thickness(16, 6, 16, 6);
+    setupSendButton.FontSize = 13;
     setupSendButton.IsEnabled = false;
     setupSendButton.Click += (_, _) => SendSetupInput();
     Grid.SetColumn(setupSendButton, 2);
@@ -914,11 +968,26 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
 
   void SendSetupInput(string? forcedValue = null)
   {
-    var value = forcedValue ?? setupInput.Text.Trim();
-    if (string.IsNullOrEmpty(value)) return;
     if (!setupPromptActive) return;
     if (setupProcess == null || setupProcess.HasExited) return;
+
+    string value;
+    if (forcedValue != null)
+    {
+      value = forcedValue;
+    }
+    else if (setupInput.Visibility == Visibility.Visible)
+    {
+      value = setupInput.Text.Trim();
+    }
+    else
+    {
+      value = string.Concat(codeBoxes.Select(b => b.Text));
+    }
+
+    if (string.IsNullOrEmpty(value)) return;
     setupInput.Clear();
+    foreach (var box in codeBoxes) box.Text = "";
     ShowSetupInput(false, "Waiting for next installer prompt...");
     setupProcess.StandardInput.WriteLine(value);
     AppendLog($"> {(value.Length == 6 && value.All(char.IsDigit) ? "******" : value)}");
@@ -929,13 +998,29 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     setupInputPanel.Visibility = Visibility.Visible;
     setupPromptActive = active;
     RenderSetupPrompt(prompt);
-    setupInput.IsEnabled = active;
+    bool isCodePrompt = active && prompt.Contains("verification code", StringComparison.OrdinalIgnoreCase);
+
+    setupInput.Visibility = isCodePrompt ? Visibility.Collapsed : Visibility.Visible;
+    setupInput.IsEnabled = active && !isCodePrompt;
+
+    foreach (var box in codeBoxes)
+    {
+      box.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
+      box.IsEnabled = active && isCodePrompt;
+      box.Text = "";
+    }
+
     setupSendButton.IsEnabled = active;
     setupCancelButton.Visibility = active && prompt.Contains("cancel", StringComparison.OrdinalIgnoreCase)
       ? Visibility.Visible
       : Visibility.Collapsed;
     setupCancelButton.IsEnabled = setupCancelButton.Visibility == Visibility.Visible;
-    if (active) setupInput.Focus();
+
+    if (active)
+    {
+      if (isCodePrompt) codeBoxes[0].Focus();
+      else setupInput.Focus();
+    }
   }
 
   void RenderSetupPrompt(string prompt)
