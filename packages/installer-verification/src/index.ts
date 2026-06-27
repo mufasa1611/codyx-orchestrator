@@ -578,22 +578,27 @@ app.delete("/v1/admin/installations/:installID", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   const db = context.env.InstallerVerificationDatabase
   const installId = parse(z.string().uuid(), context.req.param("installID"))
-  const now = Date.now()
-  const receipts = await db
-    .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
+  const registration = await db
+    .prepare("SELECT email, machine_id FROM registration WHERE install_id = ?")
     .bind(installId)
-    .all<{ id: string; expires_at: number }>()
+    .first<{ email: string; machine_id: string | null }>()
+  if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
+
+  const email_hash = await emailHash(context.env, registration.email)
   await db.batch([
-    ...receipts.results.map((receipt) =>
-      db
-        .prepare(
-          "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
-        )
-        .bind(receipt.id, installId, now, receipt.expires_at),
-    ),
+    db.prepare("DELETE FROM remote_command WHERE install_id = ?").bind(installId),
+    db.prepare("DELETE FROM revocation WHERE install_id = ?").bind(installId),
     db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
-    db.prepare("DELETE FROM registration WHERE install_id = ?").bind(installId),
     db.prepare("DELETE FROM challenge WHERE install_id = ?").bind(installId),
+    db.prepare("DELETE FROM registration WHERE install_id = ?").bind(installId),
+    db.prepare("DELETE FROM send_event WHERE email_hash = ?").bind(email_hash),
+    db
+      .prepare(
+        `DELETE FROM banned_machine
+         WHERE machine_id = ?
+           AND NOT EXISTS (SELECT 1 FROM registration WHERE machine_id = ?)`,
+      )
+      .bind(registration.machine_id, registration.machine_id),
   ])
   return context.body(null, 204)
 })

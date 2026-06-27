@@ -29,6 +29,8 @@ header span{color:#8b949e;font-size:14px}
 .btn-uninstall{padding:6px 14px;background:#1f6feb;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
 .btn-uninstall:hover{background:#388bfd}
 .btn-uninstall:disabled,.btn-uninstall.disabled{opacity:.5;cursor:not-allowed;background:#1f6feb}
+.btn-remove{padding:6px 10px;background:#8e1519;border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;margin-left:4px}
+.btn-remove:hover{background:#da3633}
 .badge.pending{background:#d2992222;color:#d29922;border:1px solid #d2992244}
 .badge.acknowledged{background:#1f6feb22;color:#58a6ff;border:1px solid #1f6feb44}
 .badge.completed{background:#23863622;color:#3fb950;border:1px solid #23863644}
@@ -119,11 +121,11 @@ tr:hover td{background:#1c2128}
 
 <div class="confirm-overlay" id="confirm-overlay">
 <div class="confirm-box">
-<h3>Confirm Uninstall</h3>
-<p id="confirm-text">Send uninstall command to <strong id="confirm-name"></strong><br><span class="mono" id="confirm-id"></span></p>
+<h3 id="confirm-title">Confirm Action</h3>
+<p><span id="confirm-message"></span><br><strong id="confirm-name"></strong><br><span class="mono" id="confirm-id"></span></p>
 <div class="confirm-actions">
 <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
-<button class="btn-confirm" id="confirm-btn" onclick="executeUninstall()">Uninstall</button>
+<button class="btn-confirm" id="confirm-btn" onclick="executeConfirmedAction()">Continue</button>
 </div>
 </div>
 </div>
@@ -187,11 +189,27 @@ function fmtDate(ts) {
 }
 
 let targetInstallId = null
+let targetAction = "uninstall"
 
 function confirmUninstall(id, name) {
+  openConfirm("uninstall", id, name)
+}
+
+function confirmRemove(id, name) {
+  openConfirm("remove", id, name)
+}
+
+function openConfirm(action, id, name) {
   targetInstallId = id
+  targetAction = action
+  const isRemove = action === "remove"
+  document.getElementById("confirm-title").textContent = isRemove ? "Remove User Record" : "Confirm Uninstall"
+  document.getElementById("confirm-message").textContent = isRemove
+    ? "Delete this registration and its installer database records:"
+    : "Send uninstall command to:"
   document.getElementById("confirm-name").textContent = name || "Unknown"
   document.getElementById("confirm-id").textContent = id
+  document.getElementById("confirm-btn").textContent = isRemove ? "Remove" : "Uninstall"
   document.getElementById("confirm-overlay").style.display = "flex"
 }
 
@@ -200,23 +218,27 @@ function closeConfirm() {
   document.getElementById("confirm-overlay").style.display = "none"
 }
 
-async function executeUninstall() {
+async function executeConfirmedAction() {
   const id = targetInstallId
+  const action = targetAction
   if (!id) return
   const btn = document.getElementById("confirm-btn")
   btn.disabled = true
-  btn.textContent = "Uninstalling..."
+  btn.textContent = action === "remove" ? "Removing..." : "Uninstalling..."
   closeConfirm()
 
-  const res = await apiFetch("/v1/admin/installations/" + id + "/uninstall", { method: "POST" })
+  const res = action === "remove"
+    ? await apiFetch("/v1/admin/installations/" + id, { method: "DELETE" })
+    : await apiFetch("/v1/admin/installations/" + id + "/uninstall", { method: "POST" })
   if (res && res.ok) {
-    showToast("Uninstall command sent to " + id, "success")
+    showToast(action === "remove" ? "Removed database record for " + id : "Uninstall command sent to " + id, "success")
     loadDashboard()
   } else {
-    showToast("Failed to send uninstall command", "error")
+    const err = await res?.json().catch(() => ({}))
+    showToast(err?.message || (action === "remove" ? "Failed to remove database record" : "Failed to send uninstall command"), "error")
   }
   btn.disabled = false
-  btn.textContent = "Uninstall"
+  btn.textContent = action === "remove" ? "Remove" : "Uninstall"
 }
 
 function badge(platform) {
@@ -302,6 +324,7 @@ async function loadDashboard() {
     } else {
       banBtn = " <button class=\\"btn-ban\\" disabled title=\\"No machine ID on record\\">Ban</button>"
     }
+    const removeBtn = " <button class=\\"btn-remove\\" onclick=\\"confirmRemove('" + esc(r.install_id) + "','" + esc(r.display_name) + "')\\">Remove</button>"
     return "<tr" + rowClass + ">" +
       "<td><strong>" + esc(r.display_name) + "</strong></td>" +
       "<td>" + esc(r.email) + "</td>" +
@@ -313,7 +336,7 @@ async function loadDashboard() {
       "<td>" + fmtDate(r.email_verified_at) + "</td>" +
       "<td>" + statusBadge(r.command_status) + "</td>" +
       banCell +
-      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + "</td>" +
+      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + removeBtn + "</td>" +
     "</tr>"
   }).join("")
 }

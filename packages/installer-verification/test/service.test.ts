@@ -111,6 +111,13 @@ describe("installer verification service", () => {
     expect(terms).toContain("Moderation, role protection")
     expect(terms).toContain("blocked words <strong>fuck</strong> and <strong>shit</strong>")
     expect(terms).toContain("machine ban")
+
+    const admin = await request("/admin")
+    expect(admin.status).toBe(200)
+    const adminHtml = await admin.text()
+    expect(adminHtml).toContain("Remove User Record")
+    expect(adminHtml).toContain("confirmRemove")
+    expect(adminHtml).toContain('method: "DELETE"')
   })
 
   test("serves and stores feedback", async () => {
@@ -271,8 +278,9 @@ describe("installer verification service", () => {
     expect(responses.filter((response) => response.status === 429)).toHaveLength(1)
   })
 
-  test("exports registrations and deletion revokes receipts", async () => {
-    const created = await createChallenge()
+  test("exports registrations and removal deletes installer database records", async () => {
+    const machineId = `machine-${crypto.randomUUID()}`
+    const created = await createChallenge(Object.assign(challengeBody(), { machine_id: machineId }))
     const verified = await verifyChallenge(created.response.challenge_id)
     const receipt = ((await verified.json()) as { receipt: string }).receipt
 
@@ -280,6 +288,11 @@ describe("installer verification service", () => {
     const exported = await admin("/v1/admin/installations?format=csv")
     expect(exported.status).toBe(200)
     expect(await exported.text()).toContain(created.body.email)
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    expect(uninstall.status).toBe(201)
+    const ban = await admin(`/v1/admin/installations/${created.body.install_id}/ban`, { method: "POST" })
+    expect(ban.status).toBe(200)
 
     const deleted = await admin(`/v1/admin/installations/${created.body.install_id}`, {
       method: "DELETE",
@@ -290,6 +303,35 @@ describe("installer verification service", () => {
       body: JSON.stringify({ install_id: created.body.install_id, receipt }),
     })
     expect(await validation.json()).toEqual({ valid: false })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const counts = await db
+      .prepare(
+        `SELECT
+          (SELECT COUNT(*) FROM registration WHERE install_id = ?) AS registrations,
+          (SELECT COUNT(*) FROM challenge WHERE install_id = ?) AS challenges,
+          (SELECT COUNT(*) FROM receipt WHERE install_id = ?) AS receipts,
+          (SELECT COUNT(*) FROM revocation WHERE install_id = ?) AS revocations,
+          (SELECT COUNT(*) FROM remote_command WHERE install_id = ?) AS commands,
+          (SELECT COUNT(*) FROM banned_machine WHERE machine_id = ?) AS machine_bans`,
+      )
+      .bind(
+        created.body.install_id,
+        created.body.install_id,
+        created.body.install_id,
+        created.body.install_id,
+        created.body.install_id,
+        machineId,
+      )
+      .first<Record<string, number>>()
+    expect(counts).toMatchObject({
+      registrations: 0,
+      challenges: 0,
+      receipts: 0,
+      revocations: 0,
+      commands: 0,
+      machine_bans: 0,
+    })
   })
 
   test("rejects expired receipts and cleanup removes retained data", async () => {
