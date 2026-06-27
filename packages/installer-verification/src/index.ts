@@ -289,7 +289,11 @@ app.post("/v1/challenges", async (context) => {
       .bind(input.machine_id)
       .first()
     if (banned)
-      throw new ApiError(403, "machine_banned", "This device has been banned for violating Mufasa registration rules.")
+      throw new ApiError(
+        403,
+        "machine_banned",
+        "You are banned as a result of your bad behaviors which violate the license rules you have accepted.",
+      )
   }
   const code = context.env.INSTALLER_TEST_CODE ?? generateCode()
   const hash = await emailHash(context.env, input.email)
@@ -394,7 +398,11 @@ app.post("/v1/challenges/:id/verify", async (context) => {
       .bind(row.machine_id)
       .first()
     if (banned)
-      throw new ApiError(403, "machine_banned", "This device has been banned for violating Mufasa registration rules.")
+      throw new ApiError(
+        403,
+        "machine_banned",
+        "You are banned as a result of your bad behaviors which violate the license rules you have accepted.",
+      )
   }
   const value = secrets(context.env)
   const expected = await keyedHash(value.otp, `${row.id}:${input.code}`)

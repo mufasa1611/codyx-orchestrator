@@ -426,7 +426,10 @@ describe("installer verification service", () => {
       body: JSON.stringify(Object.assign(challengeBody(), { machine_id: machineId })),
     })
     expect(blocked.status).toBe(403)
-    expect((await blocked.json()) as { error: string }).toMatchObject({ error: "machine_banned" })
+    expect((await blocked.json()) as { error: string; message: string }).toMatchObject({
+      error: "machine_banned",
+      message: "You are banned as a result of your bad behaviors which violate the license rules you have accepted.",
+    })
 
     const unban = await admin(`/v1/admin/installations/${created.body.install_id}/unban`, { method: "POST" })
     expect(unban.status).toBe(200)

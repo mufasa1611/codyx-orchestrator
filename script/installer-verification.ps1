@@ -176,6 +176,14 @@ function Read-VerificationState {
 function Stop-ForServiceFailure($Result) {
   $message = if ($Result.Message) { $Result.Message } else { "The verification service is unavailable." }
   Write-VerificationError $message
+
+  if ($Result.Code -eq "machine_banned" -and -not $NonInteractive) {
+    try {
+      Add-Type -AssemblyName System.Windows.Forms
+      [System.Windows.Forms.MessageBox]::Show($message, "Codyx Installer", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    } catch {}
+  }
+
   if ($Result.Transient) {
     Write-VerificationError "Git and Bun will remain installed. Rerun the installer when the service is available."
     return New-VerificationResult $false "service_unavailable"
