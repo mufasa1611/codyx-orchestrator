@@ -632,7 +632,7 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
 
   onMount(() => {
     if (!props.idle) {
-      setTimeout(triggerAutoBurst, 5000)
+      setTimeout(triggerAutoBurst, 150)
       return
     }
     setNow(performance.now())
