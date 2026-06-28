@@ -46,6 +46,7 @@ public sealed class LauncherWindow : Window
   readonly TextBox[] codeBoxes = new TextBox[6];
   readonly Button setupSendButton = new();
   readonly Button setupCancelButton = new();
+  readonly ProgressBar setupProgressBar = new();
   readonly StackPanel stepPanel = new();
   readonly TextBlock statusText = new();
   readonly string installRoot;
@@ -202,7 +203,7 @@ public sealed class LauncherWindow : Window
 
     setupInputPanel.Visibility = Visibility.Collapsed;
     setupInputPanel.Margin = new Thickness(0, 8, 0, 0);
-    setupInputPanel.Padding = new Thickness(8, 6);
+    setupInputPanel.Padding = new Thickness(8, 6, 8, 6);
     setupInputPanel.CornerRadius = new CornerRadius(6);
     setupInputPanel.BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83));
     setupInputPanel.BorderThickness = new Thickness(1);
@@ -242,6 +243,15 @@ public sealed class LauncherWindow : Window
     setupPromptText.Margin = new Thickness(0, 0, 0, 6);
     setupPromptText.TextWrapping = TextWrapping.Wrap;
     panel.Children.Add(setupPromptText);
+
+    setupProgressBar.Height = 4;
+    setupProgressBar.Margin = new Thickness(0, 4, 0, 10);
+    setupProgressBar.Background = new SolidColorBrush(Color.FromRgb(17, 23, 34));
+    setupProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(35, 225, 126));
+    setupProgressBar.BorderThickness = new Thickness(0);
+    setupProgressBar.IsIndeterminate = true;
+    setupProgressBar.Visibility = Visibility.Collapsed;
+    panel.Children.Add(setupProgressBar);
 
     var row = new Grid();
     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1029,6 +1039,7 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     setupInputPanel.Visibility = Visibility.Visible;
     setupPromptActive = active;
     RenderSetupPrompt(prompt);
+    setupProgressBar.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
     bool isCodePrompt = active && prompt.Contains("verification code", StringComparison.OrdinalIgnoreCase);
 
     setupInput.Visibility = isCodePrompt ? Visibility.Collapsed : Visibility.Visible;
