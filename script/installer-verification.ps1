@@ -82,6 +82,7 @@ function Get-ErrorResponse($ErrorRecord) {
   }
 }
 
+$Script:isDefaultRequestAction = -not $RequestAction
 if (-not $RequestAction) {
   $RequestAction = {
     param($Method, $Uri, $Body)
@@ -112,10 +113,169 @@ if (-not $RequestAction) {
   }
 }
 
+function Invoke-VerificationRequestSync($Method, $Uri, $Body) {
+  try {
+    $parameters = @{
+      Uri = $Uri
+      Method = $Method
+      TimeoutSec = 20
+      Headers = @{ Accept = "application/json" }
+    }
+    if ($null -ne $Body) {
+      $parameters.ContentType = "application/json"
+      $parameters.Body = $Body | ConvertTo-Json -Depth 5 -Compress
+    }
+    $response = Invoke-RestMethod @parameters
+    return [pscustomobject]@{
+      Success = $true
+      StatusCode = 200
+      Body = $response
+      Code = $null
+      Message = $null
+      RetryAfter = $null
+      Transient = $false
+    }
+  } catch {
+    return Get-ErrorResponse $_
+  }
+}
+
+function Invoke-WithProgress {
+  param(
+    [string]$Method,
+    [string]$Uri,
+    [object]$Body,
+    [string]$StatusText = "Connecting..."
+  )
+
+  # Check if we are in non-interactive mode or launcher UI mode
+  if ($NonInteractive -or $env:CODY_LAUNCHER_UI -eq "1") {
+    return Invoke-VerificationRequestSync $Method $Uri $Body
+  }
+
+  $ps = [PowerShell]::Create()
+  
+  $sb = {
+    param($Method, $Uri, $BodyJson)
+    
+    function Get-ErrorResponseInternal($ErrorRecord) {
+      $statusCode = 0
+      $retryAfter = $null
+      try {
+        $statusCode = [int]$ErrorRecord.Exception.Response.StatusCode
+        $retryAfter = $ErrorRecord.Exception.Response.Headers["Retry-After"]
+      } catch {}
+
+      $code = "request_failed"
+      $message = "The verification service could not process the request."
+      try {
+        $details = $ErrorRecord.ErrorDetails.Message | ConvertFrom-Json
+        if ($details.error) { $code = [string]$details.error }
+        if ($details.message) { $message = [string]$details.message }
+      } catch {
+        if ($ErrorRecord.Exception.Message) { $message = $ErrorRecord.Exception.Message }
+      }
+
+      return [pscustomobject]@{
+        Success = $false
+        StatusCode = $statusCode
+        Code = $code
+        Message = $message
+        RetryAfter = $retryAfter
+        Transient = ($statusCode -eq 0 -or $statusCode -eq 408 -or $statusCode -ge 500)
+      }
+    }
+
+    try {
+      $parameters = @{
+        Uri = $Uri
+        Method = $Method
+        TimeoutSec = 20
+        Headers = @{ Accept = "application/json" }
+      }
+      if ($null -ne $BodyJson -and $BodyJson -ne "") {
+        $parameters.ContentType = "application/json"
+        $parameters.Body = $BodyJson
+      }
+      $response = Invoke-RestMethod @parameters
+      return [pscustomobject]@{
+        Success = $true
+        StatusCode = 200
+        Body = $response
+        Code = $null
+        Message = $null
+        RetryAfter = $null
+        Transient = $false
+      }
+    } catch {
+      return Get-ErrorResponseInternal $_
+    }
+  }
+
+  $bodyJson = if ($null -ne $Body) { $Body | ConvertTo-Json -Depth 5 -Compress } else { "" }
+  $null = $ps.AddScript($sb)
+  $null = $ps.AddArgument($Method)
+  $null = $ps.AddArgument($Uri)
+  $null = $ps.AddArgument($bodyJson)
+  
+  $asyncResult = $ps.BeginInvoke()
+
+  $colors = @(196, 202, 208, 214, 220, 226, 190, 154, 118, 82, 46, 51, 21, 57, 93, 129, 165, 201)
+  $chars = @([char]0x2588, [char]0x2593, [char]0x2592, [char]0x2591)
+  $tick = 0
+
+  while (-not $asyncResult.IsCompleted) {
+    $bar = ""
+    for ($i = 0; $i -lt 25; $i++) {
+      $color = $colors[($tick + $i) % $colors.Count]
+      if ((Get-Random -Minimum 0 -Maximum 10) -eq 0) {
+        $bar += "$([char]27)[38;5;231m$([char]0x2726)"
+      } else {
+        $charIndex = [math]::Floor(($tick + $i) / 2) % $chars.Count
+        $char = $chars[$charIndex]
+        $bar += "$([char]27)[38;5;${color}m$char"
+      }
+    }
+    Write-Host -NoNewline "`r$([char]27)[94m[Codyx]$([char]27)[0m $StatusText $bar$([char]27)[0m"
+    $tick++
+    Start-Sleep -Milliseconds 80
+  }
+
+  Write-Host -NoNewline "`r$([char]27)[K"
+
+  $res = $ps.EndInvoke($asyncResult)
+  $ps.Dispose()
+
+  if ($null -eq $res -or $res.Count -eq 0) {
+    return [pscustomobject]@{
+      Success = $false
+      StatusCode = 0
+      Code = "unexpected_null_response"
+      Message = "Background request returned no output."
+      RetryAfter = $null
+      Transient = $true
+    }
+  }
+
+  return $res[0]
+}
+
 function Invoke-VerificationApi($Method, $Path, $Body = $null) {
   $backoff = 1
+  $url = "$($ServiceUrl.TrimEnd('/'))$Path"
   for ($attempt = 1; $attempt -le 3; $attempt++) {
-    $result = & $RequestAction $Method "$($ServiceUrl.TrimEnd('/'))$Path" $Body
+    if ($Script:isDefaultRequestAction) {
+      $statusText = "Connecting..."
+      if ($Path -like "*/validate") { $statusText = "Checking saved verification..." }
+      elseif ($Path -like "*/challenges" -and $Path -notlike "*/resend") { $statusText = "Sending verification code..." }
+      elseif ($Path -like "*/verify") { $statusText = "Verifying code..." }
+      elseif ($Path -like "*/resend") { $statusText = "Resending code..." }
+
+      $result = Invoke-WithProgress -Method $Method -Uri $url -Body $Body -StatusText $statusText
+    } else {
+      $result = & $RequestAction $Method $url $Body
+    }
+
     if ($result.Success -or -not $result.Transient) { return $result }
     if ($attempt -lt 3) {
       Write-VerificationWarn "Verification service unavailable (attempt $attempt/3). Retrying..."

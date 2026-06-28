@@ -343,12 +343,37 @@ function Refresh-Install {
     Push-Location $InstallRoot
     $previousHusky = $env:HUSKY
     $env:HUSKY = "0"
+    $success = $false
     try {
-      $code = Invoke-Native $bun @("install", "--force")
-      if ($code -ne 0) { throw "bun install failed." }
+      # Attempt 1: standard bun install
+      $code = Invoke-Native $bun @("install")
+      if ($code -eq 0) {
+        $success = $true
+      } else {
+        Write-Warn "Standard 'bun install' failed. Trying with --force..."
+        $code = Invoke-Native $bun @("install", "--force")
+        if ($code -eq 0) {
+          $success = $true
+        } else {
+          Write-Warn "Forced dependency install failed. Cleaning bun cache and retrying..."
+          $null = Invoke-Native $bun @("pm", "cache", "clean")
+          $code = Invoke-Native $bun @("install")
+          if ($code -eq 0) { $success = $true }
+        }
+      }
     } finally {
       $env:HUSKY = $previousHusky
       Pop-Location
+    }
+
+    if (-not $success) {
+      $hasDrizzle = Test-Path -LiteralPath (Join-Path $InstallRoot "packages\codyx\node_modules\drizzle-orm\sqlite-core\index.js")
+      $hasApp = Test-Path -LiteralPath (Join-Path $InstallRoot "node_modules")
+      if ($hasDrizzle -and $hasApp) {
+        Write-Warn "Some dependencies could not be refreshed, but critical workspace packages exist. Continuing launch..."
+      } else {
+        throw "Dependency installation failed and critical workspace packages are missing. Run bun install manually."
+      }
     }
   }
 
