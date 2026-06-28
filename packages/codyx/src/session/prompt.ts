@@ -1627,8 +1627,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           let lastAssistant: MessageV2.Assistant | undefined
           let lastFinished: MessageV2.Assistant | undefined
           let tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
-          for (let i = msgs.length - 1; i >= 0; i--) {
-            const msg = msgs[i]
+          const chronological = [...msgs].sort((a, b) => (a.info.id < b.info.id ? -1 : a.info.id > b.info.id ? 1 : 0))
+          for (let i = chronological.length - 1; i >= 0; i--) {
+            const msg = chronological[i]
             if (!lastUser && msg.info.role === "user") lastUser = msg.info
             if (!lastAssistant && msg.info.role === "assistant") lastAssistant = msg.info
             if (!lastFinished && msg.info.role === "assistant" && msg.info.finish) lastFinished = msg.info
