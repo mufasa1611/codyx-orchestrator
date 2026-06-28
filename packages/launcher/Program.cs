@@ -73,6 +73,7 @@ public sealed class LauncherWindow : Window
   void ConfigureWindow()
   {
     Title = "codyx Launcher";
+    Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png"));
     var workArea = SystemParameters.WorkArea;
     Width = Math.Min(980, Math.Max(760, workArea.Width - 80));
     Height = Math.Min(1080, Math.Max(880, workArea.Height - 80));
