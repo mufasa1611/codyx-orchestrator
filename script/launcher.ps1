@@ -385,7 +385,7 @@ function Refresh-Install {
       Write-Info "Rebuilding Web UI..."
       Push-Location $appDir
       try {
-        $code = Invoke-Native $bun @("run", "build")
+        $code = Invoke-Native $bun @("run", "--bun", "build")
         if ($code -ne 0) { Write-Warn "Web UI build failed. The CLI can still launch." }
       } finally {
         Pop-Location
