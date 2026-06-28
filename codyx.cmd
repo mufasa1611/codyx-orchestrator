@@ -148,7 +148,7 @@ if "%CODY_UPDATED%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Refreshing dependencies after update...
   set "CODY_PREVIOUS_HUSKY=!HUSKY!"
   set "HUSKY=0"
-  call "%BUN%" install --cwd "%ROOT%."
+  call "%BUN%" install --no-save --cwd "%ROOT%."
   set "HUSKY=!CODY_PREVIOUS_HUSKY!"
   if errorlevel 1 exit /b %ERRORLEVEL%
 )
@@ -160,7 +160,7 @@ if "%CODY_DEPS_BROKEN%"=="1" (
   echo %ESC%[94m[Codyx]%ESC%[0m Dependencies are missing or incomplete. Running bun install --force...
   set "CODY_PREVIOUS_HUSKY=!HUSKY!"
   set "HUSKY=0"
-  call "%BUN%" install --force --cwd "%ROOT%."
+  call "%BUN%" install --no-save --force --cwd "%ROOT%."
   set "HUSKY=!CODY_PREVIOUS_HUSKY!"
   if errorlevel 1 exit /b %ERRORLEVEL%
 )

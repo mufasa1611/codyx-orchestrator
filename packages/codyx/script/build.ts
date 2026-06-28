@@ -14,7 +14,7 @@ process.chdir(dir)
 
 await import("./generate.ts")
 
-import { Script } from "@cody/script"
+import { Script } from "../../script/src/index.ts"
 import pkg from "../package.json"
 
 const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"

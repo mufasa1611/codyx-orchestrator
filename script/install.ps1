@@ -627,20 +627,86 @@ function Invoke-WithRetry($ScriptBlock, $Label, $MaxRetries = 3) {
 
 function Get-CodyxSparseCheckoutPaths {
   return @(
-    "packages/codyx", "packages/sdk", "packages/plugin",
-    "packages/gitlab-auth", "packages/poe-auth", "packages/script",
-    "packages/app", "packages/ui", "packages/core", "packages/slack",
-    "patches", "script"
+    "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
+    "/patches/",
+    "/script/discover-local-models.ps1",
+    "/script/ensure-default-config.ps1",
+    "/script/install-codyx-global.ps1",
+    "/script/install.ps1",
+    "/script/installer-verification.ps1",
+    "/script/launcher-menu.ps1",
+    "/script/launcher.ps1",
+    "/script/update-install-marker.ps1",
+    "/script/update-progress.ps1",
+    "/packages/app/",
+    "/packages/codyx/",
+    "/packages/core/",
+    "/packages/plugin/",
+    "/packages/sdk/",
+    "/packages/ui/",
+    "!/packages/app/e2e/",
+    "!/packages/codyx/test/",
+    "!/packages/core/test/",
+    "!**/*.spec.ts",
+    "!**/*.spec.tsx",
+    "!**/*.stories.tsx",
+    "!**/*.test.ts",
+    "!**/*.test.tsx",
+    "!**/src/storybook/"
   )
+}
+
+function Disable-CodyxGitPush {
+  & git remote set-url --push origin DISABLED-BY-CODYX-END-USER-INSTALL 2>$null
+}
+
+function Test-CodyxPathUnderRoot($Root, $Path) {
+  try {
+    $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd("\")
+    $pathFull = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+    return $pathFull.Equals($rootFull, [System.StringComparison]::OrdinalIgnoreCase) -or $pathFull.StartsWith("$rootFull\", [System.StringComparison]::OrdinalIgnoreCase)
+  } catch {
+    return $false
+  }
+}
+
+function Remove-CodyxEndUserSourceExtras {
+  $installRoot = (Get-Location).Path
+  $relativePaths = @(
+    "packages\app\e2e",
+    "packages\codyx\test",
+    "packages\core\test",
+    "packages\gitlab-auth",
+    "packages\poe-auth",
+    "packages\script"
+  )
+  foreach ($relativePath in $relativePaths) {
+    $target = Join-Path $installRoot $relativePath
+    if ((Test-Path -LiteralPath $target) -and (Test-CodyxPathUnderRoot $installRoot $target)) {
+      Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+    }
+  }
+
+  $packagesRoot = Join-Path $installRoot "packages"
+  if (-not (Test-Path -LiteralPath $packagesRoot)) { return }
+  Get-ChildItem -LiteralPath $packagesRoot -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch "\\node_modules\\" -and $_.Name -match "\.(test|spec)\.tsx?$|\.stories\.tsx$" } |
+    ForEach-Object {
+      if (Test-CodyxPathUnderRoot $installRoot $_.FullName) {
+        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+      }
+    }
 }
 
 function Enable-CodyxSlimCheckout {
   Write-Step "Ensuring slim end-user checkout..."
-  & git sparse-checkout init --cone
+  & git sparse-checkout init --no-cone
   if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout init failed" }
   $sparsePaths = Get-CodyxSparseCheckoutPaths
-  & git sparse-checkout set @sparsePaths
+  & git sparse-checkout set --no-cone @sparsePaths
   if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout set failed" }
+  Disable-CodyxGitPush
+  Remove-CodyxEndUserSourceExtras
 }
 
 function Sync-InstallCheckout($TargetBranch) {
@@ -832,9 +898,9 @@ if ($IsStandalone) {
       if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
       Push-Location $Root
       try {
-        & git sparse-checkout init --cone
+        & git sparse-checkout init --no-cone
         $sparsePaths = Get-CodyxSparseCheckoutPaths
-        & git sparse-checkout set @sparsePaths
+        & git sparse-checkout set --no-cone @sparsePaths
         if ($LASTEXITCODE -ne 0) { throw "git sparse-checkout set failed" }
         & git checkout $Branch
         if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
@@ -873,7 +939,7 @@ Invoke-WithRetry {
   $previousHusky = $env:HUSKY
   $env:HUSKY = "0"
   try {
-    & bun install
+    & bun install --no-save
     if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
   } finally {
     $env:HUSKY = $previousHusky

@@ -46,12 +46,18 @@ public sealed class LauncherWindow : Window
   readonly TextBox[] codeBoxes = new TextBox[6];
   readonly Button setupSendButton = new();
   readonly Button setupCancelButton = new();
-  readonly ProgressBar setupProgressBar = new();
+  readonly Button resendButton = new();
+  readonly Button exitButton = new();
+  Border modalScanPanel = null!;
+  Border yesOption = null!;
+  Border noOption = null!;
+  readonly Rectangle progressOverlay = new();
   readonly StackPanel stepPanel = new();
   readonly TextBlock statusText = new();
   readonly string installRoot;
   string launcherScript = "";
   bool detailsVisible;
+  bool scanSelected = true;
   Process? setupProcess;
   RoutedEventHandler? primaryHandler;
   bool setupPromptActive;
@@ -69,9 +75,9 @@ public sealed class LauncherWindow : Window
     Title = "codyx Launcher";
     var workArea = SystemParameters.WorkArea;
     Width = Math.Min(980, Math.Max(760, workArea.Width - 80));
-    Height = Math.Min(940, Math.Max(680, workArea.Height - 80));
-    MinWidth = Math.Min(760, Width);
-    MinHeight = Math.Min(680, Height);
+    Height = Math.Min(1080, Math.Max(880, workArea.Height - 80));
+    MinWidth = Math.Min(880, Width);
+    MinHeight = Math.Min(880, Height);
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
     Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
   }
@@ -99,55 +105,86 @@ public sealed class LauncherWindow : Window
       Margin = new Thickness(0, 0, 0, 18),
     });
 
+    var wBrush = new LinearGradientBrush
+    {
+      StartPoint = new Point(0, 0),
+      EndPoint = new Point(1, 0),
+    };
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.0));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.25));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.4));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.48));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 250, 200), 0.5)); // Sparkling golden-white center
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.52));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.6));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.75));
+    wBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 1.0));
+
+    var wTrans = new TranslateTransform(-1.5, 0);
+    wBrush.RelativeTransform = wTrans;
+
     body.Children.Add(new TextBlock
     {
-      Text = "welcome to mufasa",
-      Foreground = new SolidColorBrush(Color.FromRgb(35, 225, 126)),
-      FontSize = 30,
+      Text = "Welcome to Codyx",
+      Foreground = wBrush,
+      FontSize = 32,
       FontWeight = FontWeights.Bold,
       HorizontalAlignment = HorizontalAlignment.Center,
-      Margin = new Thickness(0, 0, 0, 2),
+      Margin = new Thickness(0, 0, 0, 4),
     });
 
-    body.Children.Add(new Grid
+    body.Children.Add(new TextBlock
     {
-      Height = 28,
-      ClipToBounds = true,
-      Margin = new Thickness(0, 0, 0, 24),
+      Text = "A multi-agent assistant",
+      Foreground = new SolidColorBrush(Color.FromRgb(165, 176, 195)),
+      FontSize = 16,
+      FontWeight = FontWeights.SemiBold,
       HorizontalAlignment = HorizontalAlignment.Center,
-      Children =
-      {
-        new Rectangle
-        {
-          Fill = new LinearGradientBrush(
-            [
-              new GradientStop(Color.FromArgb(0, 28, 216, 117), 0),
-              new GradientStop(Color.FromArgb(100, 28, 216, 117), 0.45),
-              new GradientStop(Color.FromArgb(0, 28, 216, 117), 1),
-            ],
-            0),
-          Width = 280,
-          Opacity = 0.35,
-          HorizontalAlignment = HorizontalAlignment.Left,
-          RenderTransform = new TranslateTransform(-280, 0),
-        },
-        new TextBlock
-        {
-          Text = "codyx multi agent build",
-          Foreground = new SolidColorBrush(Color.FromRgb(214, 220, 231)),
-          FontSize = 17,
-          HorizontalAlignment = HorizontalAlignment.Center,
-        },
-      },
+      Margin = new Thickness(0, 0, 0, 6),
     });
-    var subtitleGlow = (Rectangle)((Grid)body.Children[^1]).Children[0];
-    ((TranslateTransform)subtitleGlow.RenderTransform).BeginAnimation(
-      TranslateTransform.XProperty,
-      new DoubleAnimation(-280, 800, TimeSpan.FromSeconds(4.2))
-      {
-        RepeatBehavior = RepeatBehavior.Forever,
-        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-      });
+
+    var cBrush = new LinearGradientBrush
+    {
+      StartPoint = new Point(0, 0),
+      EndPoint = new Point(1, 0),
+    };
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.0));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.25));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.4));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.48));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 250, 200), 0.5)); // Sparkling golden-white center
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.52));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.6));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.75));
+    cBrush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 1.0));
+
+    var cTrans = new TranslateTransform(1.5, 0);
+    cBrush.RelativeTransform = cTrans;
+
+    body.Children.Add(new TextBlock
+    {
+      Text = "by M. Farid (Mufasa)",
+      Foreground = cBrush,
+      FontSize = 18,
+      FontWeight = FontWeights.SemiBold,
+      FontFamily = new FontFamily("Segoe Script"),
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 0, 0, 20),
+    });
+
+    wTrans.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1.5, 1.5, TimeSpan.FromSeconds(6.0))
+    {
+      RepeatBehavior = RepeatBehavior.Forever,
+      AutoReverse = false,
+      EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+    });
+
+    cTrans.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(1.5, -1.5, TimeSpan.FromSeconds(6.0))
+    {
+      RepeatBehavior = RepeatBehavior.Forever,
+      AutoReverse = false,
+      EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+    });
 
     statusText.Text = "Getting codyx ready";
     statusText.Foreground = new SolidColorBrush(Color.FromRgb(165, 176, 195));
@@ -235,6 +272,8 @@ public sealed class LauncherWindow : Window
 
   UIElement BuildSetupInputPanel()
   {
+    var root = new Grid();
+
     var panel = new StackPanel();
     setupPromptText.Text = "Waiting for installer prompt...";
     setupPromptText.Foreground = Brushes.White;
@@ -244,21 +283,9 @@ public sealed class LauncherWindow : Window
     setupPromptText.TextWrapping = TextWrapping.Wrap;
     panel.Children.Add(setupPromptText);
 
-    setupProgressBar.Height = 4;
-    setupProgressBar.Margin = new Thickness(0, 4, 0, 10);
-    setupProgressBar.Background = new SolidColorBrush(Color.FromRgb(17, 23, 34));
-    setupProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(35, 225, 126));
-    setupProgressBar.BorderThickness = new Thickness(0);
-    setupProgressBar.IsIndeterminate = true;
-    setupProgressBar.Visibility = Visibility.Collapsed;
-    panel.Children.Add(setupProgressBar);
+    var inputArea = new StackPanel();
 
-    var row = new Grid();
-    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-    setupInput.Margin = new Thickness(0, 0, 10, 0);
+    setupInput.Margin = new Thickness(0, 0, 10, 6);
     setupInput.MinHeight = 28;
     setupInput.FontSize = 13;
     setupInput.Background = new SolidColorBrush(Color.FromRgb(7, 10, 15));
@@ -271,12 +298,12 @@ public sealed class LauncherWindow : Window
       SendSetupInput();
       e.Handled = true;
     };
-    row.Children.Add(setupInput);
+    inputArea.Children.Add(setupInput);
 
     var codeRow = new StackPanel
     {
       Orientation = Orientation.Horizontal,
-      Margin = new Thickness(0, 0, 10, 0),
+      Margin = new Thickness(0, 0, 0, 6),
       Visibility = Visibility.Collapsed,
     };
     for (int i = 0; i < 6; i++)
@@ -316,10 +343,7 @@ public sealed class LauncherWindow : Window
             var text = Clipboard.GetText().Trim();
             if (text.Length == 6 && text.All(char.IsDigit))
             {
-              for (int k = 0; k < 6; k++)
-              {
-                codeBoxes[k].Text = text[k].ToString();
-              }
+              for (int k = 0; k < 6; k++) codeBoxes[k].Text = text[k].ToString();
               SendSetupInput();
               e.Handled = true;
               return;
@@ -336,8 +360,98 @@ public sealed class LauncherWindow : Window
       codeBoxes[i] = box;
       codeRow.Children.Add(box);
     }
-    Grid.SetColumn(codeRow, 0);
-    row.Children.Add(codeRow);
+
+    resendButton.Content = "Resend";
+    resendButton.Padding = new Thickness(10, 6, 10, 6);
+    resendButton.FontSize = 12;
+    resendButton.Margin = new Thickness(8, 0, 4, 0);
+    resendButton.Visibility = Visibility.Collapsed;
+    resendButton.Click += (_, _) => SendSetupInput("resend");
+    codeRow.Children.Add(resendButton);
+
+    exitButton.Content = "Exit";
+    exitButton.Padding = new Thickness(10, 6, 10, 6);
+    exitButton.FontSize = 12;
+    exitButton.Margin = new Thickness(0, 0, 0, 0);
+    exitButton.Visibility = Visibility.Collapsed;
+    exitButton.Click += (_, _) => SendSetupInput("cancel");
+    codeRow.Children.Add(exitButton);
+
+    inputArea.Children.Add(codeRow);
+
+    modalScanPanel = new Border();
+    modalScanPanel.Visibility = Visibility.Collapsed;
+    modalScanPanel.Margin = new Thickness(0, 4, 0, 6);
+    modalScanPanel.Padding = new Thickness(4);
+    modalScanPanel.CornerRadius = new CornerRadius(6);
+    modalScanPanel.Background = new SolidColorBrush(Color.FromRgb(12, 18, 28));
+    modalScanPanel.Focusable = true;
+    modalScanPanel.IsEnabled = false;
+
+    var scanStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+    scanStack.Children.Add(new TextBlock
+    {
+      Text = "Scan local Ollama models now?",
+      Foreground = Brushes.White,
+      FontWeight = FontWeights.SemiBold,
+      FontSize = 13,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 4, 0, 10),
+    });
+
+    var scanButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+
+    yesOption = new Border
+    {
+      Width = 100,
+      Padding = new Thickness(16, 8, 16, 8),
+      CornerRadius = new CornerRadius(6),
+      Background = new SolidColorBrush(Color.FromRgb(35, 225, 126)),
+      BorderBrush = new SolidColorBrush(Color.FromRgb(35, 225, 126)),
+      BorderThickness = new Thickness(2),
+      Cursor = Cursors.Hand,
+      Child = new TextBlock { Text = "  Yes  ", Foreground = Brushes.Black, FontWeight = FontWeights.Bold, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center },
+      Margin = new Thickness(0, 0, 12, 0),
+    };
+    yesOption.MouseDown += (_, _) => SendSetupInput("y");
+
+    noOption = new Border
+    {
+      Width = 100,
+      Padding = new Thickness(16, 8, 16, 8),
+      CornerRadius = new CornerRadius(6),
+      Background = new SolidColorBrush(Color.FromRgb(60, 70, 90)),
+      BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83)),
+      BorderThickness = new Thickness(2),
+      Cursor = Cursors.Hand,
+      Child = new TextBlock { Text = "  No  ", Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center },
+    };
+    noOption.MouseDown += (_, _) => SendSetupInput("n");
+
+    scanButtons.Children.Add(yesOption);
+    scanButtons.Children.Add(noOption);
+    scanStack.Children.Add(scanButtons);
+    modalScanPanel.Child = scanStack;
+
+    modalScanPanel.PreviewKeyDown += (_, e) =>
+    {
+      if (e.Key == Key.Left || e.Key == Key.Right)
+      {
+        scanSelected = !scanSelected;
+        UpdateScanSelection();
+        e.Handled = true;
+      }
+      if (e.Key == Key.Enter || e.Key == Key.Space)
+      {
+        SendSetupInput(scanSelected ? "y" : "n");
+        e.Handled = true;
+      }
+    };
+
+    inputArea.Children.Add(modalScanPanel);
+    panel.Children.Add(inputArea);
+
+    var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 0, 0) };
 
     setupCancelButton.Content = "Cancel";
     setupCancelButton.Padding = new Thickness(14, 6, 14, 6);
@@ -346,19 +460,56 @@ public sealed class LauncherWindow : Window
     setupCancelButton.IsEnabled = false;
     setupCancelButton.Visibility = Visibility.Collapsed;
     setupCancelButton.Click += (_, _) => SendSetupInput("cancel");
-    Grid.SetColumn(setupCancelButton, 1);
-    row.Children.Add(setupCancelButton);
+    buttonRow.Children.Add(setupCancelButton);
 
     setupSendButton.Content = "Send";
     setupSendButton.Padding = new Thickness(16, 6, 16, 6);
     setupSendButton.FontSize = 13;
     setupSendButton.IsEnabled = false;
     setupSendButton.Click += (_, _) => SendSetupInput();
-    Grid.SetColumn(setupSendButton, 2);
-    row.Children.Add(setupSendButton);
+    buttonRow.Children.Add(setupSendButton);
 
-    panel.Children.Add(row);
-    return panel;
+    panel.Children.Add(buttonRow);
+    root.Children.Add(panel);
+
+    progressOverlay.Height = 4;
+    progressOverlay.VerticalAlignment = VerticalAlignment.Bottom;
+    progressOverlay.HorizontalAlignment = HorizontalAlignment.Stretch;
+    progressOverlay.Visibility = Visibility.Collapsed;
+    progressOverlay.IsHitTestVisible = false;
+    progressOverlay.Opacity = 0.8;
+
+    var progressBrush = new LinearGradientBrush
+    {
+      StartPoint = new Point(0, 0),
+      EndPoint = new Point(1, 0),
+      SpreadMethod = GradientSpreadMethod.Repeat,
+    };
+    var progressColors = new[] {
+      Color.FromRgb(46, 204, 113),
+      Color.FromRgb(52, 152, 219),
+      Color.FromRgb(155, 89, 182),
+      Color.FromRgb(231, 76, 60),
+      Color.FromRgb(241, 196, 15),
+      Color.FromRgb(46, 204, 113),
+    };
+    for (int i = 0; i < progressColors.Length; i++)
+    {
+      progressBrush.GradientStops.Add(new GradientStop(progressColors[i], (double)i / (progressColors.Length - 1)));
+    }
+    progressOverlay.Fill = progressBrush;
+
+    var progressTrans = new TranslateTransform(0, 0);
+    progressBrush.RelativeTransform = progressTrans;
+    var progressAnim = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(2))
+    {
+      RepeatBehavior = RepeatBehavior.Forever,
+    };
+    progressTrans.BeginAnimation(TranslateTransform.XProperty, progressAnim);
+
+    root.Children.Add(progressOverlay);
+
+    return root;
   }
 
   UIElement BuildLaunchChoicePanel()
@@ -1057,15 +1208,19 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     setupInputPanel.Visibility = Visibility.Visible;
     setupPromptActive = active;
     RenderSetupPrompt(prompt);
-    setupProgressBar.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+    progressOverlay.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+
     bool isCodePrompt = active && (
       prompt.Contains("verification code", StringComparison.OrdinalIgnoreCase) ||
       prompt.Contains("Enter code", StringComparison.OrdinalIgnoreCase) ||
-      prompt.Contains("six-digit code", StringComparison.OrdinalIgnoreCase)
+      prompt.Contains("six-digit code", StringComparison.OrdinalIgnoreCase) ||
+      prompt.Contains("resend", StringComparison.OrdinalIgnoreCase)
     );
 
-    setupInput.Visibility = isCodePrompt ? Visibility.Collapsed : Visibility.Visible;
-    setupInput.IsEnabled = active && !isCodePrompt;
+    bool isScanPrompt = active && prompt.Contains("Scan local", StringComparison.OrdinalIgnoreCase);
+
+    setupInput.Visibility = !isCodePrompt && !isScanPrompt ? Visibility.Visible : Visibility.Collapsed;
+    setupInput.IsEnabled = active && !isCodePrompt && !isScanPrompt;
 
     foreach (var box in codeBoxes)
     {
@@ -1074,17 +1229,37 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
       box.Text = "";
     }
 
-    setupSendButton.IsEnabled = active;
+    resendButton.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
+    exitButton.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
+
+    modalScanPanel.Visibility = isScanPrompt ? Visibility.Visible : Visibility.Collapsed;
+    modalScanPanel.IsEnabled = active && isScanPrompt;
+
+    setupSendButton.IsEnabled = active && !isScanPrompt;
     setupCancelButton.Visibility = active && prompt.Contains("cancel", StringComparison.OrdinalIgnoreCase)
       ? Visibility.Visible
       : Visibility.Collapsed;
     setupCancelButton.IsEnabled = setupCancelButton.Visibility == Visibility.Visible;
 
+    scanSelected = true;
+    UpdateScanSelection();
+
     if (active)
     {
-      if (isCodePrompt) codeBoxes[0].Focus();
+      if (isScanPrompt) modalScanPanel.Focus();
+      else if (isCodePrompt) codeBoxes[0].Focus();
       else setupInput.Focus();
     }
+  }
+
+  void UpdateScanSelection()
+  {
+    yesOption.Background = new SolidColorBrush(scanSelected ? Color.FromRgb(35, 225, 126) : Color.FromRgb(60, 70, 90));
+    yesOption.BorderBrush = new SolidColorBrush(scanSelected ? Color.FromRgb(35, 225, 126) : Color.FromRgb(54, 65, 83));
+    ((TextBlock)yesOption.Child).Foreground = new SolidColorBrush(scanSelected ? Colors.Black : Colors.White);
+    noOption.Background = new SolidColorBrush(scanSelected ? Color.FromRgb(60, 70, 90) : Color.FromRgb(35, 225, 126));
+    noOption.BorderBrush = new SolidColorBrush(scanSelected ? Color.FromRgb(54, 65, 83) : Color.FromRgb(35, 225, 126));
+    ((TextBlock)noOption.Child).Foreground = new SolidColorBrush(scanSelected ? Colors.White : Colors.Black);
   }
 
   void RenderSetupPrompt(string prompt)

@@ -15,8 +15,6 @@ import { CodexAuthPlugin } from "./codex"
 import { Session } from "@/session/session"
 import { NamedError } from "@cody/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
-import { gitlabAuthPlugin as GitlabAuthPlugin } from "@cody/gitlab-auth"
-import { PoeAuthPlugin } from "@cody/poe-auth"
 import { CloudflareAIGatewayAuthPlugin, CloudflareWorkersAuthPlugin } from "./cloudflare"
 import { AzureAuthPlugin } from "./azure"
 import { Effect, Layer, Context, Stream } from "effect"
@@ -59,8 +57,6 @@ export class Service extends Context.Service<Service, Interface>()("@cody/Plugin
 const INTERNAL_PLUGINS: PluginInstance[] = [
   CodexAuthPlugin,
   CopilotAuthPlugin,
-  GitlabAuthPlugin,
-  PoeAuthPlugin,
   CloudflareWorkersAuthPlugin,
   CloudflareAIGatewayAuthPlugin,
   AzureAuthPlugin,

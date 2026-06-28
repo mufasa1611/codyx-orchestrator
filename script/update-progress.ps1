@@ -50,6 +50,88 @@ function Invoke-Native($Command, [object[]]$Arguments = @()) {
     }
 }
 
+function Get-CodyxSparseCheckoutPaths {
+    return @(
+        "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
+        "/patches/",
+        "/script/discover-local-models.ps1",
+        "/script/ensure-default-config.ps1",
+        "/script/install-codyx-global.ps1",
+        "/script/install.ps1",
+        "/script/installer-verification.ps1",
+        "/script/launcher-menu.ps1",
+        "/script/launcher.ps1",
+        "/script/update-install-marker.ps1",
+        "/script/update-progress.ps1",
+        "/packages/app/",
+        "/packages/codyx/",
+        "/packages/core/",
+        "/packages/plugin/",
+        "/packages/sdk/",
+        "/packages/ui/",
+        "!/packages/app/e2e/",
+        "!/packages/codyx/test/",
+        "!/packages/core/test/",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.tsx",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/src/storybook/"
+    )
+}
+
+function Disable-CodyxGitPush {
+    $null = Invoke-Native "git" @("remote", "set-url", "--push", "origin", "DISABLED-BY-CODYX-END-USER-INSTALL")
+}
+
+function Test-CodyxPathUnderRoot($Root, $Path) {
+    try {
+        $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd("\")
+        $pathFull = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+        return $pathFull.Equals($rootFull, [System.StringComparison]::OrdinalIgnoreCase) -or $pathFull.StartsWith("$rootFull\", [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        return $false
+    }
+}
+
+function Remove-CodyxEndUserSourceExtras {
+    $installRoot = (Get-Location).Path
+    $relativePaths = @(
+        "packages\app\e2e",
+        "packages\codyx\test",
+        "packages\core\test",
+        "packages\gitlab-auth",
+        "packages\poe-auth",
+        "packages\script"
+    )
+    foreach ($relativePath in $relativePaths) {
+        $target = Join-Path $installRoot $relativePath
+        if ((Test-Path -LiteralPath $target) -and (Test-CodyxPathUnderRoot $installRoot $target)) {
+            Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+        }
+    }
+
+    $packagesRoot = Join-Path $installRoot "packages"
+    if (-not (Test-Path -LiteralPath $packagesRoot)) { return }
+    Get-ChildItem -LiteralPath $packagesRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch "\\node_modules\\" -and $_.Name -match "\.(test|spec)\.tsx?$|\.stories\.tsx$" } |
+        ForEach-Object {
+            if (Test-CodyxPathUnderRoot $installRoot $_.FullName) {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+            }
+        }
+}
+
+function Enable-CodyxSlimCheckout {
+    $code = Invoke-Native "git" @("sparse-checkout", "init", "--no-cone")
+    if ($code -ne 0) { throw "git sparse-checkout init failed." }
+    $code = Invoke-Native "git" (@("sparse-checkout", "set", "--no-cone") + (Get-CodyxSparseCheckoutPaths))
+    if ($code -ne 0) { throw "git sparse-checkout set failed." }
+    Disable-CodyxGitPush
+    Remove-CodyxEndUserSourceExtras
+}
+
 $cwd = (Get-Location).Path
 $tempFile = [System.IO.Path]::GetTempFileName()
 
@@ -88,6 +170,7 @@ try {
             & git reset --hard "origin/$Branch"
             $exitCode = $LASTEXITCODE
             if ($exitCode -eq 0) {
+                Enable-CodyxSlimCheckout
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Repair complete. Install checkout is now in sync."
             } else {
                 Write-Host "$([char]27)[91m[Codyx]$([char]27)[0m Repair failed. Re-run install.ps1."
@@ -106,6 +189,7 @@ try {
             
             $exitCode = (Get-Content -Path $tempFile -Raw -ErrorAction SilentlyContinue).Trim()
             if ($exitCode -eq "0") {
+                Enable-CodyxSlimCheckout
                 Write-Host "$([char]27)[94m[Codyx]$([char]27)[0m Update complete. Install checkout is now in sync."
             } else {
                 Write-Host "$([char]27)[91m[Codyx]$([char]27)[0m Update failed."

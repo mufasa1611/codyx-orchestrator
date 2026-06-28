@@ -24,7 +24,7 @@ import { WorkspaceRouterMiddleware } from "./workspace"
 import { InstanceMiddleware } from "./routes/instance/middleware"
 import { WorkspaceRoutes } from "./routes/control/workspace"
 import { ensureSecret } from "./auth/jwt"
-import { ensureAdmin } from "./auth/service"
+import { ensureAdmin, userCount } from "./auth/service"
 import { ExperimentalHttpApiServer } from "./routes/instance/httpapi/server"
 import { disposeMiddleware } from "./routes/instance/httpapi/lifecycle"
 import { WebSocketTracker } from "./routes/instance/httpapi/websocket-tracker"
@@ -185,6 +185,9 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
   ensureWebUIBuilt()
   ensureSecret()
   ensureAdmin()
+  if (!Flag.CODY_SERVER_PASSWORD && userCount() === 0) {
+    console.log("Warning: CODY_SERVER_PASSWORD is not set and no WebUI users are registered; server is unsecured.")
+  }
   const selected = select()
   const inner: Listener =
     selected.backend === "effect-httpapi" ? await listenHttpApi(opts, selected) : await listenLegacy(opts)

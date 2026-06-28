@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { Script } from "@cody/script"
+import { Script } from "../../script/src/index.ts"
 
 await import("./prebuild")
 

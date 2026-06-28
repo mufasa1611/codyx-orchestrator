@@ -65,9 +65,8 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
 
   // Skip auth only when neither legacy server auth nor WebUI account auth is configured.
   const password = Flag.CODY_SERVER_PASSWORD
-  const jwtSecret = Flag.CODY_JWT_SECRET
-  if (!password && !jwtSecret && !accountAuthRequired) {
-    console.log(`[codyx] Auth disabled: no CODY_SERVER_PASSWORD, CODY_JWT_SECRET, or WebUI users configured`)
+  if (!password && !accountAuthRequired) {
+    console.log(`[codyx] Auth disabled: no CODY_SERVER_PASSWORD or WebUI users configured`)
     return next()
   }
 

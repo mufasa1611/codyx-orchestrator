@@ -148,11 +148,74 @@ function Resolve-InstallRoot($RequestedRoot) {
 
 function Get-CodyxSparseCheckoutPaths {
   return @(
-    "packages/codyx", "packages/sdk", "packages/plugin",
-    "packages/gitlab-auth", "packages/poe-auth", "packages/script",
-    "packages/app", "packages/ui", "packages/core", "packages/slack",
-    "patches", "script"
+    "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
+    "/patches/",
+    "/script/discover-local-models.ps1",
+    "/script/ensure-default-config.ps1",
+    "/script/install-codyx-global.ps1",
+    "/script/install.ps1",
+    "/script/installer-verification.ps1",
+    "/script/launcher-menu.ps1",
+    "/script/launcher.ps1",
+    "/script/update-install-marker.ps1",
+    "/script/update-progress.ps1",
+    "/packages/app/",
+    "/packages/codyx/",
+    "/packages/core/",
+    "/packages/plugin/",
+    "/packages/sdk/",
+    "/packages/ui/",
+    "!/packages/app/e2e/",
+    "!/packages/codyx/test/",
+    "!/packages/core/test/",
+    "!**/*.spec.ts",
+    "!**/*.spec.tsx",
+    "!**/*.stories.tsx",
+    "!**/*.test.ts",
+    "!**/*.test.tsx",
+    "!**/src/storybook/"
   )
+}
+
+function Disable-CodyxGitPush {
+  $null = Invoke-Native "git" @("remote", "set-url", "--push", "origin", "DISABLED-BY-CODYX-END-USER-INSTALL")
+}
+
+function Test-CodyxPathUnderRoot($Root, $Path) {
+  try {
+    $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd("\")
+    $pathFull = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+    return $pathFull.Equals($rootFull, [System.StringComparison]::OrdinalIgnoreCase) -or $pathFull.StartsWith("$rootFull\", [System.StringComparison]::OrdinalIgnoreCase)
+  } catch {
+    return $false
+  }
+}
+
+function Remove-CodyxEndUserSourceExtras {
+  $relativePaths = @(
+    "packages\app\e2e",
+    "packages\codyx\test",
+    "packages\core\test",
+    "packages\gitlab-auth",
+    "packages\poe-auth",
+    "packages\script"
+  )
+  foreach ($relativePath in $relativePaths) {
+    $target = Join-Path $InstallRoot $relativePath
+    if ((Test-Path -LiteralPath $target) -and (Test-CodyxPathUnderRoot $InstallRoot $target)) {
+      Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+    }
+  }
+
+  $packagesRoot = Join-Path $InstallRoot "packages"
+  if (-not (Test-Path -LiteralPath $packagesRoot)) { return }
+  Get-ChildItem -LiteralPath $packagesRoot -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch "\\node_modules\\" -and $_.Name -match "\.(test|spec)\.tsx?$|\.stories\.tsx$" } |
+    ForEach-Object {
+      if (Test-CodyxPathUnderRoot $InstallRoot $_.FullName) {
+        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+      }
+    }
 }
 
 function Enable-CodyxSlimCheckout {
@@ -161,10 +224,12 @@ function Enable-CodyxSlimCheckout {
   Write-Info "Ensuring slim end-user checkout..."
   Push-Location $InstallRoot
   try {
-    $code = Invoke-Native "git" @("sparse-checkout", "init", "--cone")
+    $code = Invoke-Native "git" @("sparse-checkout", "init", "--no-cone")
     if ($code -ne 0) { throw "git sparse-checkout init failed." }
-    $code = Invoke-Native "git" (@("sparse-checkout", "set") + (Get-CodyxSparseCheckoutPaths))
+    $code = Invoke-Native "git" (@("sparse-checkout", "set", "--no-cone") + (Get-CodyxSparseCheckoutPaths))
     if ($code -ne 0) { throw "git sparse-checkout set failed." }
+    Disable-CodyxGitPush
+    Remove-CodyxEndUserSourceExtras
     return $true
   } finally {
     Pop-Location
@@ -345,19 +410,19 @@ function Refresh-Install {
     $env:HUSKY = "0"
     $success = $false
     try {
-      # Attempt 1: standard bun install
-      $code = Invoke-Native $bun @("install")
+      # Attempt 1: standard bun install without rewriting tracked lockfiles
+      $code = Invoke-Native $bun @("install", "--no-save")
       if ($code -eq 0) {
         $success = $true
       } else {
         Write-Warn "Standard 'bun install' failed. Trying with --force..."
-        $code = Invoke-Native $bun @("install", "--force")
+        $code = Invoke-Native $bun @("install", "--no-save", "--force")
         if ($code -eq 0) {
           $success = $true
         } else {
           Write-Warn "Forced dependency install failed. Cleaning bun cache and retrying..."
           $null = Invoke-Native $bun @("pm", "cache", "clean")
-          $code = Invoke-Native $bun @("install")
+          $code = Invoke-Native $bun @("install", "--no-save")
           if ($code -eq 0) { $success = $true }
         }
       }
@@ -379,19 +444,6 @@ function Refresh-Install {
 
   Update-CodyxInstallMarker
 
-  if (-not $NoBuild -and $updated) {
-    $appDir = Join-Path $InstallRoot "packages\app"
-    if (Test-Path -LiteralPath $appDir) {
-      Write-Info "Rebuilding Web UI..."
-      Push-Location $appDir
-      try {
-        $code = Invoke-Native $bun @("run", "--bun", "build")
-        if ($code -ne 0) { Write-Warn "Web UI build failed. The CLI can still launch." }
-      } finally {
-        Pop-Location
-      }
-    }
-  }
 }
 
 function Invoke-Codyx {
@@ -448,8 +500,8 @@ if (-not (Test-CodyxCheckout $InstallRoot)) {
     if ($code -ne 0) { throw "git clone failed." }
     Push-Location $InstallRoot
     try {
-      $null = Invoke-Native "git" @("sparse-checkout", "init", "--cone")
-      $code = Invoke-Native "git" (@("sparse-checkout", "set") + (Get-CodyxSparseCheckoutPaths))
+      $null = Invoke-Native "git" @("sparse-checkout", "init", "--no-cone")
+      $code = Invoke-Native "git" (@("sparse-checkout", "set", "--no-cone") + (Get-CodyxSparseCheckoutPaths))
       if ($code -ne 0) { throw "git sparse-checkout set failed." }
       $code = Invoke-Native "git" @("checkout", $Branch)
       if ($code -ne 0) { throw "git checkout failed." }

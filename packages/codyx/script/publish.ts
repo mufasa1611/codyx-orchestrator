@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { $ } from "bun"
 import pkg from "../package.json"
-import { Script } from "@cody/script"
+import { Script } from "../../script/src/index.ts"
 import { fileURLToPath } from "url"
 import fs from "fs"
 import path from "path"
