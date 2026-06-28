@@ -109,15 +109,15 @@ export function applyDirectoryEvent(input: {
     case "session.created": {
       const info = (event.properties as { info: Session }).info
       const result = Binary.search(input.store.session, info.id, (s) => s.id)
-      if (result.found) {
-        input.setStore("session", result.index, reconcile(info))
-        break
-      }
       const next = input.store.session.slice()
-      next.splice(result.index, 0, info)
+      if (result.found) {
+        next[result.index] = info
+      } else {
+        next.splice(result.index, 0, info)
+        if (!info.parentID) input.setStore("sessionTotal", (value) => value + 1)
+      }
       const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
       input.setStore("session", reconcile(trimmed, { key: "id" }))
-      if (!info.parentID) input.setStore("sessionTotal", (value) => value + 1)
       break
     }
     case "session.updated": {
@@ -138,7 +138,10 @@ export function applyDirectoryEvent(input: {
         break
       }
       if (result.found) {
-        input.setStore("session", result.index, reconcile(info))
+        const next = input.store.session.slice()
+        next[result.index] = info
+        const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
+        input.setStore("session", reconcile(trimmed, { key: "id" }))
         break
       }
       const next = input.store.session.slice()

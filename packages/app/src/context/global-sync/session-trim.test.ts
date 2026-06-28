@@ -28,6 +28,20 @@ describe("trimSessions", () => {
     expect(result.map((x) => x.id)).toEqual(["a", "b", "c", "d"])
   })
 
+  test("keeps newest roots as the base set instead of lexicographic ids", () => {
+    const now = 20_000_000
+    const result = trimSessions(
+      [
+        session({ id: "a-old", created: now - 15_000_000, updated: now - 15_000_000 }),
+        session({ id: "b-new", created: now - 1000, updated: now - 1000 }),
+        session({ id: "c-mid", created: now - 2000, updated: now - 2000 }),
+      ],
+      { limit: 1, permission: {}, now },
+    )
+
+    expect(result.map((x) => x.id)).toEqual(["b-new", "c-mid"])
+  })
+
   test("keeps children when root is kept, permission exists, or child is recent", () => {
     const now = 1_000_000
     const list = [

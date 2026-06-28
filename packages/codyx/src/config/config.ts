@@ -332,9 +332,7 @@ export interface Interface {
 export class Service extends Context.Service<Service, Interface>()("@cody/Config") {}
 
 function globalConfigFile() {
-  const candidates = ["cody.jsonc", "cody.json", "config.json"].map((file) =>
-    path.join(Global.Path.config, file),
-  )
+  const candidates = ["cody.jsonc", "cody.json", "config.json"].map((file) => path.join(Global.Path.config, file))
   for (const file of candidates) {
     if (existsSync(file)) return file
   }
@@ -458,6 +456,7 @@ export const layer = Layer.effect(
 
     const ensureGitignore = Effect.fn("Config.ensureGitignore")(function* (dir: string) {
       const gitignore = path.join(dir, ".gitignore")
+      yield* fs.makeDirectory(dir, { recursive: true }).pipe(Effect.catch(() => Effect.void))
       const hasIgnore = yield* fs.existsSafe(gitignore)
       if (!hasIgnore) {
         yield* fs
@@ -465,12 +464,7 @@ export const layer = Layer.effect(
             gitignore,
             ["node_modules", "package.json", "package-lock.json", "bun.lock", ".gitignore"].join("\n"),
           )
-          .pipe(
-            Effect.catchIf(
-              (e) => e.reason._tag === "PermissionDenied",
-              () => Effect.void,
-            ),
-          )
+          .pipe(Effect.catch(() => Effect.void))
       }
     })
 
@@ -595,7 +589,7 @@ export const layer = Layer.effect(
             }
           }
 
-          yield* ensureGitignore(dir).pipe(Effect.orDie)
+          yield* ensureGitignore(dir)
 
           const dep = yield* npmSvc
             .install(dir, {

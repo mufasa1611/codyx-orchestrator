@@ -144,6 +144,15 @@ function sessionPath(worktree: string, cwd: string) {
   return path.relative(path.resolve(worktree), cwd).replaceAll("\\", "/")
 }
 
+function isGlobalProjectID(id: ProjectID) {
+  return id === ProjectID.global || String(id).startsWith(`${ProjectID.global}:user:`)
+}
+
+function projectIDsForUser(id: ProjectID, userID: string | undefined) {
+  if (id === ProjectID.global && userID) return [id, ProjectID.make(`${ProjectID.global}:user:${userID}`)]
+  return [id]
+}
+
 const Summary = Schema.Struct({
   additions: NonNegativeInt,
   deletions: NonNegativeInt,
@@ -559,7 +568,10 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
     const list = Effect.fn("Session.list")(function* (input?: ListInput) {
       const ctx = yield* InstanceState.context
       const userID = yield* UserRef
-      return Array.from(listByProject({ projectID: ctx.project.id, ...input, userID: input?.userID ?? userID }))
+      const currentUserID = input?.userID ?? userID
+      return Array.from(
+        listByProject({ projectID: projectIDsForUser(ctx.project.id, currentUserID), ...input, userID: currentUserID }),
+      )
     })
 
     const children = Effect.fn("Session.children")(function* (parentID: SessionID) {
@@ -569,7 +581,11 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
         d
           .select()
           .from(SessionTable)
-          .where(userID ? and(eq(SessionTable.parent_id, parentID), eq(SessionTable.user_id, userID)) : eq(SessionTable.parent_id, parentID))
+          .where(
+            userID
+              ? and(eq(SessionTable.parent_id, parentID), eq(SessionTable.user_id, userID))
+              : eq(SessionTable.parent_id, parentID),
+          )
           .all(),
       )
       return rows.map(fromRow)
@@ -854,10 +870,15 @@ export const defaultLayer = layer.pipe(
 
 function* listByProject(
   input: ListInput & {
-    projectID: ProjectID
+    projectID: ProjectID | ProjectID[]
   },
 ) {
-  const conditions = [eq(SessionTable.project_id, input.projectID)]
+  const projectIDs = Array.isArray(input.projectID) ? input.projectID : [input.projectID]
+  const isGlobalProject = projectIDs.some(isGlobalProjectID)
+  const conditions =
+    projectIDs.length === 1
+      ? [eq(SessionTable.project_id, projectIDs[0])]
+      : [inArray(SessionTable.project_id, projectIDs)]
 
   if (input.workspaceID) {
     conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
@@ -872,7 +893,7 @@ function* listByProject(
           : or(...conds)!,
       )
     }
-  } else if (input.scope !== "project" && !Flag.CODY_EXPERIMENTAL_WORKSPACES) {
+  } else if (!isGlobalProject && input.scope !== "project" && !Flag.CODY_EXPERIMENTAL_WORKSPACES) {
     if (input.directory) {
       conditions.push(eq(SessionTable.directory, input.directory))
     }

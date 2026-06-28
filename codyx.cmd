@@ -2,6 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
+if not defined CODY_LAUNCH_DIR set "CODY_LAUNCH_DIR=%CD%"
 set "CODY_INSTALL_ROOT=%ROOT%"
 set "BUN="
 set "CODY_UPDATED=0"
@@ -187,8 +188,8 @@ if not exist "%ROOT%\.git" if not "%CODY_SKIP_UPDATE_CHECK%"=="1" (
 if /I "%~1"=="--launcher-web" (
   call :ensure_web_build
   if errorlevel 1 exit /b %ERRORLEVEL%
-  pushd "%ROOT%"
-  call "%BUN%" run codyx web
+  pushd "%CODY_LAUNCH_DIR%"
+  call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts web
   set "CODY_EXIT_CODE=%ERRORLEVEL%"
   popd
 exit /b !CODY_EXIT_CODE!
@@ -237,8 +238,8 @@ if "%CODY_CHOICE%"=="1" (
   call :ensure_web_build
   set "CODY_EXIT_CODE=%ERRORLEVEL%"
   if not "!CODY_EXIT_CODE!"=="0" goto cody_done
-  pushd "%ROOT%"
-  call "%BUN%" run codyx web
+  pushd "%CODY_LAUNCH_DIR%"
+  call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts web
   set "CODY_EXIT_CODE=%ERRORLEVEL%"
   popd
 ) else (

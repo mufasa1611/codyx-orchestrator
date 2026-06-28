@@ -165,6 +165,48 @@ describe("applyDirectoryEvent", () => {
     expect(store.sessionTotal).toBe(2)
   })
 
+  test("trims found session events after seed races", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        limit: 1,
+        session: [rootSession({ id: "ses_a" }), rootSession({ id: "ses_b" })],
+        sessionTotal: 2,
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "session.created", properties: { info: rootSession({ id: "ses_a" }) } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session.map((x) => x.id)).toEqual(["ses_a"])
+    expect(store.sessionTotal).toBe(2)
+
+    const [updatedStore, updatedSetStore] = createStore(
+      baseState({
+        limit: 1,
+        session: [rootSession({ id: "ses_a" }), rootSession({ id: "ses_b" })],
+        sessionTotal: 2,
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "session.updated", properties: { info: rootSession({ id: "ses_a" }) } },
+      store: updatedStore,
+      setStore: updatedSetStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(updatedStore.session.map((x) => x.id)).toEqual(["ses_a"])
+    expect(updatedStore.sessionTotal).toBe(2)
+  })
+
   test("cleans session caches when archived", () => {
     const message = userMessage("msg_1", "ses_1")
     const [store, setStore] = createStore(

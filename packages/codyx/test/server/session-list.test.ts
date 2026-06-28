@@ -107,6 +107,51 @@ describe("session.list", () => {
     })
   })
 
+  test("does not split global project history by launch directory", async () => {
+    Flag.CODY_EXPERIMENTAL_WORKSPACES = false
+    await using tmp = await tmpdir()
+    const firstDir = path.join(tmp.path, "first")
+    const secondDir = path.join(tmp.path, "second")
+    await mkdir(firstDir, { recursive: true })
+    await mkdir(secondDir, { recursive: true })
+
+    await WithInstance.provide({
+      directory: firstDir,
+      fn: async () => {
+        await run(
+          SessionNs.Service.use((svc) => svc.create({ title: "first" })).pipe(
+            Effect.provideService(UserRef, "user_owner"),
+          ),
+        )
+      },
+    })
+    await WithInstance.provide({
+      directory: secondDir,
+      fn: async () => {
+        await run(
+          SessionNs.Service.use((svc) => svc.create({ title: "second" })).pipe(
+            Effect.provideService(UserRef, "user_owner"),
+          ),
+        )
+        await run(
+          SessionNs.Service.use((svc) => svc.create({ title: "other" })).pipe(
+            Effect.provideService(UserRef, "user_other"),
+          ),
+        )
+        const sessions = await run(
+          SessionNs.Service.use((svc) => svc.list({ directory: secondDir, roots: true })).pipe(
+            Effect.provideService(UserRef, "user_owner"),
+          ),
+        )
+        const titles = sessions.map((s) => s.title)
+
+        expect(titles).toContain("first")
+        expect(titles).toContain("second")
+        expect(titles).not.toContain("other")
+      },
+    })
+  })
+
   test("filters by path and ignores directory when path is provided", async () => {
     Flag.CODY_EXPERIMENTAL_WORKSPACES = false
     await using tmp = await tmpdir({ git: true })

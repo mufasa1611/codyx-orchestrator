@@ -958,6 +958,30 @@ test("gets config directories", async () => {
   })
 })
 
+test("creates missing CODY_CONFIG_DIR before writing gitignore", async () => {
+  await using tmp = await tmpdir()
+  const prev = process.env.CODY_CONFIG_DIR
+  const configDir = path.join(tmp.path, ".cody", "generated")
+  process.env.CODY_CONFIG_DIR = configDir
+  await clear()
+
+  try {
+    await WithInstance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await load()
+      },
+    })
+
+    expect(await Filesystem.exists(configDir)).toBe(true)
+    expect(await Filesystem.readText(path.join(configDir, ".gitignore"))).toContain("package-lock.json")
+  } finally {
+    if (prev === undefined) delete process.env.CODY_CONFIG_DIR
+    else process.env.CODY_CONFIG_DIR = prev
+    await clear()
+  }
+})
+
 test("does not try to install dependencies in read-only CODY_CONFIG_DIR", async () => {
   if (process.platform === "win32") return
 

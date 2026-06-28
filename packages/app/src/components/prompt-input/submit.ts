@@ -4,6 +4,7 @@ import { base64Encode } from "@cody/core/util/encode"
 import { Binary } from "@cody/core/util/binary"
 import { useNavigate, useParams } from "@solidjs/router"
 import { batch, type Accessor } from "solid-js"
+import { reconcile } from "solid-js/store"
 import type { FileSelection } from "@/context/file"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -17,6 +18,7 @@ import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
+import { trimSessions } from "@/context/global-sync/session-trim"
 import { formatServerError } from "@/utils/server-errors"
 
 type PendingPrompt = {
@@ -273,17 +275,17 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   }
 
   const seed = (dir: string, info: Session) => {
-    const [, setStore] = globalSync.child(dir)
-    setStore("session", (list: Session[]) => {
-      const result = Binary.search(list, info.id, (item) => item.id)
-      const next = [...list]
-      if (result.found) {
-        next[result.index] = info
-        return next
-      }
+    const [store, setStore] = globalSync.child(dir)
+    const list = store.session
+    const result = Binary.search(list, info.id, (item) => item.id)
+    const next = [...list]
+    if (result.found) {
+      next[result.index] = info
+    } else {
       next.splice(result.index, 0, info)
-      return next
-    })
+    }
+    const trimmed = trimSessions(next, { limit: store.limit, permission: store.permission })
+    setStore("session", reconcile(trimmed, { key: "id" }))
   }
 
   const handleSubmit = async (event: Event) => {

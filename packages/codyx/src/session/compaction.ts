@@ -364,7 +364,7 @@ export const layer: Layer.Layer<
             parts: MessageV2.Part[]
           }
         | undefined
-      if (input.overflow) {
+      if (input.auto || input.overflow) {
         const idx = input.messages.findIndex((m) => m.info.id === input.parentID)
         for (let i = idx - 1; i >= 0; i--) {
           const msg = input.messages[i]

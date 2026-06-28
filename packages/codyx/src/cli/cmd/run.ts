@@ -70,6 +70,10 @@ type SessionInfo = {
   directory?: string
 }
 
+function launchCwd() {
+  return process.env.CODY_LAUNCH_DIR ?? process.env.PWD ?? process.cwd()
+}
+
 function inline(info: Inline) {
   const suffix = info.description ? UI.Style.TEXT_DIM + ` ${info.description}` + UI.Style.TEXT_NORMAL : ""
   UI.println(UI.Style.TEXT_NORMAL + info.icon, UI.Style.TEXT_NORMAL + info.title + suffix)
@@ -127,7 +131,7 @@ export const RunCommand = effectCmd({
   instance: (args) => !args.attach,
   // For --dir without --attach, load instance for the resolved target dir.
   // The handler also chdirs (preserving the legacy order: chdir → file resolution).
-  directory: (args) => (args.dir && !args.attach ? path.resolve(process.cwd(), args.dir) : process.cwd()),
+  directory: (args) => (args.dir && !args.attach ? path.resolve(launchCwd(), args.dir) : launchCwd()),
   builder: (yargs: Argv) =>
     yargs
       .positional("message", {
@@ -274,7 +278,7 @@ export const RunCommand = effectCmd({
         }
       }
 
-      const root = Filesystem.resolve(process.env.PWD ?? process.cwd())
+      const root = Filesystem.resolve(launchCwd())
       const directory = (() => {
         if (!args.dir) return args.attach ? undefined : root
         if (args.attach) return args.dir

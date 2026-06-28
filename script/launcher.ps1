@@ -375,12 +375,19 @@ function Invoke-Codyx {
   if (-not (Test-Path -LiteralPath $launcher)) { throw "Cannot find installed codyx command at $launcher." }
 
   $previousSkipUpdate = $env:CODY_SKIP_UPDATE_CHECK
+  $previousLaunchDir = $env:CODY_LAUNCH_DIR
   $env:CODY_SKIP_UPDATE_CHECK = "1"
+  if (-not $env:CODY_LAUNCH_DIR) {
+    $candidate = (Get-Location).Path
+    $root = [System.IO.Path]::GetPathRoot($candidate)
+    $env:CODY_LAUNCH_DIR = if ($root -and $candidate.TrimEnd("\") -eq $root.TrimEnd("\")) { $env:USERPROFILE } else { $candidate }
+  }
   try {
     $code = Invoke-Native $launcher $CodyxArgs
     exit $code
   } finally {
     $env:CODY_SKIP_UPDATE_CHECK = $previousSkipUpdate
+    $env:CODY_LAUNCH_DIR = $previousLaunchDir
   }
 }
 

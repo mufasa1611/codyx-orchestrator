@@ -4,6 +4,7 @@ import { pathKey } from "@/utils/path-key"
 
 type SessionStore = {
   session?: Session[]
+  project?: string
   path: { directory: string }
 }
 
@@ -21,11 +22,17 @@ function sortSessions(now: number) {
   }
 }
 
-const isRootVisibleSession = (session: Session, directory: string) =>
-  pathKey(session.directory) === pathKey(directory) && !session.parentID && !session.time?.archived
+const isGlobalProject = (id: string | undefined) => id === "global" || id?.startsWith("global:user:")
+
+const isRootVisibleSession = (session: Session, store: SessionStore) =>
+  (isGlobalProject(store.project) && session.projectID === store.project
+    ? true
+    : pathKey(session.directory) === pathKey(store.path.directory)) &&
+  !session.parentID &&
+  !session.time?.archived
 
 export const roots = (store: SessionStore) =>
-  (store.session ?? []).filter((session) => isRootVisibleSession(session, store.path.directory))
+  (store.session ?? []).filter((session) => isRootVisibleSession(session, store))
 
 export const sortedRootSessions = (store: SessionStore, now: number) => roots(store).sort(sortSessions(now))
 

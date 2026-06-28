@@ -14,6 +14,7 @@ import {
   errorMessage,
   hasProjectPermissions,
   latestRootSession,
+  sortedRootSessions,
 } from "./helpers"
 import { pathKey } from "@/utils/path-key"
 
@@ -197,6 +198,32 @@ describe("layout workspace helpers", () => {
     )
 
     expect(result?.id).toBe("root")
+  })
+
+  test("shows global user project sessions even when their saved directory changed", () => {
+    const result = sortedRootSessions(
+      {
+        project: "global:user:usr_123",
+        path: { directory: "/current-user-workspace" },
+        session: [
+          session({
+            id: "legacy",
+            projectID: "global:user:usr_123",
+            directory: "C:\\",
+            time: { created: 10, updated: 10, archived: undefined },
+          }),
+          session({
+            id: "other",
+            projectID: "global:user:usr_other",
+            directory: "C:\\",
+            time: { created: 20, updated: 20, archived: undefined },
+          }),
+        ],
+      },
+      120_000,
+    )
+
+    expect(result.map((item) => item.id)).toEqual(["legacy"])
   })
 
   test("finds the direct child on the active session path", () => {

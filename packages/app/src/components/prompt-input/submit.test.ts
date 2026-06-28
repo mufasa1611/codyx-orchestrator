@@ -16,7 +16,8 @@ const optimistic: Array<{
   }
 }> = []
 const optimisticSeeded: boolean[] = []
-const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
+type StoredSession = { id: string; title?: string; time: { created: number; updated?: number } }
+const storedSessions: Record<string, StoredSession[]> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
 const sentShell: string[] = []
 const syncedDirectories: string[] = []
@@ -33,10 +34,12 @@ const clientFor = (directory: string) => {
     session: {
       create: async () => {
         createdSessions.push(directory)
+        const index = createdSessions.length
         return {
           data: {
-            id: `session-${createdSessions.length}`,
-            title: `New session ${createdSessions.length}`,
+            id: `session-${index}`,
+            title: `New session ${index}`,
+            time: { created: index, updated: index },
           },
         }
       },
@@ -168,16 +171,16 @@ beforeAll(async () => {
         syncedDirectories.push(directory)
         storedSessions[directory] ??= []
         return [
-          { session: storedSessions[directory] },
+          { session: storedSessions[directory], limit: 5, permission: {} },
           (...args: unknown[]) => {
             if (args[0] !== "session") return
             const next = args[1]
             if (typeof next === "function") {
-              storedSessions[directory] = next(storedSessions[directory]) as Array<{ id: string; title?: string }>
+              storedSessions[directory] = next(storedSessions[directory]) as StoredSession[]
               return
             }
             if (Array.isArray(next)) {
-              storedSessions[directory] = next as Array<{ id: string; title?: string }>
+              storedSessions[directory] = next as StoredSession[]
             }
           },
         ]
@@ -339,7 +342,9 @@ describe("prompt submit worktree selection", () => {
 
     await submit.handleSubmit(event)
 
-    expect(storedSessions["/repo/worktree-a"]).toEqual([{ id: "session-1", title: "New session 1" }])
+    expect(storedSessions["/repo/worktree-a"]).toEqual([
+      { id: "session-1", title: "New session 1", time: { created: 1, updated: 1 } },
+    ])
     expect(optimisticSeeded).toEqual([true])
   })
 })

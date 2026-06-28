@@ -12,7 +12,7 @@ describe("tui thread", () => {
 
     try {
       await fs.symlink(tmp.path, link, type)
-      expect(resolveThreadDirectory(project, link, tmp.path)).toBe(tmp.path)
+      expect(resolveThreadDirectory(project, link, tmp.path, undefined)).toBe(tmp.path)
     } finally {
       await fs.rm(link, { recursive: true, force: true }).catch(() => undefined)
     }
@@ -24,5 +24,12 @@ describe("tui thread", () => {
 
   test("uses the real cwd after resolving a relative project from PWD", async () => {
     await check(".")
+  })
+
+  test("uses launcher directory when no project argument is provided", () => {
+    const launchDir = path.resolve("launch-dir")
+    const cwd = path.resolve("packages", "codyx")
+
+    expect(resolveThreadDirectory(undefined, undefined, cwd, launchDir)).toBe(launchDir)
   })
 })
