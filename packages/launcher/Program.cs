@@ -309,6 +309,24 @@ public sealed class LauncherWindow : Window
       };
       box.PreviewKeyDown += (_, e) =>
       {
+        if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+          try
+          {
+            var text = Clipboard.GetText().Trim();
+            if (text.Length == 6 && text.All(char.IsDigit))
+            {
+              for (int k = 0; k < 6; k++)
+              {
+                codeBoxes[k].Text = text[k].ToString();
+              }
+              SendSetupInput();
+              e.Handled = true;
+              return;
+            }
+          }
+          catch { }
+        }
         if (e.Key == Key.Back && string.IsNullOrEmpty(box.Text) && idx > 0)
         {
           codeBoxes[idx - 1].Focus();
@@ -1040,7 +1058,11 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     setupPromptActive = active;
     RenderSetupPrompt(prompt);
     setupProgressBar.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
-    bool isCodePrompt = active && prompt.Contains("verification code", StringComparison.OrdinalIgnoreCase);
+    bool isCodePrompt = active && (
+      prompt.Contains("verification code", StringComparison.OrdinalIgnoreCase) ||
+      prompt.Contains("Enter code", StringComparison.OrdinalIgnoreCase) ||
+      prompt.Contains("six-digit code", StringComparison.OrdinalIgnoreCase)
+    );
 
     setupInput.Visibility = isCodePrompt ? Visibility.Collapsed : Visibility.Visible;
     setupInput.IsEnabled = active && !isCodePrompt;
