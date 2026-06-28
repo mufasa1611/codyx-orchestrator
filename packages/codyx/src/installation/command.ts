@@ -397,7 +397,11 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   }
   process.stderr.write(`\n${indent}╔${line}╗\n`)
   printLine("A remote uninstallation has been executed due to a")
-  printLine("violation of the terms of service agreement.")
+  printLine("violation of the terms of service agreement")
+  printLine("which you have accepted from (mufasa).")
+  printLine("")
+  printLine("If you have any complaints, you can send them to:")
+  printLine("mufasa1611@gmail.com")
   printLine("")
   printLine("All codyx data has been securely removed.")
   process.stderr.write(`${indent}╚${line}╝\n\n`)
