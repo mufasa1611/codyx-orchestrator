@@ -1,6 +1,6 @@
 import * as Log from "@cody/core/util/log"
 import path from "path"
-import { pathToFileURL } from "url"
+import { pathToFileURL, fileURLToPath } from "url"
 import os from "os"
 import z from "zod"
 import { mergeDeep } from "remeda"
@@ -587,32 +587,53 @@ export const layer = Layer.effect(
               result.mode ??= {}
               result.plugin ??= []
             }
+            yield* ensureGitignore(dir)
+
+            const localPluginPath = (() => {
+              if (process.env.CODY_INSTALL_ROOT) {
+                const p = path.join(process.env.CODY_INSTALL_ROOT, "packages", "plugin")
+                if (existsSync(p)) return p
+              }
+              const possiblePaths = [
+                path.join(process.cwd(), "packages", "plugin"),
+                path.join(process.cwd(), "source", "packages", "plugin"),
+                path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../plugin"),
+              ]
+              for (const p of possiblePaths) {
+                if (existsSync(p)) return p
+              }
+              return undefined
+            })()
+
+            const pluginVersion = localPluginPath
+              ? `file:${localPluginPath}`
+              : InstallationLocal
+                ? undefined
+                : InstallationVersion
+
+            const dep = yield* npmSvc
+              .install(dir, {
+                add: [
+                  {
+                    name: "@cody/plugin",
+                    version: pluginVersion,
+                  },
+                ],
+              })
+              .pipe(
+                Effect.exit,
+                Effect.tap((exit) =>
+                  Exit.isFailure(exit)
+                    ? Effect.sync(() => {
+                        log.warn("background dependency install failed", { dir, error: String(exit.cause) })
+                      })
+                    : Effect.void,
+                ),
+                Effect.asVoid,
+                Effect.forkDetach,
+              )
+            deps.push(dep)
           }
-
-          yield* ensureGitignore(dir)
-
-          const dep = yield* npmSvc
-            .install(dir, {
-              add: [
-                {
-                  name: "@cody/plugin",
-                  version: InstallationLocal ? undefined : InstallationVersion,
-                },
-              ],
-            })
-            .pipe(
-              Effect.exit,
-              Effect.tap((exit) =>
-                Exit.isFailure(exit)
-                  ? Effect.sync(() => {
-                      log.warn("background dependency install failed", { dir, error: String(exit.cause) })
-                    })
-                  : Effect.void,
-              ),
-              Effect.asVoid,
-              Effect.forkDetach,
-            )
-          deps.push(dep)
 
           result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
           result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.load(dir)))
