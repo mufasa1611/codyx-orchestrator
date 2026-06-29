@@ -389,6 +389,30 @@ codyx
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta
 ```
 
+### Windows Standalone Launcher (Portable)
+
+If you prefer to run codyx as a standalone portable application without installing Node.js, Bun, or cloning the repository, you can download `launcher_new.exe` (or `luncher_new.exe`) from the repository releases or the `dist/` directory.
+
+The launcher features:
+
+- A custom WPF GUI welcome screen showing startup logs, setup status, and server execution.
+- Multi-factor authentication (MFA) distribution (auto-fills the 6-digit verification code boxes when pasting a copied code with `Ctrl+V`).
+- High-resolution branded logo.
+- Automatic server launch and TUI terminal attachment.
+
+#### Handling Windows SmartScreen Warnings
+
+When downloading the raw `.exe` from the internet, Windows SmartScreen may block it with a blue warning banner: **"Windows protected your PC"**, because the newly built executable does not have an established code reputation in Microsoft's database yet.
+
+To run the launcher, you must unblock the file:
+
+- **GUI Method**: Right-click the downloaded `.exe` file -> Select **Properties** -> Check the **Unblock** box at the bottom -> Click **Apply / OK**.
+- **PowerShell Method**: Open PowerShell in the download directory and run:
+  ```powershell
+  Unblock-File -Path .\luncher_new.exe
+  ```
+  Once unblocked, the app will launch instantly without any security prompts.
+
 ---
 
 ## Documentation
