@@ -11,7 +11,8 @@ authRoutes.use("/register", rateLimit(5, 60_000))
 
 // GET /api/auth/status - public auth mode for the web client boot gate
 authRoutes.get("/status", async (c) => {
-  return c.json({ accountAuthRequired: Auth.userCount() > 0 })
+  const userCount = Auth.userCount()
+  return c.json({ accountAuthRequired: true, hasUsers: userCount > 0 })
 })
 
 // POST /api/auth/register — create account and return JWT

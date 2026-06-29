@@ -186,7 +186,7 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
   ensureSecret()
   ensureAdmin()
   if (!Flag.CODY_SERVER_PASSWORD && userCount() === 0) {
-    console.log("Warning: CODY_SERVER_PASSWORD is not set and no WebUI users are registered; server is unsecured.")
+    console.log("WebUI account auth is enabled. Create the first user from the login page.")
   }
   const selected = select()
   const inner: Listener =

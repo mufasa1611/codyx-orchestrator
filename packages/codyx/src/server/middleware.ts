@@ -19,6 +19,14 @@ import { userCount } from "./auth/service"
 
 const log = Log.create({ service: "server" })
 
+function hasAccountUsers(): boolean {
+  try {
+    return userCount() > 0
+  } catch {
+    return false
+  }
+}
+
 export const ErrorMiddleware: ErrorHandler = (err, c) => {
   log.error("failed", {
     error: err,
@@ -55,20 +63,8 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
   if (c.req.method === "POST" && (c.req.path === "/api/auth/login" || c.req.path === "/api/auth/register"))
     return next()
 
-  const accountAuthRequired = (() => {
-    try {
-      return userCount() > 0
-    } catch {
-      return false
-    }
-  })()
-
-  // Skip auth only when neither legacy server auth nor WebUI account auth is configured.
+  const accountUsersExist = hasAccountUsers()
   const password = Flag.CODY_SERVER_PASSWORD
-  if (!password && !accountAuthRequired) {
-    console.log(`[codyx] Auth disabled: no CODY_SERVER_PASSWORD or WebUI users configured`)
-    return next()
-  }
 
   // Public UI assets
   if (isPublicUIPath(c.req.method, c.req.path)) return next()
@@ -86,21 +82,13 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   }
 
-  if (accountAuthRequired) {
-    return c.json({ error: "Authentication required" }, 401)
-  }
-
-  const username = Flag.CODY_SERVER_USERNAME ?? "codyx"
-
-  if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
-
-  // If a password is set, strictly enforce Basic Auth
-  if (password) {
+  if (password && !accountUsersExist) {
+    const username = Flag.CODY_SERVER_USERNAME ?? "codyx"
+    if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
     return basicAuth({ username, password })(c, next)
   }
 
-  // If no password is set, allow the request to proceed (handlers will check JWT/UserRef if needed)
-  return next()
+  return c.json({ error: "Authentication required" }, 401)
 }
 
 export function LoggerMiddleware(backendAttributes: ServerBackend.Attributes): MiddlewareHandler {

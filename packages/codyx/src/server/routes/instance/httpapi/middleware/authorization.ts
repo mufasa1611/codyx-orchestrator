@@ -27,6 +27,10 @@ function hasValidJwt(request: HttpServerRequest.HttpServerRequest): string | und
 }
 
 function accountAuthRequired(): boolean {
+  return true
+}
+
+function hasAccountUsers(): boolean {
   try {
     return userCount() > 0
   } catch {
@@ -103,6 +107,7 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
     const requireAccountAuth = accountAuthRequired()
+    const allowLegacyServerAuth = ServerAuth.required(config) && !hasAccountUsers()
     if (!ServerAuth.required(config) && !requireAccountAuth) return (effect) => effect
 
     return (effect) =>
@@ -114,7 +119,7 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         if (hasPtyConnectTicketURL(url)) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
-        if (requireAccountAuth) {
+        if (requireAccountAuth && !allowLegacyServerAuth) {
           return yield* Effect.succeed(
             HttpServerResponse.empty({
               status: UNAUTHORIZED,
@@ -134,6 +139,7 @@ export const authorizationLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
     const requireAccountAuth = accountAuthRequired()
+    const allowLegacyServerAuth = ServerAuth.required(config) && !hasAccountUsers()
     if (!ServerAuth.required(config) && !requireAccountAuth) {
       return Authorization.of((effect) =>
         Effect.gen(function* () {
@@ -150,7 +156,7 @@ export const authorizationLayer = Layer.effect(
         if (request.headers["x-cody-cli-local"]) return yield* effect
         const jwtSub = hasValidJwt(request)
         if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
-        if (requireAccountAuth) return yield* new HttpApiError.Unauthorized({})
+        if (requireAccountAuth && !allowLegacyServerAuth) return yield* new HttpApiError.Unauthorized({})
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )

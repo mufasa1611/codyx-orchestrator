@@ -1171,9 +1171,8 @@ export function Prompt(props: PromptProps) {
       })
     } else {
       sdk.client.session
-        .prompt({
+        .promptAsync({
           sessionID,
-          ...selectedModel,
           messageID,
           agent: agent.name,
           model: selectedModel,

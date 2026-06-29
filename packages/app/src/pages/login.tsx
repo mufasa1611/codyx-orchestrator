@@ -46,12 +46,12 @@ function getServerUrl(): string {
   return location.origin
 }
 
-export default function Login(props: { onLogin?: (token: string) => void }) {
+export default function Login(props: { onLogin?: (token: string) => void; hasUsers?: boolean }) {
   const [username, setUsername] = createSignal("")
   const [password, setPassword] = createSignal("")
   const [error, setError] = createSignal<string | null>(null)
   const [loading, setLoading] = createSignal(false)
-  const [isRegister, setRegister] = createSignal(false)
+  const [isRegister, setRegister] = createSignal(props.hasUsers === false)
 
   async function handleSubmit(e: Event) {
     e.preventDefault()
