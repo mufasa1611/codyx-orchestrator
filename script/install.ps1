@@ -642,6 +642,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/packages/codyx/",
     "/packages/core/",
     "/packages/plugin/",
+    "/packages/script/",
     "/packages/sdk/",
     "/packages/ui/",
     "!/packages/app/e2e/",
