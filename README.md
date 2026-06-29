@@ -15,58 +15,64 @@ everything through plugins, agents, and custom tools.
 
 ---
 
-## Quick Start
+## Installation & Setup
 
-### Node.js/npm Already Installed
+Choose the installation method that fits your environment:
 
-Install the current beta package and launch the TUI:
+### 1. Global npm Package (Recommended)
+
+If you already have Node.js and npm installed, simply run:
 
 ```bash
 npm install -g codyx-ai@beta && codyx
 ```
 
-### Windows Without Node.js/npm
+To update the package later, run `npm install -g codyx-ai@beta`.
 
-Use the Windows npm installer. It installs Node.js LTS with `winget` when possible,
-installs `codyx-ai@beta`, verifies the global `codyx` command, and launches the TUI.
-It asks the user to accept the MIT license first. If cleanup is triggered, it removes only
-Codyx traces and prerequisites this installer recorded as Codyx-installed; pre-existing
-Git, Bun, Node.js, and cloudflared installs are left alone. This path does not clone the repository.
+### 2. Windows Standalone Launcher (Portable)
+
+If you want a portable zero-dependency setup without installing Node.js, Bun, or cloning the repository, download `launcher_new.exe` (or `luncher_new.exe`) from the repository releases or the `dist/` directory.
+
+- **Features**: WPF welcome screen, automatic background server startup, and multi-factor auth (MFA) distribution on paste.
+- **Handling Windows SmartScreen Warnings**: Raw downloads may show a blue warning dialog. To run it:
+  - **GUI Method**: Right-click the `.exe` file -> **Properties** -> Check the **Unblock** box at the bottom -> Click **Apply / OK**.
+  - **PowerShell Method**: Run `Unblock-File -Path .\luncher_new.exe`.
+
+### 3. Windows One-Click Installer (Without Node.js)
+
+If you do not have Node.js or npm installed, run this PowerShell command to automatically install all dependencies via `winget` and configure codyx:
 
 ```powershell
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch
 ```
 
-Windows Command Prompt:
+Or from Command Prompt:
 
 ```cmd
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
 ```
 
-### Source/Server Installs
+### 4. Headless Server (Docker)
 
-Use these only when you need an editable checkout, a server/proxy setup, or source-level
-development. Source installs use Git and Bun, and they clone this repository.
-
-macOS/Linux:
+To deploy a backend server or host codyx for a team:
 
 ```bash
-CODY_FORCE_SOURCE=1 curl -fsSL https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.sh | bash
+docker run -p 4097:4097 ghcr.io/mufasa1611/codyx-orchestrator:latest
 ```
 
-Windows:
+### 5. From Source (Development)
 
-```cmd
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install.ps1 | iex"
+If you want to modify code or run an editable development checkout:
+
+```bash
+git clone https://github.com/mufasa1611/codyx-orchestrator.git
+cd codyx-orchestrator
+bun install
+bun run dev
 ```
 
-> Beta npm installs update with `npm install -g codyx-ai@beta`. Source/server installs clone the repo,
-> use Git/Bun, and are only needed when you want an editable checkout or server/proxy setup.
-> Docker images are available for headless/server deployments.
->
-> Do not run `npm install` inside the source checkout. This monorepo uses Bun workspaces,
-> Bun catalogs, `bun.lock`, `patchedDependencies`, and Bun-specific build scripts. Use
-> `bun install` for repository development.
+> [!IMPORTANT]
+> The source checkout is Bun-only. Do not run `npm install` inside the source folder. This monorepo utilizes Bun workspaces, Bun catalogs, and specific workspace dependency protocols that npm does not support.
 
 ---
 
@@ -355,63 +361,6 @@ User config lives in `.cody/cody.jsonc` (project root or home directory):
 Use `codyx setup` for an interactive wizard or edit the file directly.
 
 ---
-
-## Installation Options
-
-### Docker
-
-```bash
-docker run -p 4097:4097 ghcr.io/mufasa1611/codyx-orchestrator:latest
-```
-
-### From Source
-
-```bash
-git clone https://github.com/mufasa1611/codyx-orchestrator.git
-cd codyx-orchestrator
-bun install
-bun run dev
-```
-
-The source checkout is Bun-only. `npm install` fails on this repository because npm does
-not understand the `catalog:` dependency protocol used by the workspace.
-
-### npm
-
-```bash
-npm install -g codyx-ai@beta
-codyx
-```
-
-### Windows Without Node.js
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta
-```
-
-### Windows Standalone Launcher (Portable)
-
-If you prefer to run codyx as a standalone portable application without installing Node.js, Bun, or cloning the repository, you can download `launcher_new.exe` (or `luncher_new.exe`) from the repository releases or the `dist/` directory.
-
-The launcher features:
-
-- A custom WPF GUI welcome screen showing startup logs, setup status, and server execution.
-- Multi-factor authentication (MFA) distribution (auto-fills the 6-digit verification code boxes when pasting a copied code with `Ctrl+V`).
-- High-resolution branded logo.
-- Automatic server launch and TUI terminal attachment.
-
-#### Handling Windows SmartScreen Warnings
-
-When downloading the raw `.exe` from the internet, Windows SmartScreen may block it with a blue warning banner: **"Windows protected your PC"**, because the newly built executable does not have an established code reputation in Microsoft's database yet.
-
-To run the launcher, you must unblock the file:
-
-- **GUI Method**: Right-click the downloaded `.exe` file -> Select **Properties** -> Check the **Unblock** box at the bottom -> Click **Apply / OK**.
-- **PowerShell Method**: Open PowerShell in the download directory and run:
-  ```powershell
-  Unblock-File -Path .\luncher_new.exe
-  ```
-  Once unblocked, the app will launch instantly without any security prompts.
 
 ---
 
