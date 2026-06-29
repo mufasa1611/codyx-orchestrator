@@ -43,6 +43,7 @@ public sealed class LauncherWindow : Window
   readonly Border setupInputPanel = new();
   readonly TextBlock setupPromptText = new();
   readonly TextBox setupInput = new();
+  readonly StackPanel codeRow = new();
   readonly TextBox[] codeBoxes = new TextBox[6];
   readonly Button setupSendButton = new();
   readonly Button setupCancelButton = new();
@@ -301,12 +302,8 @@ public sealed class LauncherWindow : Window
     };
     inputArea.Children.Add(setupInput);
 
-    var codeRow = new StackPanel
-    {
-      Orientation = Orientation.Horizontal,
-      Margin = new Thickness(0, 0, 0, 6),
-      Visibility = Visibility.Collapsed,
-    };
+    codeRow.Orientation = Orientation.Horizontal;
+    codeRow.Margin = new Thickness(0, 0, 0, 6);
     for (int i = 0; i < 6; i++)
     {
       var idx = i;
@@ -1219,6 +1216,8 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     );
 
     bool isScanPrompt = active && prompt.Contains("Scan local", StringComparison.OrdinalIgnoreCase);
+
+    codeRow.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
 
     setupInput.Visibility = !isCodePrompt && !isScanPrompt ? Visibility.Visible : Visibility.Collapsed;
     setupInput.IsEnabled = active && !isCodePrompt && !isScanPrompt;
