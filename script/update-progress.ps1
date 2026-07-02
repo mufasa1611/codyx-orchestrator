@@ -67,6 +67,7 @@ function Get-CodyxSparseCheckoutPaths {
         "/packages/codyx/",
         "/packages/core/",
         "/packages/plugin/",
+        "/packages/script/",
         "/packages/sdk/",
         "/packages/ui/",
         "!/packages/app/e2e/",
@@ -102,8 +103,7 @@ function Remove-CodyxEndUserSourceExtras {
         "packages\codyx\test",
         "packages\core\test",
         "packages\gitlab-auth",
-        "packages\poe-auth",
-        "packages\script"
+        "packages\poe-auth"
     )
     foreach ($relativePath in $relativePaths) {
         $target = Join-Path $installRoot $relativePath

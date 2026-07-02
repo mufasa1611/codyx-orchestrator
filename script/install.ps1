@@ -580,8 +580,82 @@ function Install-WithChoco($Label) {
   return $true
 }
 
+function Install-PortableGit {
+  if (Test-Command git) { return $true }
+
+  $toolsRoot = Join-Path $env:LOCALAPPDATA "codyx\tools"
+  $gitRoot = Join-Path $toolsRoot "mingit"
+  $gitCmd = Join-Path $gitRoot "cmd\git.exe"
+  $gitBin = Join-Path $gitRoot "bin\git.exe"
+
+  foreach ($candidate in @($gitCmd, $gitBin)) {
+    if (Test-Path -LiteralPath $candidate) {
+      Add-UserPathEntry (Split-Path -Parent $candidate)
+      Add-CodyxManagedTool "git" "path" "" $gitRoot @((Split-Path -Parent $candidate))
+      return (Test-Command git)
+    }
+  }
+
+  Write-Step "Installing portable Git locally..."
+  $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codyx-mingit-" + [System.Guid]::NewGuid().ToString("N"))
+  $zipPath = Join-Path $tempRoot "mingit.zip"
+  try {
+    $null = New-Item -ItemType Directory -Force -Path $tempRoot
+    $null = New-Item -ItemType Directory -Force -Path $toolsRoot
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $headers = @{ "User-Agent" = "codyx-installer" }
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers $headers -UseBasicParsing
+    $asset = @($release.assets | Where-Object {
+      $_.name -match '^MinGit-.*-64-bit\.zip$' -and $_.name -notmatch 'busybox'
+    } | Select-Object -First 1)[0]
+    if (-not $asset) {
+      Write-Warn "Could not find a portable Git download in the latest Git for Windows release."
+      return $false
+    }
+
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers -UseBasicParsing
+    if (Test-Path -LiteralPath $gitRoot) {
+      Remove-Item -LiteralPath $gitRoot -Recurse -Force -ErrorAction Stop
+    }
+    $null = New-Item -ItemType Directory -Force -Path $gitRoot
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $gitRoot -Force
+
+    foreach ($candidate in @($gitCmd, $gitBin)) {
+      if (Test-Path -LiteralPath $candidate) {
+        $pathAdd = Split-Path -Parent $candidate
+        Add-UserPathEntry $pathAdd
+        Add-CodyxManagedTool "git" "path" "" $gitRoot @($pathAdd)
+        return (Test-Command git)
+      }
+    }
+    Write-Warn "Portable Git was downloaded but git.exe was not found."
+    return $false
+  } catch {
+    Write-Warn "Portable Git install failed: $($_.Exception.Message)"
+    return $false
+  } finally {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Install-EnsureCommand($Name, $WingetId, $Label) {
   if (Test-Command $Name) {
+    if ($Name -eq "git") {
+      $git = Get-Command git -ErrorAction SilentlyContinue
+      $portableRoot = if ($env:CODY_PORTABLE_GIT_ROOT) { $env:CODY_PORTABLE_GIT_ROOT } else { Join-Path $env:LOCALAPPDATA "codyx\tools\mingit" }
+      $portablePath = if ($env:CODY_PORTABLE_GIT_PATH) { $env:CODY_PORTABLE_GIT_PATH } else { "" }
+      if ($git -and $git.Source) {
+        try {
+          $gitSource = [System.IO.Path]::GetFullPath($git.Source)
+          $portableFull = [System.IO.Path]::GetFullPath($portableRoot).TrimEnd("\")
+          if ($gitSource.StartsWith("$portableFull\", [System.StringComparison]::OrdinalIgnoreCase)) {
+            if (-not $portablePath) { $portablePath = Split-Path -Parent $gitSource }
+            Add-UserPathEntry $portablePath
+            Add-CodyxManagedTool "git" "path" "" $portableRoot @($portablePath)
+          }
+        } catch {}
+      }
+    }
     Write-Ok "$Label found."
     return $true
   }
@@ -605,8 +679,13 @@ function Install-EnsureCommand($Name, $WingetId, $Label) {
     }
   }
 
+  if ($Name -eq "git" -and (Install-PortableGit)) {
+    Write-Ok "Portable Git installed."
+    return $true
+  }
+
   # All methods failed
-  Write-Err "$Label is required. Install it manually, then rerun."
+  Write-Err "$Label is required. Install it manually from https://git-scm.com/download/win, then rerun."
   return $false
 }
 
@@ -678,8 +757,7 @@ function Remove-CodyxEndUserSourceExtras {
     "packages\codyx\test",
     "packages\core\test",
     "packages\gitlab-auth",
-    "packages\poe-auth",
-    "packages\script"
+    "packages\poe-auth"
   )
   foreach ($relativePath in $relativePaths) {
     $target = Join-Path $installRoot $relativePath

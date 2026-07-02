@@ -93,6 +93,98 @@ function Install-WithChoco($CommandName, $PackageId, $Label) {
   return (Test-Command $CommandName)
 }
 
+function Add-CurrentPathEntry($Path) {
+  if (-not $Path) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  $full = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+  foreach ($item in @($env:PATH -split ";" | Where-Object { $_ -and $_.Trim() })) {
+    $expanded = [Environment]::ExpandEnvironmentVariables($item)
+    try { $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd("\") } catch { $normalized = $expanded.TrimEnd("\") }
+    if ($normalized.Equals($full, [System.StringComparison]::OrdinalIgnoreCase)) { return }
+  }
+  $env:PATH = "$full;$env:PATH"
+}
+
+function Add-UserPathEntry($Path) {
+  if (-not $Path) { return }
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  $full = [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $items = @()
+  if ($userPath) { $items = $userPath -split ";" | Where-Object { $_ -and $_.Trim() } }
+  foreach ($item in $items) {
+    $expanded = [Environment]::ExpandEnvironmentVariables($item)
+    try { $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd("\") } catch { $normalized = $expanded.TrimEnd("\") }
+    if ($normalized.Equals($full, [System.StringComparison]::OrdinalIgnoreCase)) {
+      Add-CurrentPathEntry $full
+      return
+    }
+  }
+  [Environment]::SetEnvironmentVariable("Path", (@($items + $full) -join ";"), "User")
+  Add-CurrentPathEntry $full
+}
+
+function Install-PortableGit {
+  if (Test-Command git) { return $true }
+
+  $toolsRoot = Join-Path $env:LOCALAPPDATA "codyx\tools"
+  $gitRoot = Join-Path $toolsRoot "mingit"
+  $gitCmd = Join-Path $gitRoot "cmd\git.exe"
+  $gitBin = Join-Path $gitRoot "bin\git.exe"
+
+  foreach ($candidate in @($gitCmd, $gitBin)) {
+    if (Test-Path -LiteralPath $candidate) {
+      $pathAdd = Split-Path -Parent $candidate
+      Add-UserPathEntry $pathAdd
+      $env:CODY_PORTABLE_GIT_ROOT = $gitRoot
+      $env:CODY_PORTABLE_GIT_PATH = $pathAdd
+      return (Test-Command git)
+    }
+  }
+
+  Write-Info "Installing portable Git locally..."
+  $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codyx-mingit-" + [System.Guid]::NewGuid().ToString("N"))
+  $zipPath = Join-Path $tempRoot "mingit.zip"
+  try {
+    $null = New-Item -ItemType Directory -Force -Path $tempRoot
+    $null = New-Item -ItemType Directory -Force -Path $toolsRoot
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $headers = @{ "User-Agent" = "codyx-launcher" }
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers $headers -UseBasicParsing
+    $asset = @($release.assets | Where-Object {
+      $_.name -match '^MinGit-.*-64-bit\.zip$' -and $_.name -notmatch 'busybox'
+    } | Select-Object -First 1)[0]
+    if (-not $asset) {
+      Write-Warn "Could not find a portable Git download in the latest Git for Windows release."
+      return $false
+    }
+
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers -UseBasicParsing
+    if (Test-Path -LiteralPath $gitRoot) {
+      Remove-Item -LiteralPath $gitRoot -Recurse -Force -ErrorAction Stop
+    }
+    $null = New-Item -ItemType Directory -Force -Path $gitRoot
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $gitRoot -Force
+
+    foreach ($candidate in @($gitCmd, $gitBin)) {
+      if (Test-Path -LiteralPath $candidate) {
+        $pathAdd = Split-Path -Parent $candidate
+        Add-UserPathEntry $pathAdd
+        $env:CODY_PORTABLE_GIT_ROOT = $gitRoot
+        $env:CODY_PORTABLE_GIT_PATH = $pathAdd
+        return (Test-Command git)
+      }
+    }
+    Write-Warn "Portable Git was downloaded but git.exe was not found."
+    return $false
+  } catch {
+    Write-Warn "Portable Git install failed: $($_.Exception.Message)"
+    return $false
+  } finally {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Ensure-Git {
   if (Test-Command git) {
     Write-Ok "Git found."
@@ -106,7 +198,11 @@ function Ensure-Git {
     Write-Ok "Git installed."
     return
   }
-  throw "Git is required and could not be installed automatically. Install Git, then run this launcher again."
+  if (Install-PortableGit) {
+    Write-Ok "Portable Git installed."
+    return
+  }
+  throw "Git is required and could not be installed automatically. Install Git from https://git-scm.com/download/win, then run this launcher again."
 }
 
 function Ensure-Bun {
@@ -198,8 +294,7 @@ function Remove-CodyxEndUserSourceExtras {
     "packages\codyx\test",
     "packages\core\test",
     "packages\gitlab-auth",
-    "packages\poe-auth",
-    "packages\script"
+    "packages\poe-auth"
   )
   foreach ($relativePath in $relativePaths) {
     $target = Join-Path $InstallRoot $relativePath
