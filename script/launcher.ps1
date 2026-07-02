@@ -66,8 +66,8 @@ function Invoke-Native($Command, [object[]]$Arguments = @()) {
   $previousErrorActionPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
-    & $Command @Arguments
-    return $LASTEXITCODE
+    & $Command @Arguments | ForEach-Object { Write-Host $_ }
+    return [int]$LASTEXITCODE
   } finally {
     $ErrorActionPreference = $previousErrorActionPreference
   }
@@ -124,6 +124,30 @@ function Add-UserPathEntry($Path) {
   Add-CurrentPathEntry $full
 }
 
+function Get-PortableGitDownloadUrls($Headers) {
+  $urls = New-Object System.Collections.Generic.List[string]
+  try {
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers $Headers -UseBasicParsing -TimeoutSec 20
+    $asset = @($release.assets | Where-Object {
+      $_.name -match '^MinGit-.*-64-bit\.zip$' -and $_.name -notmatch 'busybox'
+    } | Select-Object -First 1)[0]
+    if ($asset -and $asset.browser_download_url) {
+      $urls.Add([string]$asset.browser_download_url)
+    }
+  } catch {
+    Write-Warn "Could not query latest portable Git release: $($_.Exception.Message)"
+  }
+
+  foreach ($fallback in @(
+    "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.2/MinGit-2.55.0.2-64-bit.zip",
+    "https://github.com/git-for-windows/git/releases/download/v2.54.2.windows.1/MinGit-2.54.2-64-bit.zip",
+    "https://github.com/git-for-windows/git/releases/download/v2.53.0.windows.1/MinGit-2.53.0-64-bit.zip"
+  )) {
+    if (-not $urls.Contains($fallback)) { $urls.Add($fallback) }
+  }
+  return $urls
+}
+
 function Install-PortableGit {
   if (Test-Command git) { return $true }
 
@@ -150,32 +174,31 @@ function Install-PortableGit {
     $null = New-Item -ItemType Directory -Force -Path $toolsRoot
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ "User-Agent" = "codyx-launcher" }
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers $headers -UseBasicParsing
-    $asset = @($release.assets | Where-Object {
-      $_.name -match '^MinGit-.*-64-bit\.zip$' -and $_.name -notmatch 'busybox'
-    } | Select-Object -First 1)[0]
-    if (-not $asset) {
-      Write-Warn "Could not find a portable Git download in the latest Git for Windows release."
-      return $false
-    }
+    foreach ($downloadUrl in (Get-PortableGitDownloadUrls $headers)) {
+      try {
+        Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -Headers $headers -UseBasicParsing -TimeoutSec 120
+        if (Test-Path -LiteralPath $gitRoot) {
+          Remove-Item -LiteralPath $gitRoot -Recurse -Force -ErrorAction Stop
+        }
+        $null = New-Item -ItemType Directory -Force -Path $gitRoot
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $gitRoot -Force
 
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers -UseBasicParsing
-    if (Test-Path -LiteralPath $gitRoot) {
-      Remove-Item -LiteralPath $gitRoot -Recurse -Force -ErrorAction Stop
-    }
-    $null = New-Item -ItemType Directory -Force -Path $gitRoot
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $gitRoot -Force
-
-    foreach ($candidate in @($gitCmd, $gitBin)) {
-      if (Test-Path -LiteralPath $candidate) {
-        $pathAdd = Split-Path -Parent $candidate
-        Add-UserPathEntry $pathAdd
-        $env:CODY_PORTABLE_GIT_ROOT = $gitRoot
-        $env:CODY_PORTABLE_GIT_PATH = $pathAdd
-        return (Test-Command git)
+        foreach ($candidate in @($gitCmd, $gitBin)) {
+          if (Test-Path -LiteralPath $candidate) {
+            $pathAdd = Split-Path -Parent $candidate
+            Add-UserPathEntry $pathAdd
+            $env:CODY_PORTABLE_GIT_ROOT = $gitRoot
+            $env:CODY_PORTABLE_GIT_PATH = $pathAdd
+            return (Test-Command git)
+          }
+        }
+        Write-Warn "Portable Git archive did not contain git.exe: $downloadUrl"
+      } catch {
+        Write-Warn "Portable Git download failed from $downloadUrl`: $($_.Exception.Message)"
       }
     }
-    Write-Warn "Portable Git was downloaded but git.exe was not found."
+    Write-Warn "Portable Git could not be downloaded from any known source."
     return $false
   } catch {
     Write-Warn "Portable Git install failed: $($_.Exception.Message)"
@@ -263,6 +286,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/packages/sdk/",
     "/packages/ui/",
     "!/packages/app/e2e/",
+    "!/packages/codyx/script/httpapi-exercise.ts",
     "!/packages/codyx/test/",
     "!/packages/core/test/",
     "!**/*.spec.ts",
@@ -291,6 +315,7 @@ function Test-CodyxPathUnderRoot($Root, $Path) {
 function Remove-CodyxEndUserSourceExtras {
   $relativePaths = @(
     "packages\app\e2e",
+    "packages\codyx\script\httpapi-exercise.ts",
     "packages\codyx\test",
     "packages\core\test",
     "packages\gitlab-auth",

@@ -43,8 +43,8 @@ function Invoke-Native($Command, [object[]]$Arguments = @()) {
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        & $Command @Arguments
-        return $LASTEXITCODE
+        & $Command @Arguments | ForEach-Object { Write-Host $_ }
+        return [int]$LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
     }
@@ -71,6 +71,7 @@ function Get-CodyxSparseCheckoutPaths {
         "/packages/sdk/",
         "/packages/ui/",
         "!/packages/app/e2e/",
+        "!/packages/codyx/script/httpapi-exercise.ts",
         "!/packages/codyx/test/",
         "!/packages/core/test/",
         "!**/*.spec.ts",
@@ -100,6 +101,7 @@ function Remove-CodyxEndUserSourceExtras {
     $installRoot = (Get-Location).Path
     $relativePaths = @(
         "packages\app\e2e",
+        "packages\codyx\script\httpapi-exercise.ts",
         "packages\codyx\test",
         "packages\core\test",
         "packages\gitlab-auth",
