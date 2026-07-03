@@ -34,6 +34,9 @@ const IS_PREVIEW = CHANNEL !== "latest"
 const VERSION = await (async () => {
   if (env.CODY_VERSION) return env.CODY_VERSION
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
+  const t = env.CODY_BUMP?.toLowerCase()
+  if (!t || t === "skip")
+    throw new Error("bump is 'skip' and no version override provided. Set CODY_VERSION or select a valid bump.")
   const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
   const version = await fetch(`https://registry.npmjs.org/${npmPackage}/latest`)
     .then((res) => {
@@ -43,7 +46,6 @@ const VERSION = await (async () => {
     })
     .then((data: any) => data.version)
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
-  const t = env.CODY_BUMP?.toLowerCase()
   if (t === "major") return `${major + 1}.0.0`
   if (t === "minor") return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
