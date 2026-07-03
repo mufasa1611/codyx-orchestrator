@@ -13,15 +13,49 @@ console.log(
 
 const tagName = `v${Script.version}`
 
-async function createGithubRelease(body: string, draft: boolean) {
-  console.log(`Creating ${draft ? "draft " : ""}release ${tagName} on ${repo} @ ${sha} via API...`)
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases`, {
-    method: "POST",
+type GithubRelease = {
+  id: number
+  tag_name: string
+  html_url: string
+}
+
+const githubHeaders = {
+  Authorization: `Bearer ${token}`,
+  "Content-Type": "application/json",
+  Accept: "application/vnd.github.v3+json",
+  "User-Agent": "codyx-version-script",
+}
+
+async function findGithubRelease() {
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tagName}`, {
+    headers: githubHeaders,
+  })
+  if (res.ok) return (await res.json()) as GithubRelease
+  if (res.status !== 404) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(`API ${res.status}: ${data.message ?? "Could not inspect release"}`)
+  }
+
+  const list = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=100`, {
+    headers: githubHeaders,
+  })
+  const data = await list.json()
+  if (!list.ok) throw new Error(`API ${list.status}: ${data.message ?? "Could not list releases"}`)
+  return (data as GithubRelease[]).find((release) => release.tag_name === tagName)
+}
+
+async function upsertGithubRelease(body: string, draft: boolean) {
+  const existing = await findGithubRelease()
+  const url = existing
+    ? `https://api.github.com/repos/${repo}/releases/${existing.id}`
+    : `https://api.github.com/repos/${repo}/releases`
+  console.log(
+    `${existing ? "Updating" : "Creating"} ${draft ? "draft " : ""}release ${tagName} on ${repo} @ ${sha} via API...`,
+  )
+  const res = await fetch(url, {
+    method: existing ? "PATCH" : "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "codyx-version-script",
+      ...githubHeaders,
     },
     body: JSON.stringify({
       tag_name: tagName,
@@ -33,8 +67,8 @@ async function createGithubRelease(body: string, draft: boolean) {
   })
   const data = await res.json()
   if (!res.ok) throw new Error(`API ${res.status}: ${data.message} ${JSON.stringify(data.errors ?? [])}`)
-  console.log(`Release created: id=${data.id} tag=${data.tag_name} url=${data.html_url}`)
-  return data
+  console.log(`Release ready: id=${data.id} tag=${data.tag_name} url=${data.html_url}`)
+  return data as GithubRelease
 }
 
 if (!Script.preview) {
@@ -44,11 +78,11 @@ if (!Script.preview) {
     .text()
     .catch(() => "No notable changes")
   console.log(`Changelog body length: ${body.length} chars`)
-  const release = await createGithubRelease(body || "No notable changes", true)
+  const release = await upsertGithubRelease(body || "No notable changes", true)
   output.push(`release=${release.id}`)
   output.push(`tag=${release.tag_name}`)
 } else if (Script.channel === "beta") {
-  const release = await createGithubRelease("Beta release", true)
+  const release = await upsertGithubRelease("Beta release", true)
   output.push(`release=${release.id}`)
   output.push(`tag=${release.tag_name}`)
 }
