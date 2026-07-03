@@ -80,6 +80,10 @@ export default function Home() {
     })
   }
 
+  function startNewProject() {
+    void chooseProject()
+  }
+
   function startNewSession() {
     const project = recent()[0]
     if (project) {
@@ -123,11 +127,14 @@ export default function Home() {
             <div class="flex gap-2 items-center justify-between pl-3">
               <div class="text-14-medium text-text-strong">{language.t("home.recentProjects")}</div>
               <div class="flex items-center gap-2">
-                <Button icon="plus" size="normal" class="pl-2 pr-3" onClick={startNewSession}>
-                  {language.t("command.session.new")}
+                <Button icon="plus" size="normal" class="pl-2 pr-3" onClick={() => void startNewProject()}>
+                  {language.t("command.project.create")}
                 </Button>
                 <Button icon="folder-add-left" size="normal" class="pl-2 pr-3" onClick={() => void chooseProject()}>
                   {language.t("command.project.open")}
+                </Button>
+                <Button icon="plus" size="normal" class="pl-2 pr-3" onClick={startNewSession}>
+                  {language.t("command.session.new")}
                 </Button>
               </div>
             </div>
@@ -153,9 +160,14 @@ export default function Home() {
         <Match when={!sync.ready}>
           <div class="mt-30 mx-auto flex flex-col items-center gap-3">
             <div class="text-12-regular text-text-weak">{language.t("common.loading")}</div>
-            <Button class="px-3" onClick={() => void chooseProject()}>
-              {language.t("command.project.open")}
-            </Button>
+            <div class="flex items-center gap-2">
+              <Button icon="plus" class="px-3" onClick={() => void startNewProject()}>
+                {language.t("command.project.create")}
+              </Button>
+              <Button class="px-3" variant="secondary" onClick={() => void chooseProject()}>
+                {language.t("command.project.open")}
+              </Button>
+            </div>
           </div>
         </Match>
         <Match when={true}>
@@ -166,11 +178,19 @@ export default function Home() {
               <div class="text-12-regular text-text-weak">{language.t("home.empty.description")}</div>
             </div>
             <div class="flex items-center gap-2 mt-1">
-              <Button icon="plus" class="px-3" onClick={() => void chooseProject({ session: true })}>
-                {language.t("command.session.new")}
+              <Button icon="plus" class="px-3" onClick={() => void startNewProject()}>
+                {language.t("command.project.create")}
               </Button>
               <Button class="px-3" variant="secondary" onClick={() => void chooseProject()}>
                 {language.t("command.project.open")}
+              </Button>
+              <Button
+                icon="plus"
+                class="px-3"
+                variant="secondary"
+                onClick={() => void chooseProject({ session: true })}
+              >
+                {language.t("command.session.new")}
               </Button>
             </div>
           </div>
@@ -179,4 +199,3 @@ export default function Home() {
     </div>
   )
 }
-
