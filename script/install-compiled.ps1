@@ -67,20 +67,35 @@ function Invoke-JsonRequest($Url) {
   return Invoke-RestMethod -Uri $Url -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
 }
 
+function Get-NewestPublishedRelease {
+  $releases = Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases"
+  $release = @($releases | Where-Object { -not $_.draft } | Select-Object -First 1)[0]
+  if (-not $release) {
+    throw "No published GitHub Release was found for $Repo. Draft releases cannot be used by normal users. Publish a release that includes codyx-release-manifest.json and the compiled CLI assets, then run this installer again."
+  }
+  return $release
+}
+
 function Get-ReleaseInfo {
   if ($Version) {
     $tag = if ($Version.StartsWith("v")) { $Version } else { "v$Version" }
-    return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/tags/$tag"
+    try {
+      return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/tags/$tag"
+    } catch {
+      throw "GitHub Release $tag was not found for $Repo, or it is still a draft. Publish that release first, then run this installer again."
+    }
   }
 
   if ($Channel -eq "beta") {
-    $releases = Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases"
-    $release = @($releases | Where-Object { -not $_.draft } | Select-Object -First 1)[0]
-    if (-not $release) { throw "No GitHub release found for $Repo." }
-    return $release
+    return Get-NewestPublishedRelease
   }
 
-  return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/latest"
+  try {
+    return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/latest"
+  } catch {
+    Write-Warn "No stable latest release was found. Trying the newest published prerelease or release..."
+    return Get-NewestPublishedRelease
+  }
 }
 
 function Save-Download($Url, $Path) {
@@ -100,11 +115,15 @@ function Get-ReleaseManifest($Release) {
     if ($asset) {
       $url = $asset.browser_download_url
     } else {
-      $url = "https://github.com/$Repo/releases/download/$($Release.tag_name)/codyx-release-manifest.json"
+      throw "Release $($Release.tag_name) does not contain codyx-release-manifest.json. Run the publish workflow for the compiled end-user installer and upload the manifest before distributing this installer."
     }
   }
 
-  Save-Download $url $manifestPath
+  try {
+    Save-Download $url $manifestPath
+  } catch {
+    throw "Could not download codyx-release-manifest.json from $url. Publish the release manifest first, then run this installer again."
+  }
   try {
     return [pscustomobject]@{
       Path = $manifestPath
