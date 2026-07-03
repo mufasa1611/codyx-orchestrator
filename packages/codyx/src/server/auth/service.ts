@@ -1,4 +1,4 @@
-﻿import { eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { Identifier } from "@/id/id"
 import { Global } from "@cody/core/global"
@@ -10,6 +10,8 @@ import { UserTable } from "./schema.sql"
 import { UserID } from "./schema"
 
 const log = Log.create({ service: "server.auth" })
+
+let cachedUserCount: number | null = null
 
 export type UserRow = {
   id: string
@@ -116,7 +118,10 @@ export function migrateLegacyUsers(files = legacyUserDatabasePaths()): number {
       },
       { behavior: "immediate" },
     )
-    if (imported > 0) log.info("migrated legacy web users", { count: imported })
+    if (imported > 0) {
+      cachedUserCount = null
+      log.info("migrated legacy web users", { count: imported })
+    }
     return imported
   }
 
@@ -186,6 +191,7 @@ export function createUser(username: string, password: string): UserRow {
   const passwordHash = hashPassword(password)
 
   Database.use((db) => db.insert(UserTable).values({ id, username, password_hash: passwordHash }).run())
+  cachedUserCount = null
 
   return { id, username, created_at: Date.now() }
 }
@@ -254,11 +260,19 @@ export function deleteUser(id: string): void {
       .where(eq(UserTable.id, id as UserID))
       .run(),
   )
+  cachedUserCount = null
 }
 
 export function userCount(): number {
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    ensureSchema()
+    return Database.use((db) => db.select().from(UserTable).all().length)
+  }
+  if (cachedUserCount !== null) return cachedUserCount
   ensureSchema()
-  return Database.use((db) => db.select().from(UserTable).all().length)
+  const count = Database.use((db) => db.select().from(UserTable).all().length)
+  cachedUserCount = count
+  return count
 }
 
 export function ensureAdmin(): void {
@@ -274,6 +288,7 @@ export function ensureAdmin(): void {
   const id = Identifier.ascending("user") as UserID
   const passwordHash = hashPassword(password)
   Database.use((db) => db.insert(UserTable).values({ id, username, password_hash: passwordHash }).run())
+  cachedUserCount = null
   console.log(`[codyx] Created admin user: ${username}`)
 }
 

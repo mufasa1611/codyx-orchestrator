@@ -255,6 +255,13 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
   }
 }
 
+function isSameOrSubPath(child: string, parent: string | null | undefined): boolean {
+  if (!parent) return false
+  const normChild = path.resolve(child).toLowerCase()
+  const normParent = path.resolve(parent).toLowerCase()
+  return normChild === normParent || normChild.startsWith(normParent + path.sep)
+}
+
 export async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
   const spinner = prompts.spinner()
   const errors: string[] = []
@@ -265,10 +272,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
       continue
     }
-    if (
-      targets.installRoot &&
-      (dir.path === targets.installRoot || dir.path.startsWith(`${targets.installRoot}${path.sep}`))
-    ) {
+    if (isSameOrSubPath(dir.path, targets.installRoot)) {
       prompts.log.step(`Deferring ${dir.label} cleanup to install root removal`)
       continue
     }
@@ -348,10 +352,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   }
 
   for (const item of targets.markedPaths) {
-    if (
-      targets.installRoot &&
-      (item.path === targets.installRoot || item.path.startsWith(`${targets.installRoot}${path.sep}`))
-    ) {
+    if (isSameOrSubPath(item.path, targets.installRoot)) {
       prompts.log.step(`Deferring ${item.label} cleanup to install root removal`)
       continue
     }
@@ -386,10 +387,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   }
 
   for (const marker of targets.installMarkers) {
-    if (
-      targets.installRoot &&
-      (marker === targets.installRoot || marker.startsWith(`${targets.installRoot}${path.sep}`))
-    ) {
+    if (isSameOrSubPath(marker, targets.installRoot)) {
       prompts.log.step("Deferring install marker cleanup to install root removal")
       continue
     }

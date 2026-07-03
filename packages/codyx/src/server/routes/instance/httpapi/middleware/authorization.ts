@@ -27,7 +27,7 @@ function hasValidJwt(request: HttpServerRequest.HttpServerRequest): string | und
 }
 
 function accountAuthRequired(): boolean {
-  return true
+  return hasAccountUsers()
 }
 
 function hasAccountUsers(): boolean {
@@ -147,7 +147,7 @@ export const authorizationLayer = Layer.effect(
           const jwtSub = hasValidJwt(request)
           if (jwtSub) return yield* effect.pipe(Effect.provideService(UserRef, jwtSub))
           return yield* effect
-        })
+        }),
       )
     }
     return Authorization.of((effect) =>
