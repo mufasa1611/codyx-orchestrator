@@ -267,6 +267,16 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   const errors: string[] = []
   const removed: string[] = []
 
+  // On Windows, stop other codyx processes that may hold file handles
+  if (os.platform() === "win32") {
+    spawn("taskkill.exe", ["/f", "/im", "codyx.exe"], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    }).unref()
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+
   for (const dir of targets.directories) {
     if (dir.keep) {
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
@@ -283,7 +293,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     if (!exists) continue
 
     spinner.start(`Removing ${dir.label}...`)
-    const err = await fs.rm(dir.path, { recursive: true, force: true }).catch((e) => e)
+    const err = await removePathWithRenameFallback(dir.path)
     if (err) {
       spinner.stop(`Failed to remove ${dir.label}`, 1)
       errors.push(`${dir.label}: ${err.message}`)
@@ -296,7 +306,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   // Remove Start Menu shortcut
   for (const startMenu of targets.startMenu) {
     spinner.start(`Removing Start Menu shortcuts: ${path.basename(startMenu)}...`)
-    const err = await fs.rm(startMenu, { recursive: true, force: true }).catch((e) => e)
+    const err = await removePathWithRenameFallback(startMenu)
     if (err) {
       spinner.stop("Failed to remove Start Menu shortcuts", 1)
       errors.push(`Start Menu: ${err.message}`)
@@ -315,7 +325,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     const remaining = await fs.readdir(dir).catch(() => null)
     if (remaining && remaining.length === 0) {
       spinner.start(`Removing Start Menu folder: ${path.basename(dir)}...`)
-      const err = await fs.rm(dir, { recursive: true, force: true }).catch((e) => e)
+      const err = await removePathWithRenameFallback(dir)
       if (err) {
         spinner.stop("Failed to remove Start Menu folder", 1)
         errors.push(`Start Menu folder ${dir}: ${err.message}`)
@@ -329,7 +339,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
   // Remove global shims
   for (const shim of targets.globalShims) {
     spinner.start(`Removing shim: ${path.basename(shim)}...`)
-    const err = await fs.rm(shim, { force: true }).catch((e) => e)
+    const err = await removePathWithRenameFallback(shim)
     if (err) {
       spinner.stop(`Failed to remove ${path.basename(shim)}`, 1)
       errors.push(`Shim ${shim}: ${err.message}`)
@@ -363,7 +373,7 @@ export async function executeUninstall(method: Installation.Method, targets: Rem
     if (!exists) continue
 
     spinner.start(`Removing ${item.label}: ${path.basename(item.path)}...`)
-    const err = await fs.rm(item.path, { recursive: true, force: true }).catch((e) => e)
+    const err = await removePathWithRenameFallback(item.path)
     if (err) {
       spinner.stop(`Failed to remove ${item.label}`, 1)
       errors.push(`${item.label} ${item.path}: ${err.message}`)
@@ -540,7 +550,7 @@ async function removeManagedTools(tools: ManagedTool[], removed: string[], error
 
     if (tool.manager === "path" && tool.path) {
       spinner.start(`Removing ${tool.name || "tool"} installed by codyx...`)
-      const err = await fs.rm(tool.path, { recursive: true, force: true }).catch((e) => e)
+      const err = await removePathWithRenameFallback(tool.path)
       if (err) {
         spinner.stop(`Failed to remove ${tool.name || "tool"}`, 1)
         errors.push(`${tool.name || "tool"}: ${err.message}`)
@@ -798,40 +808,76 @@ async function findEnvProxy(marker: InstallMarker | null): Promise<string | null
   }
 }
 
+function spawnDetachedPowershell(script: string) {
+  spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  }).unref()
+}
+
+function spawnDetachedShell(script: string, cwd: string) {
+  spawn("sh", ["-c", script], { cwd, detached: true, stdio: "ignore" }).unref()
+}
+
+async function removePathWithRenameFallback(targetPath: string): Promise<Error | null> {
+  const err = await fs.rm(targetPath, { recursive: true, force: true }).catch((e) => e)
+  if (!err) return null
+  if (os.platform() !== "win32") return err
+
+  const isLockedCode = err.code === "EBUSY" || err.code === "EACCES"
+  const isLockedMsg = err.message?.includes("EBUSY") || err.message?.includes("EACCES")
+  if (!isLockedCode && !isLockedMsg) return err
+
+  const tempSuffix = `.codyx-uninstall-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const tempPath = `${targetPath}${tempSuffix}`
+  const renameErr = await fs.rename(targetPath, tempPath).catch((e) => e)
+  if (renameErr) {
+    if (renameErr.code === "ENOENT") return null
+    return err
+  }
+
+  const script = [
+    `$target = '${tempPath.replace(/'/g, "''")}'`,
+    `Start-Sleep -Seconds 3`,
+    `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
+    `  Start-Sleep -Milliseconds 500`,
+    `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
+    `}`,
+  ].join("; ")
+  spawnDetachedPowershell(script)
+  return null
+}
+
 export async function scheduleInstallRootRemoval(root: string) {
   const removalCwd = path.dirname(root)
   if (os.platform() === "win32") {
+    const tempSuffix = `.codyx-uninstall-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const tempRoot = `${root}${tempSuffix}`
+    await fs.rename(root, tempRoot).catch(() => {})
+    const actualTarget = await fs
+      .access(tempRoot)
+      .then(() => tempRoot)
+      .catch(() => root)
     const script = [
-      `$target = '${root.replace(/'/g, "''")}'`,
-      `Start-Sleep -Seconds 2`,
+      `$target = '${actualTarget.replace(/'/g, "''")}'`,
+      `Start-Sleep -Seconds 3`,
       `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
       `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
       `}`,
+      `# Also clean up any leftover .codyx-uninstall-* dirs`,
+      `$parent = Split-Path -Parent $target`,
+      `if ($parent) { Get-ChildItem -LiteralPath $parent -Filter '*.codyx-uninstall-*' -Directory | ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {} } }`,
     ].join("; ")
-    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      cwd: removalCwd,
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    })
-    child.unref()
+    spawnDetachedPowershell(script)
     return
   }
 
-  const child = spawn(
-    "sh",
-    [
-      "-c",
-      `sleep 2; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done`,
-    ],
-    {
-      cwd: removalCwd,
-      detached: true,
-      stdio: "ignore",
-    },
+  spawnDetachedShell(
+    `sleep 3; for i in $(seq 1 120); do [ ! -e '${root.replace(/'/g, `'\\''`)}' ] && exit 0; sleep 0.5; rm -rf '${root.replace(/'/g, `'\\''`)}'; done; rm -rf '${root.replace(/'/g, `'\\''`)}'*.codyx-uninstall-* 2>/dev/null; exit 0`,
+    removalCwd,
   )
-  child.unref()
 }
 
 async function getShellConfigFile(): Promise<string | null> {
