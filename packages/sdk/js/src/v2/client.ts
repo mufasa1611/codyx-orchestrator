@@ -56,18 +56,22 @@ export function createCodyClient(config?: Config & { directory?: string; experim
     }
   }
 
+  const headers: Record<string, string> = { ...(config?.headers as Record<string, string>) }
+  if (typeof process !== "undefined" && (process.env.CODY || process.env.AGENT || process.env.CODY_PROCESS_ROLE)) {
+    headers["x-cody-cli-local"] = "1"
+  }
+
   if (config?.directory) {
-    config.headers = {
-      ...config.headers,
-      "x-cody-directory": encodeURIComponent(config.directory),
-    }
+    headers["x-cody-directory"] = encodeURIComponent(config.directory)
   }
 
   if (config?.experimental_workspaceID) {
-    config.headers = {
-      ...config.headers,
-      "x-cody-workspace": config.experimental_workspaceID,
-    }
+    headers["x-cody-workspace"] = config.experimental_workspaceID
+  }
+
+  config = {
+    ...config,
+    headers,
   }
 
   const client = createClient(config)

@@ -82,6 +82,10 @@ export const AuthMiddleware: MiddlewareHandler = async (c, next) => {
     }
   }
 
+  if (!password && !accountUsersExist) {
+    return next()
+  }
+
   if (password && !accountUsersExist) {
     const username = Flag.CODY_SERVER_USERNAME ?? "codyx"
     if (c.req.query("auth_token")) c.req.raw.headers.set("authorization", `Basic ${c.req.query("auth_token")}`)
