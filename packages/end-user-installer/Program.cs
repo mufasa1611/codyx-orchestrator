@@ -64,6 +64,8 @@ public sealed class InstallerWindow : Window
     MinWidth = 300,
     Margin = new Thickness(0, 0, 8, 0),
   };
+  readonly StackPanel codeRow = new() { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
+  readonly TextBox[] codeBoxes = new TextBox[6];
   readonly Button promptSend = new() { Content = "Send", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
   readonly Button promptCancel = new() { Content = "Cancel", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
   readonly Button promptChangeEmail = new() { Content = "Change email", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false, Visibility = Visibility.Collapsed };
@@ -174,6 +176,8 @@ public sealed class InstallerWindow : Window
     promptRoot.Children.Add(promptText);
     var promptRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     promptRow.Children.Add(promptAnswer);
+    BuildCodeInputs();
+    promptRow.Children.Add(codeRow);
     promptChangeEmail.Margin = new Thickness(0, 0, 8, 0);
     promptResend.Margin = new Thickness(0, 0, 8, 0);
     promptCancel.Margin = new Thickness(0, 0, 8, 0);
@@ -206,6 +210,69 @@ public sealed class InstallerWindow : Window
       }
     };
     RefreshInstalledActions();
+  }
+
+  void BuildCodeInputs()
+  {
+    codeRow.Margin = new Thickness(0, 0, 8, 0);
+    for (int i = 0; i < 6; i++)
+    {
+      var idx = i;
+      var box = new TextBox
+      {
+        Width = 34,
+        MinHeight = 34,
+        FontSize = 18,
+        FontWeight = FontWeights.Bold,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        MaxLength = 1,
+        Margin = new Thickness(0, 0, i < 5 ? 6 : 0, 0),
+        Background = new SolidColorBrush(Color.FromRgb(7, 10, 15)),
+        Foreground = Brushes.White,
+        BorderBrush = new SolidColorBrush(Color.FromRgb(54, 65, 83)),
+        IsEnabled = false,
+        CaretBrush = Brushes.Transparent,
+      };
+      box.PreviewTextInput += (_, e) =>
+      {
+        if (!char.IsDigit(e.Text, 0))
+        {
+          e.Handled = true;
+          return;
+        }
+        box.Text = e.Text;
+        if (idx < 5) codeBoxes[idx + 1].Focus();
+        else SendPromptAnswer();
+        e.Handled = true;
+      };
+      box.PreviewKeyDown += (_, e) =>
+      {
+        if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+          try
+          {
+            var text = Clipboard.GetText().Trim();
+            if (text.Length == 6 && text.All(char.IsDigit))
+            {
+              for (int k = 0; k < 6; k++) codeBoxes[k].Text = text[k].ToString();
+              SendPromptAnswer();
+              e.Handled = true;
+              return;
+            }
+          }
+          catch { }
+        }
+        if (e.Key == Key.Back && string.IsNullOrEmpty(box.Text) && idx > 0)
+        {
+          codeBoxes[idx - 1].Focus();
+          codeBoxes[idx - 1].Text = "";
+          e.Handled = true;
+        }
+      };
+      codeBoxes[i] = box;
+      codeRow.Children.Add(box);
+    }
   }
 
   static UIElement BuildBanner()
@@ -395,7 +462,14 @@ public sealed class InstallerWindow : Window
     promptPanel.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     promptText.Text = message;
     promptAnswer.Text = "";
-    promptAnswer.IsEnabled = active;
+    promptAnswer.Visibility = promptIsCode ? Visibility.Collapsed : Visibility.Visible;
+    promptAnswer.IsEnabled = active && !promptIsCode;
+    codeRow.Visibility = promptIsCode ? Visibility.Visible : Visibility.Collapsed;
+    foreach (var box in codeBoxes)
+    {
+      box.Text = "";
+      box.IsEnabled = active && promptIsCode;
+    }
     promptSend.IsEnabled = active;
     promptCancel.IsEnabled = active;
     promptChangeEmail.IsEnabled = active && (promptIsCode || isEmailConfirm);
@@ -404,19 +478,38 @@ public sealed class InstallerWindow : Window
     promptResend.Visibility = promptResend.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
     promptChangeEmail.Content = isEmailConfirm ? "Re-enter email" : "Change email";
     promptSend.Content = isEmailConfirm ? "Use email" : promptIsCode ? "Verify" : "Send";
-    promptAnswer.MaxLength = promptIsCode ? 6 : 0;
-    promptAnswer.Width = promptIsCode ? 160 : double.NaN;
-    if (active) promptAnswer.Focus();
+    promptAnswer.MaxLength = 0;
+    promptAnswer.Width = double.NaN;
+    if (active)
+    {
+      if (promptIsCode) codeBoxes[0].Focus();
+      else promptAnswer.Focus();
+    }
   }
 
-  void SendPromptAnswer(string value)
+  void SendPromptAnswer(string? forcedValue = null)
   {
     if (!promptActive || activeInstallerProcess is null || activeInstallerProcess.HasExited) return;
+    var value = forcedValue ?? (promptIsCode ? string.Concat(codeBoxes.Select((box) => box.Text)) : promptAnswer.Text);
+    if (promptIsCode && forcedValue is null && value.Length < 6)
+    {
+      Append("Enter all 6 verification digits.");
+      foreach (var box in codeBoxes)
+      {
+        if (string.IsNullOrEmpty(box.Text))
+        {
+          box.Focus();
+          break;
+        }
+      }
+      return;
+    }
     try
     {
       activeInstallerProcess.StandardInput.WriteLine(value ?? "");
       var secret = promptIsCode && (value ?? "").Trim().Length > 0 && (value ?? "").Trim().All(char.IsDigit);
       Append($"> {(secret ? "******" : value)}");
+      foreach (var box in codeBoxes) box.Text = "";
       ShowPrompt(false, "Waiting for installer prompt...");
     }
     catch (Exception ex)
