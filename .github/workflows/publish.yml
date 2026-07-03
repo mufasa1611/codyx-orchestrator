@@ -75,7 +75,7 @@ jobs:
       - name: Build
         id: build
         run: |
-          bun ./packages/codyx/script/build.ts ${{ (github.ref_name == 'beta' && '--sourcemaps') || '' }}
+          bun ./packages/codyx/script/build.ts --all ${{ (github.ref_name == 'beta' && '--sourcemaps') || '' }}
         env:
           CODY_VERSION: ${{ needs.version.outputs.version }}
           CODY_RELEASE: ${{ needs.version.outputs.release }}
