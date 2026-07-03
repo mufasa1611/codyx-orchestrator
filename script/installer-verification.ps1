@@ -50,6 +50,31 @@ function Test-EmailAddress($Value) {
   }
 }
 
+function Get-EmailTypoSuggestion($Value) {
+  if (-not $Value -or $Value -notmatch "@") { return $null }
+  $parts = [string]$Value -split "@", 2
+  if ($parts.Count -ne 2) { return $null }
+  $localPart = $parts[0]
+  $domain = $parts[1].ToLowerInvariant()
+  $suggestions = @{
+    "agmail.com" = "gmail.com"
+    "gamil.com" = "gmail.com"
+    "gmial.com" = "gmail.com"
+    "gmai.com" = "gmail.com"
+    "gmail.co" = "gmail.com"
+    "gmail.con" = "gmail.com"
+    "hotnail.com" = "hotmail.com"
+    "hotmai.com" = "hotmail.com"
+    "hotmail.co" = "hotmail.com"
+    "outlok.com" = "outlook.com"
+    "outlook.co" = "outlook.com"
+    "yaho.com" = "yahoo.com"
+    "yahoo.co" = "yahoo.com"
+  }
+  if (-not $suggestions.ContainsKey($domain)) { return $null }
+  return "$localPart@$($suggestions[$domain])"
+}
+
 function Test-DisplayName($Value) {
   return -not [string]::IsNullOrWhiteSpace($Value) -and $Value.Trim().Length -le 100
 }
@@ -427,7 +452,27 @@ while ($true) {
       Write-VerificationWarn "Enter a valid email address."
       continue
     }
-    $email = $value.ToLowerInvariant()
+    $candidateEmail = $value.ToLowerInvariant()
+    $suggestion = Get-EmailTypoSuggestion $candidateEmail
+    if ($suggestion) {
+      Write-VerificationWarn "That email looks like a typo. Did you mean ${suggestion}?"
+    }
+
+    while ($true) {
+      $confirm = (Read-InstallerValue "Use email $candidateEmail? [Y/n]").Trim().ToLowerInvariant()
+      if ($confirm.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-VerificationWarn "Installation cancelled before registration."
+        return New-VerificationResult $false "cancelled"
+      }
+      if ($confirm -eq "" -or $confirm -eq "y" -or $confirm -eq "yes") {
+        $email = $candidateEmail
+        break
+      }
+      if ($confirm -eq "n" -or $confirm -eq "no" -or $confirm -eq "edit" -or $confirm -eq "change" -or $confirm -eq "change-email") {
+        break
+      }
+      Write-VerificationWarn "Type Y to send the code to this email, or N to enter it again."
+    }
   }
 
   Write-VerificationStep "Sending a verification code to $email..."

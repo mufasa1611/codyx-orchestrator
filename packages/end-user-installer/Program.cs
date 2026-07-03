@@ -6,6 +6,10 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using IOPath = System.IO.Path;
 
 namespace Codyx.EndUserInstaller;
 
@@ -62,41 +66,73 @@ public sealed class InstallerWindow : Window
   };
   readonly Button promptSend = new() { Content = "Send", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
   readonly Button promptCancel = new() { Content = "Cancel", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
+  readonly Button promptChangeEmail = new() { Content = "Change email", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false, Visibility = Visibility.Collapsed };
+  readonly Button promptResend = new() { Content = "Resend", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false, Visibility = Visibility.Collapsed };
 
   string scriptPath = "";
   Process? activeInstallerProcess;
   bool promptActive;
+  bool promptIsCode;
 
   public InstallerWindow()
   {
     Title = "Codyx-Orchestrator Installer";
+    Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png"));
     Width = 980;
-    Height = 760;
-    MinWidth = 760;
-    MinHeight = 620;
-    Background = new SolidColorBrush(Color.FromRgb(5, 10, 18));
+    Height = 900;
+    MinWidth = 780;
+    MinHeight = 720;
+    Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
-    var root = new DockPanel { Margin = new Thickness(28) };
-    Content = root;
+    var shell = new DockPanel();
+    Content = shell;
+    var banner = BuildBanner();
+    DockPanel.SetDock(banner, Dock.Top);
+    shell.Children.Add(banner);
 
-    var header = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
+    var root = new DockPanel { Margin = new Thickness(32, 26, 32, 24) };
+    shell.Children.Add(root);
+
+    var header = new StackPanel { Margin = new Thickness(0, 0, 0, 18), HorizontalAlignment = HorizontalAlignment.Center };
     DockPanel.SetDock(header, Dock.Top);
     root.Children.Add(header);
 
+    header.Children.Add(new Image
+    {
+      Source = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png")),
+      Height = 170,
+      Stretch = Stretch.Uniform,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 0, 0, 16),
+    });
+
     header.Children.Add(new TextBlock
     {
-      Text = "Codyx-Orchestrator",
-      Foreground = Brushes.White,
-      FontSize = 34,
+      Text = "Welcome to Codyx",
+      Foreground = BuildShimmerBrush(-1.5),
+      FontSize = 32,
       FontWeight = FontWeights.Bold,
+      HorizontalAlignment = HorizontalAlignment.Center,
     });
     header.Children.Add(new TextBlock
     {
-      Text = "Compiled end-user installer by M.Farid (Mufasa)",
-      Foreground = new SolidColorBrush(Color.FromRgb(134, 239, 172)),
+      Text = "A multi-agent assistant",
+      Foreground = new SolidColorBrush(Color.FromRgb(165, 176, 195)),
       FontSize = 16,
+      FontWeight = FontWeights.SemiBold,
+      HorizontalAlignment = HorizontalAlignment.Center,
       Margin = new Thickness(0, 4, 0, 0),
+    });
+    header.Children.Add(new TextBlock
+    {
+      Text = "by M. Farid (Mufasa)",
+      Foreground = BuildShimmerBrush(1.5),
+      FontSize = 18,
+      FontWeight = FontWeights.SemiBold,
+      FontFamily = new FontFamily("Segoe Script"),
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 4, 0, 12),
     });
 
     var license = new TextBlock
@@ -138,6 +174,11 @@ public sealed class InstallerWindow : Window
     promptRoot.Children.Add(promptText);
     var promptRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     promptRow.Children.Add(promptAnswer);
+    promptChangeEmail.Margin = new Thickness(0, 0, 8, 0);
+    promptResend.Margin = new Thickness(0, 0, 8, 0);
+    promptCancel.Margin = new Thickness(0, 0, 8, 0);
+    promptRow.Children.Add(promptChangeEmail);
+    promptRow.Children.Add(promptResend);
     promptRow.Children.Add(promptCancel);
     promptRow.Children.Add(promptSend);
     promptPanel.Child = promptRoot;
@@ -154,6 +195,8 @@ public sealed class InstallerWindow : Window
     uninstall.Click += (_, _) => Launch("uninstall");
     promptSend.Click += (_, _) => SendPromptAnswer(promptAnswer.Text);
     promptCancel.Click += (_, _) => SendPromptAnswer("cancel");
+    promptChangeEmail.Click += (_, _) => SendPromptAnswer(IsEmailConfirmationPrompt(promptText.Text) ? "n" : "change-email");
+    promptResend.Click += (_, _) => SendPromptAnswer("resend");
     promptAnswer.KeyDown += (_, e) =>
     {
       if (e.Key == Key.Enter)
@@ -162,6 +205,77 @@ public sealed class InstallerWindow : Window
         e.Handled = true;
       }
     };
+    RefreshInstalledActions();
+  }
+
+  static UIElement BuildBanner()
+  {
+    var grid = new Grid
+    {
+      Height = 128,
+      ClipToBounds = true,
+      Background = new LinearGradientBrush(Color.FromRgb(10, 18, 30), Color.FromRgb(20, 38, 34), 0),
+    };
+
+    var glow = new Rectangle
+    {
+      Fill = new LinearGradientBrush(
+        [
+          new GradientStop(Color.FromArgb(0, 28, 216, 117), 0),
+          new GradientStop(Color.FromArgb(180, 28, 216, 117), 0.45),
+          new GradientStop(Color.FromArgb(0, 88, 166, 255), 1),
+        ],
+        0),
+      Opacity = 0.45,
+      Width = 360,
+      HorizontalAlignment = HorizontalAlignment.Left,
+      RenderTransform = new TranslateTransform(-360, 0),
+    };
+    grid.Children.Add(glow);
+
+    ((TranslateTransform)glow.RenderTransform).BeginAnimation(
+      TranslateTransform.XProperty,
+      new DoubleAnimation(-360, 980, TimeSpan.FromSeconds(4.2))
+      {
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+      });
+
+    grid.Children.Add(new TextBlock
+    {
+      Text = "Codyx-Orchestrator",
+      Foreground = Brushes.White,
+      FontSize = 36,
+      FontWeight = FontWeights.Bold,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      VerticalAlignment = VerticalAlignment.Center,
+    });
+
+    return grid;
+  }
+
+  static Brush BuildShimmerBrush(double from)
+  {
+    var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.0));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.25));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.4));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.48));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 250, 200), 0.5));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(120, 225, 160), 0.52));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(46, 204, 113), 0.6));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 0.75));
+    brush.GradientStops.Add(new GradientStop(Color.FromRgb(255, 255, 255), 1.0));
+    var transform = new TranslateTransform(from, 0);
+    brush.RelativeTransform = transform;
+    transform.BeginAnimation(
+      TranslateTransform.XProperty,
+      new DoubleAnimation(from, -from, TimeSpan.FromSeconds(6.0))
+      {
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+      });
+    return brush;
   }
 
   static Hyperlink Link(string text, string url)
@@ -178,6 +292,7 @@ public sealed class InstallerWindow : Window
   async Task InstallAsync()
   {
     primary.IsEnabled = false;
+    SetInstalledActions(false);
     status.Text = "Complete identity and email verification, then install compiled release assets.";
     log.Clear();
     scriptPath = ExtractScripts();
@@ -195,32 +310,31 @@ public sealed class InstallerWindow : Window
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
       primary.Content = "Reinstall / update";
       primary.IsEnabled = true;
-      cli.IsEnabled = true;
-      web.IsEnabled = true;
-      uninstall.IsEnabled = true;
+      RefreshInstalledActions();
     }
     else
     {
       status.Text = $"Install failed with exit code {code}.";
       primary.Content = "Retry install";
       primary.IsEnabled = true;
+      RefreshInstalledActions();
     }
   }
 
   void Launch(string command)
   {
-    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-    var shim = Path.Combine(local, "Programs", "Codyx-Orchestrator", "bin", "codyx.cmd");
+    var shim = InstalledShimPath();
     if (!File.Exists(shim))
     {
       Append($"Cannot find installed command: {shim}");
+      SetInstalledActions(false);
       return;
     }
 
     var args = string.IsNullOrWhiteSpace(command) ? $"/k \"{shim}\"" : $"/k \"{shim}\" {command}";
     Process.Start(new ProcessStartInfo("cmd.exe", args)
     {
-      WorkingDirectory = Path.GetDirectoryName(shim) ?? local,
+      WorkingDirectory = IOPath.GetDirectoryName(shim) ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
       UseShellExecute = true,
     });
   }
@@ -276,12 +390,22 @@ public sealed class InstallerWindow : Window
   void ShowPrompt(bool active, string message)
   {
     promptActive = active;
+    promptIsCode = IsCodePrompt(message);
+    var isEmailConfirm = IsEmailConfirmationPrompt(message);
     promptPanel.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     promptText.Text = message;
     promptAnswer.Text = "";
     promptAnswer.IsEnabled = active;
     promptSend.IsEnabled = active;
     promptCancel.IsEnabled = active;
+    promptChangeEmail.IsEnabled = active && (promptIsCode || isEmailConfirm);
+    promptResend.IsEnabled = active && promptIsCode;
+    promptChangeEmail.Visibility = promptChangeEmail.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+    promptResend.Visibility = promptResend.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+    promptChangeEmail.Content = isEmailConfirm ? "Re-enter email" : "Change email";
+    promptSend.Content = isEmailConfirm ? "Use email" : promptIsCode ? "Verify" : "Send";
+    promptAnswer.MaxLength = promptIsCode ? 6 : 0;
+    promptAnswer.Width = promptIsCode ? 160 : double.NaN;
     if (active) promptAnswer.Focus();
   }
 
@@ -291,7 +415,7 @@ public sealed class InstallerWindow : Window
     try
     {
       activeInstallerProcess.StandardInput.WriteLine(value ?? "");
-      var secret = promptText.Text.Contains("code", StringComparison.OrdinalIgnoreCase);
+      var secret = promptIsCode && (value ?? "").Trim().Length > 0 && (value ?? "").Trim().All(char.IsDigit);
       Append($"> {(secret ? "******" : value)}");
       ShowPrompt(false, "Waiting for installer prompt...");
     }
@@ -307,19 +431,48 @@ public sealed class InstallerWindow : Window
     log.ScrollToEnd();
   }
 
+  void RefreshInstalledActions()
+  {
+    SetInstalledActions(File.Exists(InstalledShimPath()));
+  }
+
+  void SetInstalledActions(bool enabled)
+  {
+    cli.IsEnabled = enabled;
+    web.IsEnabled = enabled;
+    uninstall.IsEnabled = enabled;
+  }
+
+  static string InstalledShimPath()
+  {
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    return IOPath.Combine(local, "Programs", "Codyx-Orchestrator", "bin", "codyx.cmd");
+  }
+
+  static bool IsCodePrompt(string message)
+  {
+    return message.Contains("Enter code", StringComparison.OrdinalIgnoreCase) ||
+      message.Contains("six-digit code", StringComparison.OrdinalIgnoreCase);
+  }
+
+  static bool IsEmailConfirmationPrompt(string message)
+  {
+    return message.StartsWith("Use email ", StringComparison.OrdinalIgnoreCase);
+  }
+
   static string PowerShellPath()
   {
     var systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-    return Path.Combine(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    return IOPath.Combine(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   }
 
   static string ExtractScripts()
   {
-    var dir = Path.Combine(Path.GetTempPath(), "codyx-end-user-installer");
+    var dir = IOPath.Combine(IOPath.GetTempPath(), "codyx-end-user-installer");
     Directory.CreateDirectory(dir);
-    var installer = Path.Combine(dir, "install-compiled.ps1");
+    var installer = IOPath.Combine(dir, "install-compiled.ps1");
     ExtractResource("Codyx.EndUserInstaller.Resources.install-compiled.ps1", installer);
-    ExtractResource("Codyx.EndUserInstaller.Resources.installer-verification.ps1", Path.Combine(dir, "installer-verification.ps1"));
+    ExtractResource("Codyx.EndUserInstaller.Resources.installer-verification.ps1", IOPath.Combine(dir, "installer-verification.ps1"));
     return installer;
   }
 
@@ -334,9 +487,9 @@ public sealed class InstallerWindow : Window
   static string? LocalManifestPath()
   {
     var exePath = Environment.ProcessPath;
-    var exeDir = string.IsNullOrWhiteSpace(exePath) ? AppContext.BaseDirectory : Path.GetDirectoryName(exePath);
+    var exeDir = string.IsNullOrWhiteSpace(exePath) ? AppContext.BaseDirectory : IOPath.GetDirectoryName(exePath);
     if (string.IsNullOrWhiteSpace(exeDir)) return null;
-    var manifest = Path.Combine(exeDir, "codyx-release-manifest.json");
+    var manifest = IOPath.Combine(exeDir, "codyx-release-manifest.json");
     return File.Exists(manifest) ? manifest : null;
   }
 }

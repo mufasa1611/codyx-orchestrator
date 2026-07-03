@@ -84,7 +84,7 @@ Invoke-Test "first verification saves only receipt metadata" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "retry", "246810") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "y", "retry", "246810") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ challenge = $null; verifies = 0 }
     $request = {
@@ -126,7 +126,7 @@ Invoke-Test "wrong and expired codes can recover" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "111111", "222222", "resend", "333333") |
+    @("Installer User", "user@example.com", "y", "111111", "222222", "resend", "333333") |
       ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ verify = 0; resend = 0 }
@@ -163,7 +163,7 @@ Invoke-Test "resend command sends a fresh code" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "resend", "246810") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "y", "resend", "246810") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ resend = 0 }
     $request = {
@@ -195,7 +195,7 @@ Invoke-Test "change-email requests a challenge for the corrected address" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "wrong@example.com", "change-email", "right@example.com", "246810") |
+    @("Installer User", "wrong@example.com", "y", "change-email", "right@example.com", "y", "246810") |
       ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ emails = [System.Collections.Generic.List[string]]::new() }
@@ -240,6 +240,36 @@ Invoke-Test "cancel stops before contacting the service" {
   }
 }
 
+Invoke-Test "email typo can be rejected before sending a challenge" {
+  $directory = New-TestDirectory
+  try {
+    $receiptPath = Join-Path $directory "verification.json"
+    $inputs = [System.Collections.Generic.Queue[string]]::new()
+    @("Installer User", "mufasa1611@agmail.com", "n", "mufasa1611@gmail.com", "y", "246810") |
+      ForEach-Object { $inputs.Enqueue($_) }
+    $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
+    $state = @{ emails = [System.Collections.Generic.List[string]]::new() }
+    $request = {
+      param($Method, $Uri, $Body)
+      $path = ([uri]$Uri).AbsolutePath
+      if ($path -eq "/v1/challenges") {
+        $state.emails.Add([string]$Body.email)
+        return New-Success ([pscustomobject]@{ challenge_id = "challenge-typo" })
+      }
+      if ($path -eq "/v1/challenges/challenge-typo/verify") {
+        return New-Success ([pscustomobject]@{ receipt = "corrected-typo.receipt"; expires_at = "2027-01-01T00:00:00Z" })
+      }
+      throw "Unexpected request path: $path"
+    }.GetNewClosure()
+    $result = & $Helper -InstallerVersion "test" -ReceiptPath $receiptPath `
+      -RequestAction $request -ReadAction $read
+    Assert-True $result.Success "Corrected typo verification should succeed."
+    Assert-True (($state.emails -join ",") -eq "mufasa1611@gmail.com") "Typo email should not receive a challenge."
+  } finally {
+    Remove-Item -LiteralPath $directory -Recurse -Force
+  }
+}
+
 Invoke-Test "noninteractive run without a receipt stops before contacting the service" {
   $directory = New-TestDirectory
   try {
@@ -265,7 +295,7 @@ Invoke-Test "service outage retries three times and stops" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "y") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ requests = 0; sleeps = 0 }
     $request = {
@@ -293,4 +323,4 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host ""
-Write-Host "All 8 verification scenarios passed ($checks assertions)." -ForegroundColor Green
+Write-Host "All 9 verification scenarios passed ($checks assertions)." -ForegroundColor Green
