@@ -49,13 +49,13 @@ describe("HttpApi auth endpoints", () => {
     const initial = await server.request("/api/auth/status")
 
     expect(initial.status).toBe(200)
-    expect(await initial.json()).toEqual({ accountAuthRequired: false })
+    expect(await initial.json()).toEqual({ accountAuthRequired: true, hasUsers: false })
 
     AuthService.createUser("status-user", "testpass123")
     const afterUser = await server.request("/api/auth/status")
 
     expect(afterUser.status).toBe(200)
-    expect(await afterUser.json()).toEqual({ accountAuthRequired: true })
+    expect(await afterUser.json()).toEqual({ accountAuthRequired: true, hasUsers: true })
   })
 
   test("POST /api/auth/login returns token for valid credentials", async () => {
@@ -104,7 +104,7 @@ describe("HttpApi auth endpoints", () => {
     expect(response.status).toBe(400)
   })
 })
-﻿describe("HttpApi register endpoint", () => {
+describe("HttpApi register endpoint", () => {
   test("POST /api/auth/register creates a new user and returns token", async () => {
     ensureSecret()
     const server = app()

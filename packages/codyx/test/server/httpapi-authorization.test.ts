@@ -51,9 +51,17 @@ const getProbe = (headers?: Record<string, string>) =>
   )
 
 describe("HttpApi authorization middleware", () => {
-  it.live("allows requests when server password is not configured", () =>
+  it.live("requires account auth when server password is not configured", () =>
     Effect.gen(function* () {
       const response = yield* getProbe()
+
+      expect(response.status).toBe(401)
+    }),
+  )
+
+  it.live("allows trusted local CLI requests without account credentials", () =>
+    Effect.gen(function* () {
+      const response = yield* getProbe({ "x-cody-cli-local": "1" })
 
       expect(response.status).toBe(200)
       expect(yield* response.json).toBe("ok")

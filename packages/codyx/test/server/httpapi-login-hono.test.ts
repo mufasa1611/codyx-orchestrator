@@ -26,7 +26,7 @@ describe("Hono backend auth login", () => {
     const response = await app.request("/api/auth/status")
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ accountAuthRequired: false })
+    expect(await response.json()).toEqual({ accountAuthRequired: true, hasUsers: false })
   })
 
   test("POST /api/auth/login works via Hono sub-app", async () => {

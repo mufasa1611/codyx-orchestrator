@@ -18,14 +18,17 @@ import type {
 } from "./types"
 
 const userIDKey = "codyUserID"
+const LOCAL_CLI_USER_ID = "local-cli"
 
 const withUser = <A, E, R>(c: any, effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.provideService(UserRef, (c as any).get(userIDKey) as string))
 
+const localCliUserID = (c: any) => (c.req.header("x-cody-cli-local") ? LOCAL_CLI_USER_ID : undefined)
+
 export const AgentRoutes = lazy(() =>
   new Hono()
     .use("*", async (c, next) => {
-      const userID = Jwt.userIdFromBearer(c.req.header("authorization") ?? "")
+      const userID = Jwt.userIdFromBearer(c.req.header("authorization") ?? "") ?? localCliUserID(c)
       if (!userID) return c.json({ error: "Unauthorized" }, 401)
       ;(c as any).set(userIDKey, userID)
       return next()
@@ -215,9 +218,8 @@ export const AgentRoutes = lazy(() =>
             Effect.gen(function* () {
               const hub = yield* AgentHub.Service
               const body = c.req.valid("json")
-              const content = body.encoding === "base64"
-                ? Buffer.from(body.content, "base64").toString("utf-8")
-                : body.content
+              const content =
+                body.encoding === "base64" ? Buffer.from(body.content, "base64").toString("utf-8") : body.content
               yield* hub.writeFile(body.path, content)
               return { success: true } as AgentWriteFileResponse
             }),
@@ -301,6 +303,3 @@ export const AgentRoutes = lazy(() =>
         }),
     ),
 )
-
-
-

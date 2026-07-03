@@ -194,9 +194,9 @@ public sealed class InstallerWindow : Window
     body.Children.Add(log);
 
     primary.Click += async (_, _) => await InstallAsync();
-    cli.Click += (_, _) => Launch("");
-    web.Click += (_, _) => Launch("web");
-    uninstall.Click += (_, _) => Launch("uninstall");
+    cli.Click += async (_, _) => await LaunchAsync("");
+    web.Click += async (_, _) => await LaunchAsync("web");
+    uninstall.Click += async (_, _) => await LaunchAsync("uninstall");
     promptSend.Click += (_, _) => SendPromptAnswer(promptAnswer.Text);
     promptCancel.Click += (_, _) => SendPromptAnswer("cancel");
     promptChangeEmail.Click += (_, _) => SendPromptAnswer(IsEmailConfirmationPrompt(promptText.Text) ? "n" : "change-email");
@@ -388,8 +388,30 @@ public sealed class InstallerWindow : Window
     }
   }
 
-  void Launch(string command)
+  async Task LaunchAsync(string command)
   {
+    if (!HasRunnableInstall())
+    {
+      Append("Codyx-Orchestrator is not fully installed yet. Run install/update first.");
+      RefreshInstalledActions();
+      return;
+    }
+
+    if (!command.Equals("uninstall", StringComparison.OrdinalIgnoreCase))
+    {
+      primary.IsEnabled = false;
+      SetInstalledActions(false);
+      status.Text = "Checking installed Codyx-Orchestrator before launch...";
+      var ready = await RunEmbeddedInstallPreflightAsync();
+      primary.IsEnabled = true;
+      RefreshInstalledActions();
+      if (!ready)
+      {
+        status.Text = "Installed app is not launch-ready. Run install/update again.";
+        return;
+      }
+    }
+
     var shim = InstalledShimPath();
     if (!File.Exists(shim))
     {
@@ -526,7 +548,17 @@ public sealed class InstallerWindow : Window
 
   void RefreshInstalledActions()
   {
-    SetInstalledActions(File.Exists(InstalledShimPath()));
+    var health = GetInstallHealth();
+    SetInstalledActions(health.Ready);
+    primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
+    if (health.Ready)
+    {
+      status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
+    }
+    else if (health.Missing.Count > 0)
+    {
+      status.Text = "Install/update is needed before CLI, Web UI, or Uninstall can run.";
+    }
   }
 
   void SetInstalledActions(bool enabled)
@@ -538,8 +570,92 @@ public sealed class InstallerWindow : Window
 
   static string InstalledShimPath()
   {
+    return IOPath.Combine(InstallRoot(), "bin", "codyx.cmd");
+  }
+
+  static string InstallRoot()
+  {
     var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-    return IOPath.Combine(local, "Programs", "Codyx-Orchestrator", "bin", "codyx.cmd");
+    return IOPath.Combine(local, "Programs", "Codyx-Orchestrator");
+  }
+
+  static string InstalledCliPath()
+  {
+    return IOPath.Combine(InstallRoot(), "current", "codyx.exe");
+  }
+
+  static string InstalledUpdaterPath()
+  {
+    return IOPath.Combine(InstallRoot(), "updater", "install-compiled.ps1");
+  }
+
+  static string InstalledVerificationHelperPath()
+  {
+    return IOPath.Combine(InstallRoot(), "updater", "installer-verification.ps1");
+  }
+
+  static string RootMarkerPath()
+  {
+    return IOPath.Combine(InstallRoot(), ".codyx-install-marker");
+  }
+
+  static string InstallerMarkerPath()
+  {
+    return IOPath.Combine(InstallerStateDir(), "install-marker.json");
+  }
+
+  static string VerificationReceiptPath()
+  {
+    return IOPath.Combine(InstallerStateDir(), "verification.json");
+  }
+
+  static string InstallerStateDir()
+  {
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    return IOPath.Combine(local, "codyx-installer");
+  }
+
+  sealed record InstallHealth(bool Ready, IReadOnlyList<string> Missing);
+
+  static InstallHealth GetInstallHealth()
+  {
+    var required = new (string Label, string Path)[]
+    {
+      ("installed command", InstalledShimPath()),
+      ("compiled CLI", InstalledCliPath()),
+      ("updater script", InstalledUpdaterPath()),
+      ("verification helper", InstalledVerificationHelperPath()),
+      ("install marker", InstallerMarkerPath()),
+      ("root install marker", RootMarkerPath()),
+      ("verification receipt", VerificationReceiptPath()),
+    };
+    var missing = required.Where((item) => !File.Exists(item.Path)).Select((item) => $"{item.Label}: {item.Path}").ToArray();
+    return new InstallHealth(missing.Length == 0, missing);
+  }
+
+  static bool HasRunnableInstall()
+  {
+    return GetInstallHealth().Ready;
+  }
+
+  async Task<bool> RunEmbeddedInstallPreflightAsync()
+  {
+    scriptPath = ExtractScripts();
+    var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -Quiet -NoLaunch";
+    var localManifest = LocalManifestPath();
+    if (localManifest is not null)
+    {
+      args += $" -ManifestUrl \"{localManifest}\"";
+      Append($"Using local release manifest: {localManifest}");
+    }
+
+    var code = await RunProcessAsync(PowerShellPath(), args);
+    if (code != 0)
+    {
+      Append($"Launch preflight failed with exit code {code}.");
+      return false;
+    }
+    return HasRunnableInstall();
   }
 
   static bool IsCodePrompt(string message)

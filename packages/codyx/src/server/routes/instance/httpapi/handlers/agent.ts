@@ -8,6 +8,8 @@ import * as AgentHub from "@/server/agent/hub"
 import fs from "node:fs/promises"
 import path from "node:path"
 
+const LOCAL_CLI_USER_ID = "local-cli"
+
 function requestIsLocal(request: HttpServerRequest.HttpServerRequest) {
   const host = (() => {
     const headerHost = request.headers.host?.split(":")[0]
@@ -76,7 +78,11 @@ async function localReadFile(filePath: string) {
 
 async function localWriteFile(filePath: string, content: string, encoding?: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, encoding === "base64" ? Buffer.from(content, "base64") : content, encoding === "base64" ? undefined : "utf-8")
+  await fs.writeFile(
+    filePath,
+    encoding === "base64" ? Buffer.from(content, "base64") : content,
+    encoding === "base64" ? undefined : "utf-8",
+  )
 }
 
 export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (handlers) =>
@@ -91,11 +97,17 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
         return undefined
       }
     }
+    const localCliUserID = (request: HttpServerRequest.HttpServerRequest) =>
+      request.headers["x-cody-cli-local"] ? LOCAL_CLI_USER_ID : undefined
 
     const withUser = <A, E, R>(effect: Effect.Effect<A, E, R>, opts: { allowLocalAnonymous?: boolean } = {}) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        const userID = (yield* UserRef) ?? Jwt.userIdFromBearer(request.headers.authorization ?? "") ?? basicUserFromAuth(request.headers.authorization ?? "")
+        const userID =
+          (yield* UserRef) ??
+          Jwt.userIdFromBearer(request.headers.authorization ?? "") ??
+          basicUserFromAuth(request.headers.authorization ?? "") ??
+          localCliUserID(request)
         if (userID) return yield* effect.pipe(Effect.provideService(UserRef, userID))
         if (opts.allowLocalAnonymous && requestIsLocal(request)) return yield* effect
         return yield* new HttpApiError.Unauthorized({})
@@ -121,13 +133,13 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
           const target = ctx.query.path || "/"
           const result: unknown = yield* hub.listDir(target).pipe(
             Effect.catch((error) =>
-              requestIsLocal(request)
-                ? Effect.promise(() => localListDir(target))
-                : Effect.fail(error),
+              requestIsLocal(request) ? Effect.promise(() => localListDir(target)) : Effect.fail(error),
             ),
             Effect.orDie,
           )
-          return result as { files: Array<{ name: string; path: string; type: "file" | "directory"; size?: number; modifiedAt?: number }> }
+          return result as {
+            files: Array<{ name: string; path: string; type: "file" | "directory"; size?: number; modifiedAt?: number }>
+          }
         }),
         { allowLocalAnonymous: true },
       )
@@ -139,9 +151,7 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
           const request = yield* HttpServerRequest.HttpServerRequest
           const result: unknown = yield* hub.readFile(ctx.query.path).pipe(
             Effect.catch((error) =>
-              requestIsLocal(request)
-                ? Effect.promise(() => localReadFile(ctx.query.path))
-                : Effect.fail(error),
+              requestIsLocal(request) ? Effect.promise(() => localReadFile(ctx.query.path)) : Effect.fail(error),
             ),
             Effect.orDie,
           )
@@ -151,13 +161,16 @@ export const agentHandlers = HttpApiBuilder.group(InstanceHttpApi, "agent", (han
       )
     })
 
-    const writeFile = Effect.fn("AgentHttpApi.writeFile")(function* (ctx: { payload: { path: string; content: string; encoding?: string } }) {
+    const writeFile = Effect.fn("AgentHttpApi.writeFile")(function* (ctx: {
+      payload: { path: string; content: string; encoding?: string }
+    }) {
       return yield* withUser(
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest
-          const content = ctx.payload.encoding === "base64"
-            ? Buffer.from(ctx.payload.content, "base64").toString("utf-8")
-            : ctx.payload.content
+          const content =
+            ctx.payload.encoding === "base64"
+              ? Buffer.from(ctx.payload.content, "base64").toString("utf-8")
+              : ctx.payload.content
           yield* hub.writeFile(ctx.payload.path, content).pipe(
             Effect.catch((error) =>
               requestIsLocal(request)
