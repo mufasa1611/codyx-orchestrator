@@ -531,7 +531,12 @@ function Install-CodyxCompiled {
     }
     $verificationSource = Join-Path $PSScriptRoot "installer-verification.ps1"
     if (Test-Path -LiteralPath $verificationSource) {
-      Copy-Item -LiteralPath $verificationSource -Destination (Join-Path $updaterDir "installer-verification.ps1") -Force
+      $verificationDestination = Join-Path $updaterDir "installer-verification.ps1"
+      $verificationSourceFull = [System.IO.Path]::GetFullPath($verificationSource)
+      $verificationDestinationFull = [System.IO.Path]::GetFullPath($verificationDestination)
+      if (-not $verificationSourceFull.Equals($verificationDestinationFull, [StringComparison]::OrdinalIgnoreCase)) {
+        Copy-Item -LiteralPath $verificationSource -Destination $verificationDestination -Force
+      }
     }
 
     Ensure-UserMemo -RootPath $InstallRoot
