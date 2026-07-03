@@ -49,6 +49,13 @@ export function createCodyClient(config?: Config & { directory?: string }) {
     }
   }
 
+  if (typeof process !== "undefined" && (process.env.CODY || process.env.AGENT || process.env.CODY_PROCESS_ROLE)) {
+    config.headers = {
+      ...config.headers,
+      "x-cody-cli-local": "1",
+    }
+  }
+
   const client = createClient(config)
   client.interceptors.request.use((request) => rewrite(request, config?.directory))
   return new CodyClient({ client })
