@@ -135,6 +135,12 @@ public sealed class InstallerWindow : Window
     scriptPath = ExtractScript();
 
     var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -NoLaunch";
+    var localManifest = LocalManifestPath();
+    if (localManifest is not null)
+    {
+      args += $" -ManifestUrl \"{localManifest}\"";
+      Append($"Using local release manifest: {localManifest}");
+    }
     var code = await RunProcessAsync(PowerShellPath(), args);
     if (code == 0)
     {
@@ -217,5 +223,14 @@ public sealed class InstallerWindow : Window
     using var output = File.Create(target);
     stream.CopyTo(output);
     return target;
+  }
+
+  static string? LocalManifestPath()
+  {
+    var exePath = Environment.ProcessPath;
+    var exeDir = string.IsNullOrWhiteSpace(exePath) ? AppContext.BaseDirectory : Path.GetDirectoryName(exePath);
+    if (string.IsNullOrWhiteSpace(exeDir)) return null;
+    var manifest = Path.Combine(exeDir, "codyx-release-manifest.json");
+    return File.Exists(manifest) ? manifest : null;
   }
 }

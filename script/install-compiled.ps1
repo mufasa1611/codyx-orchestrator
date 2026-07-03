@@ -18,6 +18,8 @@ param(
   [string]$ManifestUrl = $(if ($env:CODY_RELEASE_MANIFEST_URL) { $env:CODY_RELEASE_MANIFEST_URL } else { "" }),
   [switch]$AcceptLicense,
   [switch]$Quiet,
+  [switch]$NoPathUpdate,
+  [switch]$NoShortcuts,
   [switch]$NoLaunch,
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$CodyxArgs
@@ -101,6 +103,19 @@ function Get-ReleaseInfo {
 function Save-Download($Url, $Path) {
   $parent = Split-Path -Parent $Path
   if ($parent) { $null = New-Item -ItemType Directory -Force -Path $parent }
+
+  $localSource = $null
+  if ($Url -match '^file://') {
+    $localSource = ([Uri]$Url).LocalPath
+  } elseif (Test-Path -LiteralPath $Url -PathType Leaf) {
+    $localSource = $Url
+  }
+
+  if ($localSource) {
+    Copy-Item -LiteralPath $localSource -Destination $Path -Force
+    return
+  }
+
   Invoke-WebRequest -Uri $Url -OutFile $Path -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
 }
 
@@ -110,6 +125,16 @@ function Get-ReleaseManifest($Release) {
   $manifestPath = Join-Path $temp "codyx-release-manifest.json"
 
   $url = $ManifestUrl
+  if ($url -and (Test-Path -LiteralPath $url -PathType Leaf)) {
+    $manifestPath = [System.IO.Path]::GetFullPath($url)
+    return [pscustomobject]@{
+      Path = $manifestPath
+      Data = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+      Temp = $temp
+      SourceDir = Split-Path -Parent $manifestPath
+    }
+  }
+
   if (-not $url) {
     $asset = @($Release.assets | Where-Object { $_.name -eq "codyx-release-manifest.json" } | Select-Object -First 1)[0]
     if ($asset) {
@@ -129,6 +154,7 @@ function Get-ReleaseManifest($Release) {
       Path = $manifestPath
       Data = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
       Temp = $temp
+      SourceDir = Split-Path -Parent $manifestPath
     }
   } catch {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
@@ -361,8 +387,13 @@ function Install-CodyxCompiled {
     Write-Host ""
   }
 
-  $release = Get-ReleaseInfo
-  Write-Info "Using release $($release.tag_name)."
+  $release = $null
+  if (-not $ManifestUrl) {
+    $release = Get-ReleaseInfo
+    Write-Info "Using release $($release.tag_name)."
+  } else {
+    Write-Info "Using explicit release manifest."
+  }
   $manifestBundle = Get-ReleaseManifest $release
   try {
     $manifest = $manifestBundle.Data
@@ -383,8 +414,15 @@ function Install-CodyxCompiled {
       Write-Ok "Compiled CLI is up to date."
     } else {
       $zipPath = Join-Path $downloadsDir $asset.file
+      $assetUrl = $asset.url
+      if ($manifestBundle.SourceDir) {
+        $localAsset = Join-Path $manifestBundle.SourceDir $asset.file
+        if (Test-Path -LiteralPath $localAsset -PathType Leaf) {
+          $assetUrl = $localAsset
+        }
+      }
       Write-Info "Downloading $($asset.file)..."
-      Save-Download $asset.url $zipPath
+      Save-Download $assetUrl $zipPath
       $actualHash = Get-Sha256 $zipPath
       if ($actualHash -ne ([string]$asset.sha256).ToLowerInvariant()) {
         throw "SHA256 mismatch for $($asset.file). Expected $($asset.sha256), got $actualHash."
@@ -396,15 +434,19 @@ function Install-CodyxCompiled {
     }
 
     $shims = New-Shims $binDir $currentDir $InstallRoot $updaterScript
-    Add-UserPathEntry $binDir
+    if (-not $NoPathUpdate) {
+      Add-UserPathEntry $binDir
+    }
 
     $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
     $cliShortcut = Join-Path $startMenuDir "Codyx-Orchestrator.lnk"
     $webShortcut = Join-Path $startMenuDir "Codyx-Orchestrator Web UI.lnk"
     $uninstallShortcut = Join-Path $startMenuDir "Uninstall Codyx-Orchestrator.lnk"
-    New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $InstallRoot
-    New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $InstallRoot
-    New-Shortcut $uninstallShortcut $cmdExe "/k `"$($shims[0])`" uninstall" $InstallRoot
+    if (-not $NoShortcuts) {
+      New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $InstallRoot
+      New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $InstallRoot
+      New-Shortcut $uninstallShortcut $cmdExe "/k `"$($shims[0])`" uninstall" $InstallRoot
+    }
 
     Write-Marker $InstallRoot $manifest.version $asset @(
       $InstallRoot,
@@ -413,11 +455,11 @@ function Install-CodyxCompiled {
       $downloadsDir,
       $updaterDir,
       $updaterScript,
-      $startMenuDir,
-      $cliShortcut,
-      $webShortcut,
-      $uninstallShortcut
-    ) @($binDir) $shims @($cliShortcut, $webShortcut, $uninstallShortcut)
+      $(if (-not $NoShortcuts) { $startMenuDir }),
+      $(if (-not $NoShortcuts) { $cliShortcut }),
+      $(if (-not $NoShortcuts) { $webShortcut }),
+      $(if (-not $NoShortcuts) { $uninstallShortcut })
+    ) $(if ($NoPathUpdate) { @() } else { @($binDir) }) $shims $(if ($NoShortcuts) { @() } else { @($cliShortcut, $webShortcut, $uninstallShortcut) })
 
     Write-Ok "Install marker refreshed."
 

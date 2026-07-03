@@ -19,6 +19,7 @@ const root = path.resolve(import.meta.dir, "..")
 const version = process.env.CODY_VERSION
 const repo = process.env.GH_REPO || process.env.GITHUB_REPOSITORY || "mufasa1611/codyx-orchestrator"
 const channel = process.env.CODY_CHANNEL || "prod"
+const includeSourceLauncher = process.env.CODY_INCLUDE_SOURCE_LAUNCHER === "1"
 
 if (!version) throw new Error("CODY_VERSION is required")
 
@@ -29,9 +30,11 @@ const output = process.env.CODY_RELEASE_MANIFEST || path.join(root, "dist", "cod
 const candidates = [
   "packages/codyx/dist/*.zip",
   "packages/codyx/dist/*.tar.gz",
+  "dist/*.zip",
+  "dist/*.tar.gz",
   "dist/release-assets/*",
   "dist/codyx-end-user-installer-windows-x64.exe",
-  "dist/codyx-launcher-windows-x64.exe",
+  ...(includeSourceLauncher ? ["dist/codyx-launcher-windows-x64.exe"] : []),
 ]
 
 function classify(file: string): Omit<Asset, "file" | "url" | "sha256" | "size"> | undefined {
@@ -114,6 +117,11 @@ for (const pattern of candidates) {
 }
 
 assets.sort((a, b) => a.id.localeCompare(b.id))
+
+if (!assets.some((asset) => asset.id === "cli.windows-x64")) {
+  const windowsX64 = assets.find((asset) => asset.id === "cli.windows-x64-avx2")
+  if (windowsX64) windowsX64.id = "cli.windows-x64"
+}
 
 const required = ["cli.windows-x64"]
 for (const id of required) {
