@@ -5,9 +5,37 @@ import { $ } from "bun"
 
 const output = [`version=${Script.version}`]
 const sha = process.env.GITHUB_SHA ?? (await $`git rev-parse HEAD`.text()).trim()
+const repo = process.env.GH_REPO ?? ""
+const token = process.env.GH_TOKEN ?? ""
 console.log(
-  `CODY_VERSION="${process.env.CODY_VERSION}" Script.version="${Script.version}" preview=${Script.preview} channel=${Script.channel} sha=${sha}`,
+  `CODY_VERSION="${process.env.CODY_VERSION}" Script.version="${Script.version}" preview=${Script.preview} channel=${Script.channel} sha=${sha} repo=${repo}`,
 )
+
+const tagName = `v${Script.version}`
+
+async function createGithubRelease(body: string, draft: boolean) {
+  console.log(`Creating ${draft ? "draft " : ""}release ${tagName} on ${repo} @ ${sha} via API...`)
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "codyx-version-script",
+    },
+    body: JSON.stringify({
+      tag_name: tagName,
+      target_commitish: sha,
+      name: tagName,
+      body,
+      draft,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(`API ${res.status}: ${data.message} ${JSON.stringify(data.errors ?? [])}`)
+  console.log(`Release created: id=${data.id} tag=${data.tag_name} url=${data.html_url}`)
+  return data
+}
 
 if (!Script.preview) {
   await $`bun script/changelog.ts --to ${sha}`.cwd(process.cwd())
@@ -15,23 +43,16 @@ if (!Script.preview) {
   const body = await Bun.file(file)
     .text()
     .catch(() => "No notable changes")
-  const dir = process.env.RUNNER_TEMP ?? "/tmp"
-  const notesFile = `${dir}/cody-release-notes.txt`
-  await Bun.write(notesFile, body)
-  await $`gh release create v${Script.version} -d --target ${sha} --title "v${Script.version}" --notes-file ${notesFile} --repo ${process.env.GH_REPO}`
-  const release =
-    await $`gh release view v${Script.version} --json tagName,databaseId --repo ${process.env.GH_REPO}`.json()
-  output.push(`release=${release.databaseId}`)
-  output.push(`tag=${release.tagName}`)
+  const release = await createGithubRelease(body || "No notable changes", true)
+  output.push(`release=${release.id}`)
+  output.push(`tag=${release.tag_name}`)
 } else if (Script.channel === "beta") {
-  await $`gh release create v${Script.version} -d --title "v${Script.version}" --repo ${process.env.GH_REPO}`
-  const release =
-    await $`gh release view v${Script.version} --json tagName,databaseId --repo ${process.env.GH_REPO}`.json()
-  output.push(`release=${release.databaseId}`)
-  output.push(`tag=${release.tagName}`)
+  const release = await createGithubRelease("Beta release", true)
+  output.push(`release=${release.id}`)
+  output.push(`tag=${release.tag_name}`)
 }
 
-output.push(`repo=${process.env.GH_REPO}`)
+output.push(`repo=${repo}`)
 
 if (process.env.GITHUB_OUTPUT) {
   await Bun.write(process.env.GITHUB_OUTPUT, output.join("\n"))
