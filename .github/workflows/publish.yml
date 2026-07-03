@@ -86,13 +86,13 @@ jobs:
         with:
           name: cody-cli
           path: |
-            packages/codyx/dist/cody-darwin*
-            packages/codyx/dist/cody-linux*
+            packages/codyx/dist/codyx-ai-darwin*
+            packages/codyx/dist/codyx-ai-linux*
 
       - uses: actions/upload-artifact@v4
         with:
           name: cody-cli-windows
-          path: packages/codyx/dist/cody-windows*
+          path: packages/codyx/dist/codyx-ai-windows*
     outputs:
       version: ${{ needs.version.outputs.version }}
 
@@ -133,14 +133,15 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - uses: azure/artifact-signing-action@v1
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != '' && env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME != '' && env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE != '' && env.AZURE_TRUSTED_SIGNING_ENDPOINT != ''
         with:
           endpoint: ${{ env.AZURE_TRUSTED_SIGNING_ENDPOINT }}
           signing-account-name: ${{ env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
           files: |
-            ${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64\bin\cody.exe
-            ${{ github.workspace }}\packages\codyx\dist\cody-windows-x64\bin\cody.exe
-            ${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline\bin\cody.exe
+            ${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-arm64\bin\codyx.exe
+            ${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64\bin\codyx.exe
+            ${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64-baseline\bin\codyx.exe
           exclude-environment-credential: true
           exclude-workload-identity-credential: true
           exclude-managed-identity-credential: true
@@ -153,12 +154,13 @@ jobs:
           exclude-interactive-browser-credential: true
 
       - name: Verify Windows CLI signatures
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != '' && env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME != '' && env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE != '' && env.AZURE_TRUSTED_SIGNING_ENDPOINT != ''
         shell: pwsh
         run: |
           $files = @(
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64\bin\cody.exe",
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64\bin\cody.exe",
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline\bin\cody.exe"
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-arm64\bin\codyx.exe",
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64\bin\codyx.exe",
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64-baseline\bin\codyx.exe"
           )
 
           foreach ($file in $files) {
@@ -172,9 +174,9 @@ jobs:
         working-directory: packages/codyx/dist
         shell: pwsh
         run: |
-          Compress-Archive -Path "cody-windows-arm64\bin\*" -DestinationPath "cody-windows-arm64.zip" -Force
-          Compress-Archive -Path "cody-windows-x64\bin\*" -DestinationPath "cody-windows-x64.zip" -Force
-          Compress-Archive -Path "cody-windows-x64-baseline\bin\*" -DestinationPath "cody-windows-x64-baseline.zip" -Force
+          Compress-Archive -Path "codyx-ai-windows-arm64\bin\*" -DestinationPath "codyx-ai-windows-arm64.zip" -Force
+          Compress-Archive -Path "codyx-ai-windows-x64\bin\*" -DestinationPath "codyx-ai-windows-x64.zip" -Force
+          Compress-Archive -Path "codyx-ai-windows-x64-baseline\bin\*" -DestinationPath "codyx-ai-windows-x64-baseline.zip" -Force
 
       - name: Upload signed Windows CLI release assets
         if: needs.version.outputs.release != ''
@@ -183,9 +185,9 @@ jobs:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: |
           gh release upload "v${{ needs.version.outputs.version }}" `
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-arm64.zip" `
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64.zip" `
-            "${{ github.workspace }}\packages\codyx\dist\cody-windows-x64-baseline.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-arm64.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64.zip" `
+            "${{ github.workspace }}\packages\codyx\dist\codyx-ai-windows-x64-baseline.zip" `
             --clobber `
             --repo "${{ needs.version.outputs.repo }}"
 
@@ -193,9 +195,9 @@ jobs:
         with:
           name: cody-cli-signed-windows
           path: |
-            packages/codyx/dist/cody-windows-arm64
-            packages/codyx/dist/cody-windows-x64
-            packages/codyx/dist/cody-windows-x64-baseline
+            packages/codyx/dist/codyx-ai-windows-arm64
+            packages/codyx/dist/codyx-ai-windows-x64
+            packages/codyx/dist/codyx-ai-windows-x64-baseline
 
   build-launcher-windows:
     needs:
@@ -269,6 +271,79 @@ jobs:
           name: codyx-launcher-windows
           path: dist/codyx-launcher-windows-x64.exe
 
+  build-end-user-installer-windows:
+    needs:
+      - version
+    runs-on: windows-2025
+    if: github.repository == 'mufasa1611/codyx-orchestrator'
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Setup git committer
+        id: committer
+        uses: ./.github/actions/setup-git-committer
+        with:
+          cody-app-id: ${{ vars.CODY_APP_ID }}
+          cody-app-secret: ${{ secrets.CODY_APP_SECRET }}
+
+      - name: Azure login
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build compiled-assets installer exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          dotnet publish packages\end-user-installer\Codyx.EndUserInstaller.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -o dist\end-user-installer
+          Copy-Item dist\end-user-installer\Codyx.EndUserInstaller.exe dist\codyx-end-user-installer-windows-x64.exe -Force
+
+      - name: Sign compiled-assets installer exe
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File script\sign-windows.ps1 dist\codyx-end-user-installer-windows-x64.exe
+
+      - name: Verify compiled-assets installer signature
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist\codyx-end-user-installer-windows-x64.exe
+          if ($env:AZURE_TRUSTED_SIGNING_ACCOUNT_NAME -and $sig.Status -ne "Valid") {
+            throw "Invalid signature for compiled-assets installer: $($sig.Status)"
+          }
+
+      - name: Upload compiled-assets installer release asset
+        if: needs.version.outputs.release != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
+        run: gh release upload "v${{ needs.version.outputs.version }}" dist\codyx-end-user-installer-windows-x64.exe --clobber --repo "${{ needs.version.outputs.repo }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codyx-end-user-installer-windows
+          path: dist/codyx-end-user-installer-windows-x64.exe
+
   build-electron:
     needs:
       - build-cli
@@ -327,7 +402,7 @@ jobs:
           install-flags: ${{ matrix.settings.bun_install_flags }}
 
       - name: Azure login
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
         uses: azure/login@v2
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
@@ -435,7 +510,7 @@ jobs:
           gh release upload "v${{ needs.version.outputs.version }}" "$OUT_NAME" --clobber --repo "${{ needs.version.outputs.repo }}"
 
       - name: Verify signed Windows Electron artifacts
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME != ''
         shell: pwsh
         run: |
           $files = @()
@@ -545,6 +620,7 @@ jobs:
       - build-cli
       - sign-cli-windows
       - build-launcher-windows
+      - build-end-user-installer-windows
       - build-electron
       - build-android
     if: always() && !failure() && !cancelled()
@@ -586,6 +662,27 @@ jobs:
         with:
           name: cody-cli-signed-windows
           path: packages/codyx/dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: codyx-launcher-windows
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: codyx-end-user-installer-windows
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: codyx-android
+          path: dist/release-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cody-desktop-*
+          path: dist/release-assets
+          merge-multiple: true
 
       - uses: actions/download-artifact@v4
         if: needs.version.outputs.release
@@ -630,3 +727,17 @@ jobs:
           LATEST_YML_DIR: /tmp/latest-yml
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Generate release manifest
+        if: needs.version.outputs.release != ''
+        run: bun ./script/create-release-manifest.ts
+        env:
+          CODY_VERSION: ${{ needs.version.outputs.version }}
+          CODY_CHANNEL: ${{ (github.ref_name == 'beta' && 'beta') || 'prod' }}
+          GH_REPO: ${{ needs.version.outputs.repo }}
+
+      - name: Upload release manifest
+        if: needs.version.outputs.release != ''
+        env:
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
+        run: gh release upload "v${{ needs.version.outputs.version }}" dist/codyx-release-manifest.json --clobber --repo "${{ needs.version.outputs.repo }}"

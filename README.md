@@ -19,7 +19,13 @@ everything through plugins, agents, and custom tools.
 
 Choose the installation method that fits your environment:
 
-### 1. Global npm Package (Recommended)
+### 1. Windows End-User Installer (Recommended For Normal Users)
+
+Download `codyx-end-user-installer-windows-x64.exe` from the GitHub Release.
+
+It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
+
+### 2. Global npm Package (Recommended If Node.js Is Installed)
 
 If you already have Node.js and npm installed, simply run:
 
@@ -29,16 +35,15 @@ npm install -g codyx-ai@beta && codyx
 
 To update the package later, run `npm install -g codyx-ai@beta`.
 
-### 2. Windows Standalone Launcher (Portable)
+### 3. Windows Source Launcher (Developer / Power User)
 
-If you want a portable zero-dependency setup without installing Node.js, Bun, or cloning the repository, download `launcher_new.exe` (or `luncher_new.exe`) from the repository releases or the `dist/` directory.
+If you intentionally want a self-updating source checkout, download `codyx-launcher-windows-x64.exe` from the GitHub Release.
 
-- **Features**: WPF welcome screen, automatic background server startup, and multi-factor auth (MFA) distribution on paste.
-- **Handling Windows SmartScreen Warnings**: Raw downloads may show a blue warning dialog. To run it:
-  - **GUI Method**: Right-click the `.exe` file -> **Properties** -> Check the **Unblock** box at the bottom -> Click **Apply / OK**.
-  - **PowerShell Method**: Run `Unblock-File -Path .\luncher_new.exe`.
+This launcher installs Git/Bun when needed, keeps a slim source checkout under the user's profile, and rebuilds when source updates arrive. It is useful for testers and developers, but normal users should prefer the compiled end-user installer above.
 
-### 3. Windows One-Click Installer (Without Node.js)
+Raw unsigned downloads may show a Windows SmartScreen warning. To run a blocked file, right-click the `.exe`, open **Properties**, check **Unblock**, then click **Apply / OK**.
+
+### 4. Windows One-Click npm Installer (Without Node.js)
 
 If you do not have Node.js or npm installed, run this PowerShell command to automatically install all dependencies via `winget` and configure codyx:
 
@@ -52,7 +57,7 @@ Or from Command Prompt:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mufasa1611/codyx-orchestrator/dev/script/install-npm.ps1))) -Tag beta -Launch"
 ```
 
-### 4. Headless Server (Docker)
+### 5. Headless Server (Docker)
 
 To deploy a backend server or host codyx for a team:
 
@@ -60,7 +65,7 @@ To deploy a backend server or host codyx for a team:
 docker run -p 4097:4097 ghcr.io/mufasa1611/codyx-orchestrator:latest
 ```
 
-### 5. From Source (Development)
+### 6. From Source (Development)
 
 If you want to modify code or run an editable development checkout:
 
