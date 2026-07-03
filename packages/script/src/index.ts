@@ -20,7 +20,7 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
 const env = {
   CODY_CHANNEL: process.env["CODY_CHANNEL"],
   CODY_BUMP: process.env["CODY_BUMP"],
-  CODY_VERSION: process.env["CODY_VERSION"],
+  CODY_VERSION: process.env["CODY_VERSION"]?.trim(),
   CODY_RELEASE: process.env["CODY_RELEASE"],
 }
 const CHANNEL = await (async () => {
