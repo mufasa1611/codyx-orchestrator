@@ -38,11 +38,12 @@ async function createGithubRelease(body: string, draft: boolean) {
 }
 
 if (!Script.preview) {
-  await $`bun script/changelog.ts --to ${sha}`.cwd(process.cwd())
+  await $`bun script/changelog.ts --to ${sha}`.cwd(process.cwd()).catch(() => {})
   const file = `${process.cwd()}/UPCOMING_CHANGELOG.md`
   const body = await Bun.file(file)
     .text()
     .catch(() => "No notable changes")
+  console.log(`Changelog body length: ${body.length} chars`)
   const release = await createGithubRelease(body || "No notable changes", true)
   output.push(`release=${release.id}`)
   output.push(`tag=${release.tag_name}`)

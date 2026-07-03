@@ -2,6 +2,7 @@
 
 import { rm } from "fs/promises"
 import path from "path"
+import { $ } from "bun"
 import { parseArgs } from "util"
 
 const root = path.resolve(import.meta.dir, "..")
@@ -28,6 +29,7 @@ if (values.help) {
 Usage: bun script/changelog.ts [options]
 
 Generates UPCOMING_CHANGELOG.md by running the cody changelog command.
+Falls back to git log summary when the cody AI model is unavailable.
 
 Options:
   -f, --from <version>   Starting version (default: latest non-draft GitHub release)
@@ -47,6 +49,23 @@ Examples:
 
 await rm(file, { force: true })
 
+async function fallbackGitLog() {
+  const to = values.to || "HEAD"
+  const from = values.from || (await $`git describe --tags --abbrev=0 2>/dev/null`.text().catch(() => ""))
+  const range = from ? `${from}..${to}` : to
+  const log = await $`git log ${range} --oneline --no-decorate 2>/dev/null`.text().catch(() => "")
+  if (!log.trim()) {
+    await Bun.write(file, "No notable changes")
+    return
+  }
+  const lines = log
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => `- ${l}`)
+  const header = `## Changelog (${from || "start"} → ${to})\n\n`
+  await Bun.write(file, header + lines.join("\n") + "\n")
+}
+
 const quiet = values.quiet
 const cmd = ["cody", "run"]
 cmd.push("--variant", values.variant)
@@ -64,13 +83,15 @@ const [out, err] = quiet
   : ["", ""]
 const code = await proc.exited
 if (code === 0) {
-  if (values.print) process.stdout.write(await Bun.file(file).text())
-  process.exit(0)
+  const exists = await Bun.file(file).exists()
+  if (exists) {
+    if (values.print) process.stdout.write(await Bun.file(file).text())
+    process.exit(0)
+  }
 }
 
-if (quiet) {
-  if (out) process.stdout.write(out)
-  if (err) process.stderr.write(err)
-}
-
-process.exit(code)
+// fallback: generate changelog from git log
+console.log("cody AI changelog failed, falling back to git log summary")
+await fallbackGitLog()
+if (values.print) process.stdout.write(await Bun.file(file).text())
+process.exit(0)
