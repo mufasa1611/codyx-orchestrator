@@ -103,3 +103,12 @@ const table = sqliteTable("session", {
 - Always run `bun typecheck` from package directories (e.g., `packages/codyx`), never `tsc` directly.
 - Private machine-specific data is stored in the gitignored \`memo.md\` file at the root. Use the \`/stash\` command to update it with local paths and credentials.
 - The user's username should be stored under `## User` in `memo.md`; Reuse it from the username key instead of asking again once it has been saved.
+
+## Release workflow
+
+- Trigger: `Actions → publish → Run workflow` with `bump: patch|minor|major`. Override version with the `version` input to skip auto-increment.
+- The `cody-cli-signed-windows` artifact **must** include `.zip` files, not just folders — `create-release-manifest.ts` globs `packages/codyx/dist/*.zip`. Uploading only folder trees (`codyx-ai-windows-x64` without `.zip`) causes the manifest to miss CLI assets and fail.
+- `create-release-manifest.ts` requires only `cli.windows-x64` in the scanned output. All other asset kinds (launcher, installer, desktop, android) are optional and silently omitted if absent.
+- `build-cli` must pass `--all` to `build.ts` or it only builds for the host platform. Without `--all`, Windows targets are skipped entirely and `sign-cli-windows` gets nothing.
+- `install-compiled.ps1` manifest resolution order: `-ManifestUrl` param → release asset named `codyx-release-manifest.json` → throw. Beta channel (`-Channel beta`) picks the newest published release; prod tries `releases/latest` first, then falls back to newest.
+- Each Windows job uploads its artifacts directly to the GitHub Release. The `publish` job then re-downloads them and generates the manifest, which references the already-uploaded assets by Release download URL.
