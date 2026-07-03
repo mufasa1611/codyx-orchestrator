@@ -49,7 +49,7 @@ export default function Home() {
     navigate(`/${base64Encode(directory)}/session`)
   }
 
-  async function chooseProject(options?: { session?: boolean }) {
+  async function chooseProject(options?: { session?: boolean; title?: string }) {
     function resolve(result: string | string[] | null) {
       if (Array.isArray(result)) {
         for (const directory of result) {
@@ -60,15 +60,17 @@ export default function Home() {
       }
     }
 
+    const title = options?.title ?? language.t("command.project.open")
+
     if (platform.openDirectoryPickerDialog && server.isLocal()) {
       const result = await platform.openDirectoryPickerDialog?.({
-        title: language.t("command.project.open"),
+        title,
         multiple: true,
       })
       resolve(result)
     } else {
       dialog.show(
-        () => <DialogSelectDirectory multiple={true} onSelect={resolve} />,
+        () => <DialogSelectDirectory title={title} multiple={true} onSelect={resolve} />,
         () => resolve(null),
       )
     }
@@ -81,7 +83,7 @@ export default function Home() {
   }
 
   function startNewProject() {
-    void chooseProject()
+    void chooseProject({ title: language.t("command.project.create") })
   }
 
   function startNewSession() {

@@ -142,11 +142,12 @@ public sealed class InstallerWindow : Window
       Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 12, 0, 0),
+      FontSize = 14,
     };
-    license.Inlines.Add("This installer downloads compiled release assets with SHA256 verification. It does not clone the repository, install Git, or install Bun. By continuing, you agree to the ");
-    license.Inlines.Add(Link("license terms", "https://install.kingkung.men/license"));
+    license.Inlines.Add("This installer downloads compiled release assets with SHA256 verification. By continuing, you agree to the ");
+    license.Inlines.Add(SparkleLink("license terms", "https://install.kingkung.men/license"));
     license.Inlines.Add(" and acknowledge the ");
-    license.Inlines.Add(Link("privacy notice", "https://install.kingkung.men/privacy"));
+    license.Inlines.Add(SparkleLink("privacy notice", "https://install.kingkung.men/privacy"));
     license.Inlines.Add(".");
     header.Children.Add(license);
 
@@ -210,6 +211,19 @@ public sealed class InstallerWindow : Window
       }
     };
     RefreshInstalledActions();
+    Loaded += async (_, _) =>
+    {
+      if (GetInstallHealth().Ready)
+      {
+        primary.IsEnabled = false;
+        SetInstalledActions(false);
+        status.Text = "Auto-checking for updates...";
+        log.Clear();
+        await RunEmbeddedInstallPreflightAsync();
+        primary.IsEnabled = true;
+        RefreshInstalledActions();
+      }
+    };
   }
 
   void BuildCodeInputs()
@@ -354,6 +368,35 @@ public sealed class InstallerWindow : Window
       e.Handled = true;
     };
     return link;
+  }
+
+  static Hyperlink SparkleLink(string text, string url)
+  {
+    var link = Link(text, url);
+    link.Foreground = BuildSparkleBrush();
+    return link;
+  }
+
+  static Brush BuildSparkleBrush()
+  {
+    var brush = new LinearGradientBrush(new GradientStopCollection
+    {
+      new(Color.FromRgb(100, 180, 255), 0.0),
+      new(Color.FromRgb(100, 180, 255), 0.3),
+      new(Colors.White, 0.45),
+      new(Colors.White, 0.55),
+      new(Color.FromRgb(100, 180, 255), 0.7),
+      new(Color.FromRgb(100, 180, 255), 1.0),
+    }, 0);
+    var transform = new TranslateTransform(-1, 0);
+    brush.RelativeTransform = transform;
+    transform.BeginAnimation(
+      TranslateTransform.XProperty,
+      new DoubleAnimation(-1, 1, TimeSpan.FromSeconds(3))
+      {
+        RepeatBehavior = RepeatBehavior.Forever,
+      });
+    return brush;
   }
 
   async Task InstallAsync()

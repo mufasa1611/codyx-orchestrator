@@ -1,17 +1,18 @@
 name: publish
-run-name: "${{ format('release {0}', inputs.bump) }}"
+run-name: "${{ inputs.bump && inputs.bump != 'skip' && format('release {0}', inputs.bump) || inputs.version && format('release {0}', inputs.version) || 'release' }}"
 
 on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Bump major, minor, or patch"
+        description: "Bump major, minor, or patch (select 'skip' when using version override)"
         required: false
         type: choice
         options:
-          - major
-          - minor
+          - skip
           - patch
+          - minor
+          - major
       version:
         description: "Override version (optional)"
         required: false
