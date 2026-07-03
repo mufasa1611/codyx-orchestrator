@@ -112,3 +112,4 @@ const table = sqliteTable("session", {
 - `build-cli` must pass `--all` to `build.ts` or it only builds for the host platform. Without `--all`, Windows targets are skipped entirely and `sign-cli-windows` gets nothing.
 - `install-compiled.ps1` manifest resolution order: `-ManifestUrl` param → release asset named `codyx-release-manifest.json` → throw. Beta channel (`-Channel beta`) picks the newest published release; prod tries `releases/latest` first, then falls back to newest.
 - Each Windows job uploads its artifacts directly to the GitHub Release. The `publish` job then re-downloads them and generates the manifest, which references the already-uploaded assets by Release download URL.
+- `CODY_VERSION` env var from GA workflow_dispatch inputs can have leading/trailing whitespace. Always `.trim()` before use (see `packages/script/src/index.ts:23`).

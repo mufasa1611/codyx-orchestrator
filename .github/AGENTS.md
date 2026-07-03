@@ -5,3 +5,4 @@
 - The `build-cli` job (ubuntu) must pass `--all` to `build.ts` to produce Windows binaries. Without `--all`, `filterForCurrentPlatform` restricts to the host OS/arch only.
 - When `--all` is set and `CODY_RELEASE` is truthy, `build.ts` creates ZIPs for all targets and uploads them directly to the Release (unsigned). The `sign-cli-windows` job then signs the binaries, re-packs signed ZIPs, and overwrites with `--clobber`.
 - `packages: write` permission is only needed for Docker/ghcr.io publishing (currently unused in the Windows-only workflow).
+- The `bump` input in `publish.yml` is a GA `choice` type — the first listed option becomes the default when dispatching. Put `"skip"` first when the workflow relies on the `version` override input, preventing accidental npm bumps on mis-clicks.

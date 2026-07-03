@@ -123,6 +123,16 @@ See `specs/effect/migration.md` for the compact pattern reference and examples.
 - Prefer `Path.Path`, `Config`, `Clock`, and `DateTime` when those concerns are already inside Effect code.
 - For background loops or scheduled tasks, use `Effect.repeat` or `Effect.schedule` with `Effect.forkScoped` in the layer definition.
 
+## Build quirks (Windows)
+
+- `build.ts:169` `rm -rf dist` fails on Windows with EBUSY when a process holds the directory lock. The build still succeeds — this is an idempotent cleanup step, failure is safe to ignore.
+- Must pass `--all` to `build.ts` on non-Windows CI runners to produce Windows CLI binaries; without it `filterForCurrentPlatform` restricts to host OS/arch.
+
+## Uninstall (Windows)
+
+- `fs.rm` on Windows can fail with EBUSY/EACCES on locked files/directories. NTFS allows renaming open handles, so `removePathWithRenameFallback()` renames the path to `{path}.codyx-uninstall-{ts}-{rand}` and schedules deletion via detached PowerShell (`Start-Sleep 5; Remove-Item -Recurse -Force`).
+- `taskkill /f /im codyx.exe` must run first to release file handles before any `fs.rm` call during uninstall.
+
 ## Effect.cached for deduplication
 
 Use `Effect.cached` when multiple concurrent callers should share a single in-flight computation rather than storing `Fiber | undefined` or `Promise | undefined` manually. See `specs/effect/migration.md` for the full pattern.
