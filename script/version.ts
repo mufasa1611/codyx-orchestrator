@@ -76,10 +76,7 @@ async function upsertGithubRelease(body: string, draft: boolean) {
   const res = await fetch(url, {
     method: existing ? "PATCH" : "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "codyx-version-script",
+      ...githubHeaders,
     },
     body: JSON.stringify({
       tag_name: tagName,
@@ -91,8 +88,8 @@ async function upsertGithubRelease(body: string, draft: boolean) {
   })
   const data = await res.json()
   if (!res.ok) throw new Error(`API ${res.status}: ${data.message} ${JSON.stringify(data.errors ?? [])}`)
-  console.log(`Release created: id=${data.id} tag=${data.tag_name} url=${data.html_url}`)
-  return data
+  console.log(`Release ready: id=${data.id} tag=${data.tag_name} url=${data.html_url}`)
+  return data as GithubRelease
 }
 
 if (!Script.preview) {
@@ -102,11 +99,11 @@ if (!Script.preview) {
     .text()
     .catch(() => "No notable changes")
   console.log(`Changelog body length: ${body.length} chars`)
-  const release = await createGithubRelease(body || "No notable changes", true)
+  const release = await upsertGithubRelease(body || "No notable changes", true)
   output.push(`release=${release.id}`)
   output.push(`tag=${release.tag_name}`)
 } else if (Script.channel === "beta") {
-  const release = await createGithubRelease("Beta release", true)
+  const release = await upsertGithubRelease("Beta release", true)
   output.push(`release=${release.id}`)
   output.push(`tag=${release.tag_name}`)
 }
