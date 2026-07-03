@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Codyx.EndUserInstaller;
@@ -37,8 +38,34 @@ public sealed class InstallerWindow : Window
   readonly Button web = new() { Content = "Open Web UI", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly Button uninstall = new() { Content = "Uninstall", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly TextBlock status = new() { Foreground = Brushes.White, FontSize = 14 };
+  readonly Border promptPanel = new()
+  {
+    Visibility = Visibility.Collapsed,
+    Background = new SolidColorBrush(Color.FromRgb(11, 18, 30)),
+    BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85)),
+    BorderThickness = new Thickness(1),
+    Padding = new Thickness(12),
+    Margin = new Thickness(0, 12, 0, 0),
+  };
+  readonly TextBlock promptText = new()
+  {
+    Foreground = Brushes.White,
+    FontWeight = FontWeights.SemiBold,
+    TextWrapping = TextWrapping.Wrap,
+    Margin = new Thickness(0, 0, 0, 8),
+  };
+  readonly TextBox promptAnswer = new()
+  {
+    IsEnabled = false,
+    MinWidth = 300,
+    Margin = new Thickness(0, 0, 8, 0),
+  };
+  readonly Button promptSend = new() { Content = "Send", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
+  readonly Button promptCancel = new() { Content = "Cancel", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
 
   string scriptPath = "";
+  Process? activeInstallerProcess;
+  bool promptActive;
 
   public InstallerWindow()
   {
@@ -107,6 +134,17 @@ public sealed class InstallerWindow : Window
     status.Text = "Ready to install compiled release assets.";
     body.Children.Add(status);
 
+    var promptRoot = new StackPanel();
+    promptRoot.Children.Add(promptText);
+    var promptRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+    promptRow.Children.Add(promptAnswer);
+    promptRow.Children.Add(promptCancel);
+    promptRow.Children.Add(promptSend);
+    promptPanel.Child = promptRoot;
+    promptRoot.Children.Add(promptRow);
+    DockPanel.SetDock(promptPanel, Dock.Top);
+    body.Children.Add(promptPanel);
+
     log.Margin = new Thickness(0, 12, 0, 0);
     body.Children.Add(log);
 
@@ -114,6 +152,16 @@ public sealed class InstallerWindow : Window
     cli.Click += (_, _) => Launch("");
     web.Click += (_, _) => Launch("web");
     uninstall.Click += (_, _) => Launch("uninstall");
+    promptSend.Click += (_, _) => SendPromptAnswer(promptAnswer.Text);
+    promptCancel.Click += (_, _) => SendPromptAnswer("cancel");
+    promptAnswer.KeyDown += (_, e) =>
+    {
+      if (e.Key == Key.Enter)
+      {
+        SendPromptAnswer(promptAnswer.Text);
+        e.Handled = true;
+      }
+    };
   }
 
   static Hyperlink Link(string text, string url)
@@ -130,9 +178,9 @@ public sealed class InstallerWindow : Window
   async Task InstallAsync()
   {
     primary.IsEnabled = false;
-    status.Text = "Installing compiled release assets...";
+    status.Text = "Complete identity and email verification, then install compiled release assets.";
     log.Clear();
-    scriptPath = ExtractScript();
+    scriptPath = ExtractScripts();
 
     var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -NoLaunch";
     var localManifest = LocalManifestPath();
@@ -184,21 +232,73 @@ public sealed class InstallerWindow : Window
       StartInfo = new ProcessStartInfo(fileName, arguments)
       {
         UseShellExecute = false,
+        RedirectStandardInput = true,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
         CreateNoWindow = true,
       },
       EnableRaisingEvents = true,
     };
+    process.StartInfo.EnvironmentVariables["CODY_LAUNCHER_UI"] = "1";
 
     var done = new TaskCompletionSource<int>();
-    process.OutputDataReceived += (_, e) => { if (e.Data != null) Dispatcher.Invoke(() => Append(e.Data)); };
-    process.ErrorDataReceived += (_, e) => { if (e.Data != null) Dispatcher.Invoke(() => Append(e.Data)); };
+    process.OutputDataReceived += (_, e) => { if (e.Data != null) Dispatcher.Invoke(() => HandleOutputLine(e.Data)); };
+    process.ErrorDataReceived += (_, e) => { if (e.Data != null) Dispatcher.Invoke(() => HandleOutputLine(e.Data)); };
     process.Exited += (_, _) => done.TrySetResult(process.ExitCode);
-    process.Start();
-    process.BeginOutputReadLine();
-    process.BeginErrorReadLine();
-    return await done.Task;
+    try
+    {
+      process.Start();
+      activeInstallerProcess = process;
+      process.BeginOutputReadLine();
+      process.BeginErrorReadLine();
+      var code = await done.Task;
+      return code;
+    }
+    finally
+    {
+      activeInstallerProcess = null;
+      Dispatcher.Invoke(() => ShowPrompt(false, "Installer process finished."));
+      process.Dispose();
+    }
+  }
+
+  void HandleOutputLine(string text)
+  {
+    const string marker = "::codyx-prompt::";
+    if (text.StartsWith(marker, StringComparison.Ordinal))
+    {
+      ShowPrompt(true, text[marker.Length..]);
+      return;
+    }
+    Append(text);
+  }
+
+  void ShowPrompt(bool active, string message)
+  {
+    promptActive = active;
+    promptPanel.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+    promptText.Text = message;
+    promptAnswer.Text = "";
+    promptAnswer.IsEnabled = active;
+    promptSend.IsEnabled = active;
+    promptCancel.IsEnabled = active;
+    if (active) promptAnswer.Focus();
+  }
+
+  void SendPromptAnswer(string value)
+  {
+    if (!promptActive || activeInstallerProcess is null || activeInstallerProcess.HasExited) return;
+    try
+    {
+      activeInstallerProcess.StandardInput.WriteLine(value ?? "");
+      var secret = promptText.Text.Contains("code", StringComparison.OrdinalIgnoreCase);
+      Append($"> {(secret ? "******" : value)}");
+      ShowPrompt(false, "Waiting for installer prompt...");
+    }
+    catch (Exception ex)
+    {
+      Append($"Could not send installer answer: {ex.Message}");
+    }
   }
 
   void Append(string text)
@@ -213,16 +313,22 @@ public sealed class InstallerWindow : Window
     return Path.Combine(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   }
 
-  static string ExtractScript()
+  static string ExtractScripts()
   {
     var dir = Path.Combine(Path.GetTempPath(), "codyx-end-user-installer");
     Directory.CreateDirectory(dir);
-    var target = Path.Combine(dir, "install-compiled.ps1");
-    using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Codyx.EndUserInstaller.Resources.install-compiled.ps1")
-      ?? throw new InvalidOperationException("Embedded install-compiled.ps1 was not found.");
+    var installer = Path.Combine(dir, "install-compiled.ps1");
+    ExtractResource("Codyx.EndUserInstaller.Resources.install-compiled.ps1", installer);
+    ExtractResource("Codyx.EndUserInstaller.Resources.installer-verification.ps1", Path.Combine(dir, "installer-verification.ps1"));
+    return installer;
+  }
+
+  static void ExtractResource(string resourceName, string target)
+  {
+    using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
+      ?? throw new InvalidOperationException($"Embedded resource was not found: {resourceName}");
     using var output = File.Create(target);
     stream.CopyTo(output);
-    return target;
   }
 
   static string? LocalManifestPath()

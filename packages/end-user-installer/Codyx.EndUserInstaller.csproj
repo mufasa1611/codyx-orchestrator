@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\script\install-compiled.ps1" Link="Resources\install-compiled.ps1" LogicalName="Codyx.EndUserInstaller.Resources.install-compiled.ps1" />
+    <EmbeddedResource Include="..\..\script\installer-verification.ps1" Link="Resources\installer-verification.ps1" LogicalName="Codyx.EndUserInstaller.Resources.installer-verification.ps1" />
   </ItemGroup>
 </Project>

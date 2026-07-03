@@ -14,6 +14,7 @@ param(
   [string]$Repo = $(if ($env:CODY_RELEASE_REPO) { $env:CODY_RELEASE_REPO } else { "mufasa1611/codyx-orchestrator" }),
   [string]$Version = $(if ($env:CODY_RELEASE_VERSION) { $env:CODY_RELEASE_VERSION } else { "" }),
   [string]$Channel = $(if ($env:CODY_RELEASE_CHANNEL) { $env:CODY_RELEASE_CHANNEL } else { "prod" }),
+  [string]$Branch = $(if ($env:CODY_RELEASE_BRANCH) { $env:CODY_RELEASE_BRANCH } else { "dev" }),
   [string]$InstallRoot = $(if ($env:CODY_COMPILED_INSTALL_ROOT) { $env:CODY_COMPILED_INSTALL_ROOT } else { "" }),
   [string]$ManifestUrl = $(if ($env:CODY_RELEASE_MANIFEST_URL) { $env:CODY_RELEASE_MANIFEST_URL } else { "" }),
   [switch]$AcceptLicense,
@@ -30,6 +31,8 @@ $ProgressPreference = "SilentlyContinue"
 $Script:ProductName = "Codyx-Orchestrator"
 $Script:LicenseUrl = "https://install.kingkung.men/license"
 $Script:PrivacyUrl = "https://install.kingkung.men/privacy"
+$Script:VerificationUrl = "https://install.kingkung.men"
+$Script:CodyxUserName = ""
 
 function Write-Info($Message) { if (-not $Quiet) { Write-Host "[codyx] $Message" -ForegroundColor Cyan } }
 function Write-Ok($Message) { if (-not $Quiet) { Write-Host "[ok] $Message" -ForegroundColor Green } }
@@ -61,6 +64,106 @@ function Confirm-License {
   $answer = Read-Host "> "
   if ($answer -notmatch '^(A|a)$') {
     throw "License was not accepted."
+  }
+}
+
+function Test-InteractiveHost {
+  if ($env:CODY_LAUNCHER_UI -eq "1") { return $true }
+  if (-not [Environment]::UserInteractive) { return $false }
+  try { return -not [Console]::IsInputRedirected } catch { return $true }
+}
+
+function Read-CodyxInstallerInput($Prompt) {
+  if ($env:CODY_LAUNCHER_UI -eq "1") {
+    Write-Host "::codyx-prompt::$Prompt"
+    $value = [Console]::In.ReadLine()
+    if ($null -eq $value) { return "" }
+    return $value
+  }
+  return Read-Host $Prompt
+}
+
+function Ensure-UserMemo {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath
+  )
+
+  $null = New-Item -ItemType Directory -Force -Path $RootPath
+  $memoPath = Join-Path $RootPath "memo.md"
+  $existing = if (Test-Path -LiteralPath $memoPath) {
+    [System.IO.File]::ReadAllText($memoPath, [System.Text.Encoding]::UTF8)
+  } else {
+    ""
+  }
+
+  if ($existing.Contains("- username:")) {
+    Write-Ok "Username already saved in memo.md."
+    $Script:CodyxUserName = ($existing -split "`n" | Where-Object { $_ -match "- username:" } | ForEach-Object { $_ -replace ".*- username: " } | Select-Object -First 1).Trim()
+    return
+  }
+
+  Write-Info "Saving your username to memo.md..."
+  while ($true) {
+    $value = (Read-CodyxInstallerInput "What would you like codyx to call you?").Trim()
+    if ($value.Length -lt 1) {
+      Write-Warn "Enter a name."
+      continue
+    }
+    if ($value.Length -gt 100) {
+      Write-Warn "Keep it under 100 characters."
+      continue
+    }
+    $Script:CodyxUserName = $value
+    $content = if ([string]::IsNullOrWhiteSpace($existing)) {
+@"
+# Private Workspace Memo
+*Note: This file is Gitignored and contains private machine-specific info.*
+
+## User
+- username: $value
+"@
+    } else {
+      ($existing.TrimEnd() + "`r`n`r`n## User`r`n- username: $value`r`n")
+    }
+    [System.IO.File]::WriteAllText($memoPath, $content, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "Saved username to $memoPath"
+    return
+  }
+}
+
+function Invoke-InstallerVerification {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$InstallerVersion
+  )
+
+  Write-Info "Loading installer email verification..."
+  $local = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath("LocalApplicationData") }
+  $receiptPath = Join-Path (Join-Path $local "codyx-installer") "verification.json"
+  $parameters = @{
+    InstallerVersion = $InstallerVersion
+    ServiceUrl = $Script:VerificationUrl
+    ReceiptPath = $receiptPath
+    NonInteractive = -not (Test-InteractiveHost)
+    DisplayName = $Script:CodyxUserName
+  }
+
+  $localPath = Join-Path $PSScriptRoot "installer-verification.ps1"
+  if (Test-Path -LiteralPath $localPath) {
+    $result = & $localPath @parameters
+  } else {
+    $url = "https://raw.githubusercontent.com/$Repo/$Branch/script/installer-verification.ps1"
+    try {
+      $source = Invoke-RestMethod -Uri $url -TimeoutSec 20 -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
+    } catch {
+      throw "Could not load the installer verification step. Check your connection and run the installer again."
+    }
+    $result = & ([scriptblock]::Create($source)) @parameters
+  }
+
+  if (-not $result.Success) {
+    throw "Email verification is required before installation can continue."
   }
 }
 
@@ -329,6 +432,7 @@ function New-Shortcut($Path, $Target, $Arguments, $WorkingDirectory) {
 function Write-Marker($Root, $VersionValue, $Asset, $Installed, $PathAdds, $Shims, $Shortcuts) {
   $local = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath("LocalApplicationData") }
   $stateDir = Join-Path $local "codyx-installer"
+  $receiptPath = Join-Path $stateDir "verification.json"
   $markerPaths = @(
     (Join-Path $stateDir "install-marker.json"),
     (Join-Path $Root ".codyx-install-marker")
@@ -353,12 +457,25 @@ function Write-Marker($Root, $VersionValue, $Asset, $Installed, $PathAdds, $Shim
     adminUninstall = @{
       enabled = $true
       serviceUrl = "https://install.kingkung.men"
-      receiptPath = (Join-Path $stateDir "verification.json")
+      receiptPath = $receiptPath
       commandsPath = "/v1/commands"
       acknowledgePath = "/v1/acknowledge"
       completePath = "/v1/complete"
     }
     updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+  }
+
+  if (Test-Path -LiteralPath $receiptPath) {
+    try {
+      $verification = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+      if ($verification -and $verification.install_id) {
+        $marker["verification"] = @{
+          installId = [string]$verification.install_id
+          receiptPath = $receiptPath
+          serverUrl = if ($verification.server_url) { [string]$verification.server_url } else { $Script:VerificationUrl }
+        }
+      }
+    } catch {}
   }
 
   foreach ($markerPath in $markerPaths) {
@@ -401,7 +518,10 @@ function Install-CodyxCompiled {
     $asset = @($manifest.assets | Where-Object { $_.id -eq $assetId } | Select-Object -First 1)[0]
     if (-not $asset) { throw "Release manifest does not include $assetId." }
 
-    $null = New-Item -ItemType Directory -Force -Path $InstallRoot, $binDir, $downloadsDir, $updaterDir, $startMenuDir
+    $null = New-Item -ItemType Directory -Force -Path $InstallRoot, $binDir, $downloadsDir, $updaterDir
+    if (-not $NoShortcuts) {
+      $null = New-Item -ItemType Directory -Force -Path $startMenuDir
+    }
     if ($PSCommandPath) {
       $sourceScript = [System.IO.Path]::GetFullPath($PSCommandPath)
       $targetScript = [System.IO.Path]::GetFullPath($updaterScript)
@@ -409,6 +529,13 @@ function Install-CodyxCompiled {
         Copy-Item -LiteralPath $sourceScript -Destination $updaterScript -Force
       }
     }
+    $verificationSource = Join-Path $PSScriptRoot "installer-verification.ps1"
+    if (Test-Path -LiteralPath $verificationSource) {
+      Copy-Item -LiteralPath $verificationSource -Destination (Join-Path $updaterDir "installer-verification.ps1") -Force
+    }
+
+    Ensure-UserMemo -RootPath $InstallRoot
+    Invoke-InstallerVerification -InstallerVersion $manifest.version
 
     if (Test-InstalledAssetCurrent $InstallRoot $currentDir $manifest $asset) {
       Write-Ok "Compiled CLI is up to date."
