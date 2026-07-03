@@ -1,5 +1,9 @@
 import { env } from "node:process"
 
+env.AGENT = "1"
+env.CODY = "1"
+env.CODY_PID = String(process.pid)
+
 import { readFileSync, existsSync } from "node:fs"
 import { resolve } from "node:path"
 
