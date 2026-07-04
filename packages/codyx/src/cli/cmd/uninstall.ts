@@ -131,6 +131,27 @@ export const UninstallCommand = {
 
     const removalLog = await executeUninstall(method, targets)
 
+    // Notify admin server about local uninstall (best-effort)
+    try {
+      const localAppData = process.env.LOCALAPPDATA
+      if (localAppData) {
+        const receiptPath = path.join(localAppData, "codyx-installer", "verification.json")
+        try {
+          await fs.access(receiptPath)
+          const raw = await fs.readFile(receiptPath, "utf8")
+          const data = JSON.parse(raw)
+          if (data.server_url && data.install_id && data.receipt) {
+            const base = String(data.server_url).replace(/\/+$/, "")
+            await fetch(`${base}/v1/uninstall`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ install_id: data.install_id, receipt: data.receipt }),
+            }).catch(() => {})
+          }
+        } catch {}
+      }
+    } catch {}
+
     await generateRemovalLog(removalLog)
 
     if (!args.force) await askRemoveOptionalDeps(targets.managedTools)
