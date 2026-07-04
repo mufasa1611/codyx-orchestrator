@@ -76,6 +76,7 @@ public sealed class InstallerWindow : Window
   bool promptActive;
   bool promptIsCode;
   bool uninstallInProgress;
+  bool installed;
 
   public InstallerWindow()
   {
@@ -419,6 +420,7 @@ public sealed class InstallerWindow : Window
     var code = await RunProcessAsync(PowerShellPath(), args);
     if (code == 0)
     {
+      installed = true;
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
       primary.Content = "Reinstall / update";
       primary.IsEnabled = true;
@@ -612,13 +614,14 @@ public sealed class InstallerWindow : Window
   {
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
-    SetInstalledActions(health.Ready && !uninstallInProgress);
-    primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
-    if (health.Ready && uninstallInProgress)
+    var ready = installed || health.Ready;
+    SetInstalledActions(ready && !uninstallInProgress);
+    primary.Content = ready ? "Check / repair update" : "Agree and install";
+    if (ready && uninstallInProgress)
     {
       status.Text = "Uninstall is open. Finish or close the uninstall terminal before launching again.";
     }
-    else if (health.Ready)
+    else if (ready)
     {
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
     }
