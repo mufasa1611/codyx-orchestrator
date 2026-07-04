@@ -13,6 +13,7 @@ import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@cody/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
+import { showToast } from "@cody/ui/toast"
 
 type NotificationBase = {
   directory?: string
@@ -267,6 +268,27 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         }
 
         const error = "error" in event.properties ? event.properties.error : undefined
+        const errMsg =
+          typeof error === "string"
+            ? error
+            : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+              ? error.message
+              : ""
+
+        if (errMsg.includes("Codyx policy notice:")) {
+          const idx = errMsg.indexOf("Codyx policy notice:")
+          const toastMsg = errMsg
+            .slice(idx + "Codyx policy notice:".length)
+            .split("\n")[0]
+            ?.trim()
+          showToast({
+            description: toastMsg || errMsg,
+            icon: "warning",
+            duration: 4000,
+          })
+          return
+        }
+
         append({
           directory,
           time,
