@@ -868,6 +868,24 @@ function spawnDetachedShell(script: string, cwd: string) {
   spawn("sh", ["-c", script], { cwd, detached: true, stdio: "ignore" }).unref()
 }
 
+function scheduleWindowsPathRemoval(targetPath: string, options: { stopCodyx?: boolean } = {}) {
+  const escaped = targetPath.replace(/'/g, "''")
+  const script = [
+    `$target = '${escaped}'`,
+    `Start-Sleep -Seconds 2`,
+    options.stopCodyx
+      ? `Get-Process codyx -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`
+      : ``,
+    `for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $target); $i++) {`,
+    `  Start-Sleep -Milliseconds 500`,
+    `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
+    `}`,
+  ]
+    .filter(Boolean)
+    .join("; ")
+  spawnDetachedPowershell(script)
+}
+
 async function removePathWithRenameFallback(targetPath: string): Promise<Error | null> {
   const err = await fs.rm(targetPath, { recursive: true, force: true }).catch((e) => e)
   if (!err) return null
@@ -882,18 +900,11 @@ async function removePathWithRenameFallback(targetPath: string): Promise<Error |
   const renameErr = await fs.rename(targetPath, tempPath).catch((e) => e)
   if (renameErr) {
     if (renameErr.code === "ENOENT") return null
-    return err
+    scheduleWindowsPathRemoval(targetPath, { stopCodyx: true })
+    return null
   }
 
-  const script = [
-    `$target = '${tempPath.replace(/'/g, "''")}'`,
-    `Start-Sleep -Seconds 3`,
-    `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
-    `  Start-Sleep -Milliseconds 500`,
-    `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
-    `}`,
-  ].join("; ")
-  spawnDetachedPowershell(script)
+  scheduleWindowsPathRemoval(tempPath)
   return null
 }
 
@@ -910,7 +921,8 @@ export async function scheduleInstallRootRemoval(root: string) {
     const script = [
       `$target = '${actualTarget.replace(/'/g, "''")}'`,
       `Start-Sleep -Seconds 3`,
-      `for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $target); $i++) {`,
+      `Get-Process codyx -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
+      `for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $target); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
       `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
       `}`,

@@ -22,7 +22,9 @@ describe("session policy guard", () => {
     expect(result.allowed).toBe(false)
     if (!result.allowed) {
       expect(result.reason).toBe("profanity")
-      expect(policyViolationToastMessageFromText(result.message)).toContain('"shit"')
+      expect(policyViolationToastMessageFromText(result.message)).toBe(
+        'Blocked word: "shit". Warning: this violates Codyx role rules.',
+      )
       expect(result.matchedWords).toEqual(["shit"])
       expect(result.message).toContain(LICENSE_URL)
       expect(result.message).toContain("suspension or a machine ban")

@@ -59,6 +59,12 @@ public sealed class InstallerWindow : Window
     TextWrapping = TextWrapping.Wrap,
     Margin = new Thickness(0, 0, 0, 8),
   };
+  readonly TextBlock promptPrivacy = new()
+  {
+    TextWrapping = TextWrapping.Wrap,
+    Margin = new Thickness(0, 0, 0, 10),
+    Visibility = Visibility.Collapsed,
+  };
   readonly TextBox promptAnswer = new()
   {
     IsEnabled = false,
@@ -188,6 +194,7 @@ public sealed class InstallerWindow : Window
 
     var promptRoot = new StackPanel();
     promptRoot.Children.Add(promptText);
+    promptRoot.Children.Add(promptPrivacy);
     var promptRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     promptRow.Children.Add(promptAnswer);
     BuildCodeInputs();
@@ -216,6 +223,7 @@ public sealed class InstallerWindow : Window
     promptCancel.Click += (_, _) => SendPromptAnswer("cancel");
     promptChangeEmail.Click += (_, _) => SendPromptAnswer(IsEmailConfirmationPrompt(promptText.Text) ? "n" : "change-email");
     promptResend.Click += (_, _) => SendPromptAnswer("resend");
+    BuildPromptPrivacyNotice();
     promptAnswer.KeyDown += (_, e) =>
     {
       if (e.Key == Key.Enter)
@@ -414,6 +422,16 @@ public sealed class InstallerWindow : Window
     return brush;
   }
 
+  void BuildPromptPrivacyNotice()
+  {
+    promptPrivacy.Inlines.Clear();
+    promptPrivacy.Foreground = BuildSparkleBrush();
+    promptPrivacy.Inlines.Add("Codyx uses your email only for installer verification and essential service or security notices. ");
+    promptPrivacy.Inlines.Add("Project files, prompts, and model conversations are not collected here. ");
+    promptPrivacy.Inlines.Add(SparkleLink("Privacy notice", "https://install.kingkung.men/privacy"));
+    promptPrivacy.Inlines.Add(".");
+  }
+
   async Task InstallAsync()
   {
     primary.IsEnabled = false;
@@ -557,9 +575,18 @@ public sealed class InstallerWindow : Window
     promptActive = active;
     promptIsCode = IsCodePrompt(message);
     var isEmailConfirm = IsEmailConfirmationPrompt(message);
+    var isEmail = IsEmailPrompt(message);
     promptPanel.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     promptText.Text = message;
+    promptPrivacy.Visibility = active && isEmail ? Visibility.Visible : Visibility.Collapsed;
     promptAnswer.Text = "";
+    if (isEmailConfirm && active)
+    {
+      var prefix = "Use email: ";
+      var start = message.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+      if (start >= 0)
+        promptAnswer.Text = message[(start + prefix.Length)..].Trim();
+    }
     promptAnswer.Visibility = promptIsCode ? Visibility.Collapsed : Visibility.Visible;
     promptAnswer.IsEnabled = active && !promptIsCode;
     codeRow.Visibility = promptIsCode ? Visibility.Visible : Visibility.Collapsed;
@@ -626,10 +653,11 @@ public sealed class InstallerWindow : Window
   {
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
-    var ready = installed || health.Ready;
+    installed = health.Ready;
+    var ready = health.Ready;
     primary.IsEnabled = true;
-    primary.Content = ready ? "Reinstall / update" : "Agree and install";
-    SetInstalledActions(ready && !uninstallInProgress);
+    primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
+    SetInstalledActions(health.Ready && !uninstallInProgress);
     if (ready && uninstallInProgress)
     {
       status.Text = "Uninstall is open. Finish or close the uninstall terminal before launching again.";
@@ -734,10 +762,6 @@ public sealed class InstallerWindow : Window
     AddIfFileMissingRequiredText(VerificationReceiptPath(), "verification receipt", ["install_id", "receipt"], missing);
 
     var inPath = CheckInPath();
-    if (missing.Count == 0 && !inPath)
-    {
-      missing.Add("codyx command not found in PATH");
-    }
 
     return new InstallHealth(missing.Count == 0, inPath, missing);
   }
@@ -860,7 +884,7 @@ public sealed class InstallerWindow : Window
 
   bool HasRunnableInstall()
   {
-    return installed || GetInstallHealth().Ready;
+    return GetInstallHealth().Ready;
   }
 
   async Task<bool> RunEmbeddedInstallPreflightAsync()
@@ -891,7 +915,13 @@ public sealed class InstallerWindow : Window
 
   static bool IsEmailConfirmationPrompt(string message)
   {
-    return message.StartsWith("Use email ", StringComparison.OrdinalIgnoreCase);
+    return message.StartsWith("Use email:", StringComparison.OrdinalIgnoreCase) ||
+      message.StartsWith("Use email ", StringComparison.OrdinalIgnoreCase);
+  }
+
+  static bool IsEmailPrompt(string message)
+  {
+    return message.StartsWith("Email address", StringComparison.OrdinalIgnoreCase);
   }
 
   static string PowerShellPath()

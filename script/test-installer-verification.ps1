@@ -84,7 +84,7 @@ Invoke-Test "first verification saves only receipt metadata" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "y", "retry", "246810") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "use", "retry", "246810") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ challenge = $null; verifies = 0 }
     $request = {
@@ -126,7 +126,7 @@ Invoke-Test "wrong and expired codes can recover" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "y", "111111", "222222", "resend", "333333") |
+    @("Installer User", "user@example.com", "use", "111111", "222222", "resend", "333333") |
       ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ verify = 0; resend = 0 }
@@ -163,7 +163,7 @@ Invoke-Test "resend command sends a fresh code" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "y", "resend", "246810") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "use", "resend", "246810") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ resend = 0 }
     $request = {
@@ -195,7 +195,7 @@ Invoke-Test "change-email requests a challenge for the corrected address" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "wrong@example.com", "y", "change-email", "right@example.com", "y", "246810") |
+    @("Installer User", "wrong@example.com", "use", "change-email", "right@example.com", "use", "246810") |
       ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ emails = [System.Collections.Generic.List[string]]::new() }
@@ -245,7 +245,7 @@ Invoke-Test "email typo can be rejected before sending a challenge" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "mufasa1611@agmail.com", "n", "mufasa1611@gmail.com", "y", "246810") |
+    @("Installer User", "mufasa1611@agmail.com", "n", "mufasa1611@gmail.com", "use", "246810") |
       ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ emails = [System.Collections.Generic.List[string]]::new() }
@@ -295,7 +295,7 @@ Invoke-Test "service outage retries three times and stops" {
   try {
     $receiptPath = Join-Path $directory "verification.json"
     $inputs = [System.Collections.Generic.Queue[string]]::new()
-    @("Installer User", "user@example.com", "y") | ForEach-Object { $inputs.Enqueue($_) }
+    @("Installer User", "user@example.com", "use") | ForEach-Object { $inputs.Enqueue($_) }
     $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
     $state = @{ requests = 0; sleeps = 0 }
     $request = {
@@ -315,6 +315,27 @@ Invoke-Test "service outage retries three times and stops" {
   }
 }
 
+Invoke-Test "rate limited challenge reports retry delay" {
+  $directory = New-TestDirectory
+  try {
+    $receiptPath = Join-Path $directory "verification.json"
+    $inputs = [System.Collections.Generic.Queue[string]]::new()
+    @("Installer User", "user@example.com", "use") | ForEach-Object { $inputs.Enqueue($_) }
+    $read = { param($Prompt) return $inputs.Dequeue() }.GetNewClosure()
+    $request = {
+      param($Method, $Uri, $Body)
+      return New-Failure "too_many_codes" "Too many codes were sent to this email. Try again later." $false 3600
+    }.GetNewClosure()
+    $result = & $Helper -InstallerVersion "test" -ReceiptPath $receiptPath `
+      -RequestAction $request -ReadAction $read
+    Assert-True (-not $result.Success) "Rate limited verification should not succeed."
+    Assert-True ($result.Status -eq "rate_limited") "Expected rate_limited status."
+    Assert-True ($result.RetryAfter -eq 3600) "Expected retry delay to be preserved."
+  } finally {
+    Remove-Item -LiteralPath $directory -Recurse -Force
+  }
+}
+
 if ($failures.Count -gt 0) {
   Write-Host ""
   Write-Host "$($failures.Count) verification tests failed:" -ForegroundColor Red
@@ -323,4 +344,4 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host ""
-Write-Host "All 9 verification scenarios passed ($checks assertions)." -ForegroundColor Green
+Write-Host "All 10 verification scenarios passed ($checks assertions)." -ForegroundColor Green

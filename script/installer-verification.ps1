@@ -28,10 +28,12 @@ function Write-VerificationError($Message) {
   Write-Host "[error] $Message" -ForegroundColor Red
 }
 
-function New-VerificationResult($Success, $Status) {
+function New-VerificationResult($Success, $Status, $Message = "", $RetryAfter = $null) {
   return [pscustomobject]@{
     Success = [bool]$Success
     Status = $Status
+    Message = $Message
+    RetryAfter = $RetryAfter
   }
 }
 
@@ -378,7 +380,10 @@ function Stop-ForServiceFailure($Result) {
   } else {
     Write-VerificationWarn "Correct the information or wait before rerunning the installer."
   }
-  return New-VerificationResult $false "verification_failed"
+  if ($Result.StatusCode -eq 429 -or $Result.RetryAfter -or $Result.Code -match "rate|limit|too_many") {
+    return New-VerificationResult $false "rate_limited" $message $Result.RetryAfter
+  }
+  return New-VerificationResult $false "verification_failed" $message $Result.RetryAfter
 }
 
 $state = Read-VerificationState
@@ -449,7 +454,7 @@ while (-not (Test-DisplayName $DisplayName)) {
 
 while ($true) {
   while (-not $email) {
-    $value = (Read-InstallerValue "Email address (privacy: $privacyUrl, or 'cancel')").Trim()
+    $value = (Read-InstallerValue "Email address (or 'cancel')").Trim()
     if ($value.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
       Write-VerificationWarn "Installation cancelled before registration."
       return New-VerificationResult $false "cancelled"
@@ -469,19 +474,19 @@ while ($true) {
       Write-Host "Make sure the email in the input is correct and press use"
       Write-Host "or use reenter to correct the mail address"
       Write-Host ""
-      $choice = (Read-InstallerValue "$candidateEmail   [U]se  [R]eenter  [C]ancel").Trim().ToLowerInvariant()
-      if ($choice -eq "" -or $choice -eq "u" -or $choice -eq "use") {
+      $choice = (Read-InstallerValue "Use email: $candidateEmail").Trim().ToLowerInvariant()
+      if ($choice -eq "" -or $choice -eq "u" -or $choice -eq "use" -or $choice -eq $candidateEmail.ToLowerInvariant()) {
         $email = $candidateEmail
         break
       }
-      if ($choice -eq "r" -or $choice -eq "reenter" -or $choice -eq "edit" -or $choice -eq "change") {
+      if ($choice -eq "n" -or $choice -eq "r" -or $choice -eq "reenter" -or $choice -eq "edit" -or $choice -eq "change") {
         break
       }
       if ($choice -eq "c" -or $choice.StartsWith("cancel")) {
         Write-VerificationWarn "Installation cancelled before registration."
         return New-VerificationResult $false "cancelled"
       }
-      Write-VerificationWarn "Press U to use, R to reenter, or C to cancel."
+      Write-VerificationWarn "Press Enter to confirm, or type n to reenter, or cancel."
     }
   }
 

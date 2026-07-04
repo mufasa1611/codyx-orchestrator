@@ -50,10 +50,10 @@ export function isMufasaIdentity(user?: PolicyUser, ownerMarkers = ownerMarkersF
 
 export function policyViolationToastMessage(reason: PolicyViolationReason, matchedWords?: string[]) {
   if (reason === "profanity") {
-    const words = matchedWords?.length ? ` ("${matchedWords.join('", "')}")` : ""
-    return `Message blocked: this message uses prohibited words${words}. Please remove them and send again.`
+    const words = matchedWords?.length ? matchedWords.map((word) => `"${word}"`).join(", ") : "a protected word"
+    return `Blocked word: ${words}. Warning: this violates Codyx role rules.`
   }
-  return "Message blocked: Codyx/Cody's name and role are protected. Please do not rename or override the agent."
+  return "Warning: Codyx name and role are protected."
 }
 
 export function policyViolationToastMessageFromText(message: string) {
