@@ -1479,21 +1479,40 @@ export default function Layout(props: ParentProps) {
     })
   }
 
-  async function chooseProject() {
+  async function chooseProject(options?: { session?: boolean; create?: boolean; title?: string }) {
     function resolve(result: string | string[] | null) {
       if (Array.isArray(result)) {
         for (const directory of result) {
           void openProject(directory, false)
         }
-        void navigateToProject(result[0])
+        if (options?.session) {
+          const first = result[0]
+          if (first) navigateWithSidebarReset(`/${base64Encode(first)}/session`)
+        } else {
+          void navigateToProject(result[0])
+        }
       } else if (result) {
-        void openProject(result)
+        if (options?.session) {
+          void openProject(result, false)
+          navigateWithSidebarReset(`/${base64Encode(result)}/session`)
+        } else {
+          void openProject(result)
+        }
       }
     }
 
-    if (platform.openDirectoryPickerDialog && server.isLocal()) {
+    const title =
+      options?.title ??
+      (options?.session
+        ? language.t("command.session.new")
+        : options?.create
+          ? language.t("command.project.create")
+          : language.t("command.project.open"))
+    const intent = options?.session ? "session" : options?.create ? "create" : "open"
+
+    if (!options?.create && platform.openDirectoryPickerDialog && server.isLocal()) {
       const result = await platform.openDirectoryPickerDialog?.({
-        title: language.t("command.project.open"),
+        title,
         multiple: true,
       })
       resolve(result)
@@ -1502,7 +1521,7 @@ export default function Layout(props: ParentProps) {
       void import("@/components/dialog-select-directory").then((x) => {
         if (dialogDead || dialogRun !== run) return
         dialog.show(
-          () => <x.DialogSelectDirectory multiple={true} onSelect={resolve} />,
+          () => <x.DialogSelectDirectory intent={intent} title={title} multiple={true} onSelect={resolve} />,
           () => resolve(null),
         )
       })
@@ -2121,9 +2140,22 @@ export default function Layout(props: ParentProps) {
                       {language.t("sidebar.empty.description")}
                     </div>
                   </div>
-                  <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                    {language.t("command.project.open")}
-                  </Button>
+                  <div class="w-full flex flex-col gap-2">
+                    <Button size="large" icon="plus" onClick={() => void chooseProject({ create: true })}>
+                      {language.t("command.project.create")}
+                    </Button>
+                    <Button size="large" icon="new-session" onClick={() => void chooseProject({ session: true })}>
+                      {language.t("command.session.new")}
+                    </Button>
+                    <Button
+                      size="large"
+                      icon="folder-add-left"
+                      variant="secondary"
+                      onClick={() => void chooseProject()}
+                    >
+                      {language.t("command.project.open")}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Show>

@@ -75,6 +75,7 @@ public sealed class InstallerWindow : Window
   Process? activeInstallerProcess;
   bool promptActive;
   bool promptIsCode;
+  bool uninstallInProgress;
 
   public InstallerWindow()
   {
@@ -211,6 +212,7 @@ public sealed class InstallerWindow : Window
       }
     };
     RefreshInstalledActions();
+    Activated += (_, _) => RefreshInstalledActions();
     Loaded += async (_, _) =>
     {
       if (GetInstallHealth().Ready)
@@ -440,7 +442,8 @@ public sealed class InstallerWindow : Window
       return;
     }
 
-    if (!command.Equals("uninstall", StringComparison.OrdinalIgnoreCase))
+    var isUninstall = command.Equals("uninstall", StringComparison.OrdinalIgnoreCase);
+    if (!isUninstall)
     {
       primary.IsEnabled = false;
       SetInstalledActions(false);
@@ -454,6 +457,13 @@ public sealed class InstallerWindow : Window
         return;
       }
     }
+    else
+    {
+      uninstallInProgress = true;
+      SetInstalledActions(false);
+      primary.IsEnabled = true;
+      status.Text = "Uninstall started. Install/update is needed before CLI, Web UI, or Uninstall can run again.";
+    }
 
     var shim = InstalledShimPath();
     if (!File.Exists(shim))
@@ -463,12 +473,20 @@ public sealed class InstallerWindow : Window
       return;
     }
 
-    var args = string.IsNullOrWhiteSpace(command) ? $"/k \"{shim}\"" : $"/k \"{shim}\" {command}";
+    var workingDirectory = isUninstall
+      ? IOPath.GetTempPath()
+      : IOPath.GetDirectoryName(shim) ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    var args = string.IsNullOrWhiteSpace(command)
+      ? $"/k \"{shim}\""
+      : isUninstall
+        ? $"/k \"cd /d \"\"%TEMP%\"\" && \"\"{shim}\"\" {command}\""
+        : $"/k \"{shim}\" {command}";
     Process.Start(new ProcessStartInfo("cmd.exe", args)
     {
-      WorkingDirectory = IOPath.GetDirectoryName(shim) ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+      WorkingDirectory = workingDirectory,
       UseShellExecute = true,
     });
+    if (!isUninstall) RefreshInstalledActions();
   }
 
   async Task<int> RunProcessAsync(string fileName, string arguments)
@@ -592,9 +610,14 @@ public sealed class InstallerWindow : Window
   void RefreshInstalledActions()
   {
     var health = GetInstallHealth();
-    SetInstalledActions(health.Ready);
+    if (!health.Ready) uninstallInProgress = false;
+    SetInstalledActions(health.Ready && !uninstallInProgress);
     primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
-    if (health.Ready)
+    if (health.Ready && uninstallInProgress)
+    {
+      status.Text = "Uninstall is open. Finish or close the uninstall terminal before launching again.";
+    }
+    else if (health.Ready)
     {
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
     }
@@ -672,8 +695,48 @@ public sealed class InstallerWindow : Window
       ("root install marker", RootMarkerPath()),
       ("verification receipt", VerificationReceiptPath()),
     };
-    var missing = required.Where((item) => !File.Exists(item.Path)).Select((item) => $"{item.Label}: {item.Path}").ToArray();
-    return new InstallHealth(missing.Length == 0, missing);
+    var missing = required.Where((item) => !File.Exists(item.Path)).Select((item) => $"{item.Label}: {item.Path}").ToList();
+    if (!Directory.Exists(InstallRoot()))
+    {
+      missing.Add($"install root: {InstallRoot()}");
+    }
+    if (!Directory.Exists(IOPath.Combine(InstallRoot(), "current")))
+    {
+      missing.Add($"compiled CLI directory: {IOPath.Combine(InstallRoot(), "current")}");
+    }
+    if (!Directory.Exists(IOPath.Combine(InstallRoot(), "updater")))
+    {
+      missing.Add($"updater directory: {IOPath.Combine(InstallRoot(), "updater")}");
+    }
+    AddIfFileMissingRequiredText(InstalledShimPath(), "installed command", [InstalledCliPath(), InstalledUpdaterPath(), InstallRoot()], missing);
+    AddIfFileMissingRequiredText(RootMarkerPath(), "root install marker", [InstallRoot()], missing);
+    AddIfFileMissingRequiredText(InstallerMarkerPath(), "installer marker", [InstallRoot(), RootMarkerPath(), VerificationReceiptPath()], missing);
+    AddIfFileMissingRequiredText(VerificationReceiptPath(), "verification receipt", ["install_id", "receipt"], missing);
+    return new InstallHealth(missing.Count == 0, missing);
+  }
+
+  static void AddIfFileMissingRequiredText(string path, string label, IEnumerable<string> requiredText, List<string> missing)
+  {
+    if (!File.Exists(path)) return;
+    string content;
+    try
+    {
+      content = File.ReadAllText(path);
+    }
+    catch
+    {
+      missing.Add($"{label} unreadable: {path}");
+      return;
+    }
+
+    foreach (var text in requiredText)
+    {
+      if (!content.Contains(text, StringComparison.OrdinalIgnoreCase))
+      {
+        missing.Add($"{label} is stale or invalid: {path}");
+        return;
+      }
+    }
   }
 
   static bool HasRunnableInstall()

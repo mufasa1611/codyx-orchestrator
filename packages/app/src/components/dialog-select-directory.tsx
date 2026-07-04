@@ -15,6 +15,7 @@ import { useLanguage } from "@/context/language"
 interface DialogSelectDirectoryProps {
   title?: string
   multiple?: boolean
+  intent?: "open" | "create" | "session"
   onSelect: (result: string | string[] | null) => void
 }
 
@@ -382,6 +383,8 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
         groupHeader={(group) => {
           if (group.category === "recent") return language.t("home.recentProjects")
           if (group.category === "create") return language.t("command.project.create") ?? "Create project"
+          if (props.intent === "create") return language.t("command.project.create")
+          if (props.intent === "session") return language.t("command.session.new")
           return language.t("command.project.open")
         }}
         ref={(r) => (list = r)}
@@ -415,7 +418,7 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
                   <Icon name="folder-add-left" class="shrink-0 size-4" />
                   <div class="flex items-center text-14-regular min-w-0">
                     <span class="text-text-accent whitespace-nowrap overflow-hidden overflow-ellipsis truncate min-w-0">
-                      {creating() ? "Creating..." : language.t("dialog.directory.createAt") ?? "Create at"}
+                      {creating() ? "Creating..." : (language.t("dialog.directory.createAt") ?? "Create at")}
                     </span>
                     <span class="text-text-strong whitespace-nowrap ml-1">{path}/</span>
                   </div>
