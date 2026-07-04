@@ -2,7 +2,7 @@ import { createContext, useContext, type ParentProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "@tui/context/theme"
 import { useTerminalDimensions } from "@opentui/solid"
-import { SplitBorder } from "../component/border"
+import { EmptyBorder } from "../component/border"
 import { TextAttributes } from "@opentui/core"
 import { Schema } from "effect"
 import { TuiEvent } from "../event"
@@ -21,6 +21,31 @@ export function Toast() {
     <Show when={toast.currentToast}>
       {(current) => {
         const nearPrompt = () => current().variant === "warning"
+        const variantIcon = () => {
+          switch (current().variant) {
+            case "warning":
+              return "⚠️  "
+            case "error":
+              return "❌  "
+            case "success":
+              return "✨  "
+            default:
+              return "💡  "
+          }
+        }
+        const defaultTitle = () => {
+          switch (current().variant) {
+            case "warning":
+              return "WARNING"
+            case "error":
+              return "ERROR"
+            case "success":
+              return "SUCCESS"
+            default:
+              return "INFO"
+          }
+        }
+
         return (
           <box
             position="absolute"
@@ -36,14 +61,16 @@ export function Toast() {
             paddingBottom={1}
             backgroundColor={theme.backgroundPanel}
             borderColor={theme[current().variant]}
-            border={["left", "right"]}
-            customBorderChars={SplitBorder.customBorderChars}
+            border={["left"]}
+            customBorderChars={{
+              ...EmptyBorder,
+              vertical: "▌",
+            }}
           >
-            <Show when={current().title}>
-              <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme.text}>
-                {current().title}
-              </text>
-            </Show>
+            <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme[current().variant]}>
+              {variantIcon()}
+              {current().title || defaultTitle()}
+            </text>
             <text fg={theme.text} wrapMode="word" width="100%">
               {current().message}
             </text>

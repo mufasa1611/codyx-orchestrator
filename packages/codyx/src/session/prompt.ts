@@ -237,7 +237,7 @@ export const layer = Layer.effect(
         count,
       })
       yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
-      throw error
+      // Do not throw the error to avoid blocking prompt execution.
     })
 
     const readFirstInitOfferState = Effect.fn("SessionPrompt.firstInitOffer.read")(function* () {

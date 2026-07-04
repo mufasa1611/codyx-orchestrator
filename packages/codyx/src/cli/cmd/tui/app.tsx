@@ -847,7 +847,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     const policyWarning = policyViolationToastMessageFromText(message)
 
     if (policyWarning) {
-      promptRef.current?.restoreLastSubmitted?.(evt.properties.sessionID)
       toast.show({
         variant: "warning",
         message: policyWarning,
