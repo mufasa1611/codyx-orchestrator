@@ -163,6 +163,13 @@ function Invoke-InstallerVerification {
   }
 
   if (-not $result.Success) {
+    if ($result.Status -eq "rate_limited") {
+      $wait = if ($result.RetryAfter) { " Try again after $($result.RetryAfter) seconds." } else { " Try again later." }
+      throw "Email verification is temporarily rate limited.$wait"
+    }
+    if ($result.Message) {
+      throw "Email verification failed: $($result.Message)"
+    }
     throw "Email verification is required before installation can continue."
   }
 }
@@ -498,6 +505,7 @@ function Install-CodyxCompiled {
   $binDir = Join-Path $InstallRoot "bin"
   $downloadsDir = Join-Path $InstallRoot "downloads"
   $updaterDir = Join-Path $InstallRoot "updater"
+  $memoPath = Join-Path $InstallRoot "memo.md"
   $updaterScript = Join-Path $updaterDir "install-compiled.ps1"
   $startMenuDir = Join-Path ([Environment]::GetFolderPath("ApplicationData")) "Microsoft\Windows\Start Menu\Programs\Codyx-Orchestrator"
 
@@ -590,6 +598,7 @@ function Install-CodyxCompiled {
 
     Write-Marker $InstallRoot $manifest.version $asset @(
       $InstallRoot,
+      $memoPath,
       $currentDir,
       $binDir,
       $downloadsDir,
@@ -615,4 +624,10 @@ function Install-CodyxCompiled {
   }
 }
 
-Install-CodyxCompiled
+try {
+  Install-CodyxCompiled
+} catch {
+  $message = if ($_.Exception.Message) { $_.Exception.Message } else { "$_" }
+  Write-Host "[error] $message" -ForegroundColor Red
+  exit 1
+}

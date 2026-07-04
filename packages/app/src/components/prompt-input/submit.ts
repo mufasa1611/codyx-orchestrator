@@ -27,6 +27,7 @@ type PendingPrompt = {
 }
 
 const pending = new Map<string, PendingPrompt>()
+const POLICY_VIOLATION_NOTICE_PREFIX = "Codyx policy notice:"
 
 export type FollowupDraft = {
   sessionID: string
@@ -51,6 +52,15 @@ type FollowupSendInput = {
 const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? part.content : "")).join("")
 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
+
+function policyViolationToastMessageFromText(message: string) {
+  const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
+  if (idx < 0) return
+  return message
+    .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
+    .split("\n")[0]
+    ?.trim()
+}
 
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
@@ -218,10 +228,22 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
       const data = (err as { data?: { message?: string } }).data
-      if (data?.message) return data.message
+      if (data?.message) return policyViolationToastMessageFromText(data.message) ?? data.message
     }
     if (err instanceof Error) return err.message
     return language.t("common.requestFailed")
+  }
+
+  const showPolicyToast = (err: unknown) => {
+    const message = errorMessage(err)
+    const policyWarning = policyViolationToastMessageFromText(message) ?? message
+    if (!policyWarning.startsWith("Blocked word:") && !policyWarning.startsWith("Warning: Codyx")) return false
+    showToast({
+      description: policyWarning,
+      icon: "warning",
+      duration: 4000,
+    })
+    return true
   }
 
   const abort = async () => {
@@ -568,6 +590,12 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       pending.delete(session.id)
       if (sessionDirectory === projectDirectory) {
         sync.set("session_status", session.id, { type: "idle" })
+      }
+      if (showPolicyToast(err)) {
+        removeOptimisticMessage()
+        restoreCommentItems(commentItems)
+        restoreInput()
+        return
       }
       showToast({
         title: language.t("prompt.toast.promptSendFailed.title"),

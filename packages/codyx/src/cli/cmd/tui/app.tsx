@@ -849,10 +849,9 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     if (policyWarning) {
       promptRef.current?.restoreLastSubmitted?.(evt.properties.sessionID)
       toast.show({
-        title: "Message blocked",
         variant: "warning",
         message: policyWarning,
-        duration: 3000,
+        duration: 4000,
       })
       return
     }

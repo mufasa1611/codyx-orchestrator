@@ -37,14 +37,28 @@ const VERSION = await (async () => {
   const t = env.CODY_BUMP?.toLowerCase()
   if (!t || t === "skip")
     throw new Error("bump is 'skip' and no version override provided. Set CODY_VERSION or select a valid bump.")
+  const gitVersion = await $`git tag --list "v[0-9]*"`
+    .text()
+    .then(
+      (tags) =>
+        semver.rsort(
+          tags
+            .split(/\r?\n/)
+            .map((tag) => tag.trim().replace(/^v/, ""))
+            .filter((tag) => semver.valid(tag) && !semver.prerelease(tag)),
+        )[0],
+    )
+    .catch(() => undefined)
   const npmPackage = process.env.CODY_NPM_PACKAGE || "codyx-ai"
-  const version = await fetch(`https://registry.npmjs.org/${npmPackage}/latest`)
-    .then((res) => {
-      if (res.status === 404) return { version: "0.0.0" }
-      if (!res.ok) throw new Error(res.statusText)
-      return res.json()
-    })
-    .then((data: any) => data.version)
+  const version =
+    gitVersion ??
+    (await fetch(`https://registry.npmjs.org/${npmPackage}/latest`)
+      .then((res) => {
+        if (res.status === 404) return { version: "0.0.0" }
+        if (!res.ok) throw new Error(res.statusText)
+        return res.json()
+      })
+      .then((data: any) => data.version))
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
   if (t === "major") return `${major + 1}.0.0`
   if (t === "minor") return `${major}.${minor + 1}.0`
