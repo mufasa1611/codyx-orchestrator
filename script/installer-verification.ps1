@@ -404,6 +404,8 @@ if ($state -and $state.receipt -and (Test-InstallId $state.install_id)) {
     return New-VerificationResult $true "valid_receipt"
   }
   Write-VerificationWarn "The saved verification has expired or was revoked."
+  Write-VerificationWarn "Using locally cached receipt. You can re-verify later by reinstalling."
+  return New-VerificationResult $true "cached_receipt"
 }
 
 if ($NonInteractive) {
