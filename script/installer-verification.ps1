@@ -466,21 +466,22 @@ while ($true) {
 
     while ($true) {
       Write-Host ""
-      Write-Host "Make sure you have entered the right email"
-      Write-Host "and then press use email"
-      $confirm = (Read-InstallerValue "Email: $candidateEmail  [U]se  [E]dit  [C]ancel").Trim().ToLowerInvariant()
-      if ($confirm -eq "" -or $confirm -eq "u" -or $confirm -eq "use") {
+      Write-Host "Make sure the email in the input is correct and press use"
+      Write-Host "or use reenter to correct the mail address"
+      Write-Host ""
+      $choice = (Read-InstallerValue "$candidateEmail   [U]se  [R]eenter  [C]ancel").Trim().ToLowerInvariant()
+      if ($choice -eq "" -or $choice -eq "u" -or $choice -eq "use") {
         $email = $candidateEmail
         break
       }
-      if ($confirm -eq "e" -or $confirm -eq "edit" -or $confirm -eq "change") {
+      if ($choice -eq "r" -or $choice -eq "reenter" -or $choice -eq "edit" -or $choice -eq "change") {
         break
       }
-      if ($confirm -eq "c" -or $confirm.StartsWith("cancel")) {
+      if ($choice -eq "c" -or $choice.StartsWith("cancel")) {
         Write-VerificationWarn "Installation cancelled before registration."
         return New-VerificationResult $false "cancelled"
       }
-      Write-VerificationWarn "Press U to use this email, E to edit, or C to cancel."
+      Write-VerificationWarn "Press U to use, R to reenter, or C to cancel."
     }
   }
 
