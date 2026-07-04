@@ -41,6 +41,7 @@ public sealed class InstallerWindow : Window
   readonly Button cli = new() { Content = "Open CLI", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly Button web = new() { Content = "Open Web UI", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly Button uninstall = new() { Content = "Uninstall", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
+  readonly Button close = new() { Content = "Close", Padding = new Thickness(16, 9, 16, 9) };
   readonly TextBlock status = new() { Foreground = Brushes.White, FontSize = 14 };
   readonly Border promptPanel = new()
   {
@@ -172,7 +173,7 @@ public sealed class InstallerWindow : Window
     DockPanel.SetDock(buttons, Dock.Bottom);
     root.Children.Add(buttons);
 
-    foreach (var button in new[] { uninstall, cli, web, primary })
+    foreach (var button in new[] { close, uninstall, cli, web, primary })
     {
       button.Margin = new Thickness(8, 0, 0, 0);
       buttons.Children.Add(button);
@@ -210,6 +211,7 @@ public sealed class InstallerWindow : Window
     cli.Click += async (_, _) => await LaunchAsync("");
     web.Click += async (_, _) => await LaunchAsync("web");
     uninstall.Click += async (_, _) => await LaunchAsync("uninstall");
+    close.Click += (_, _) => Close();
     promptSend.Click += (_, _) => SendPromptAnswer(promptAnswer.Text);
     promptCancel.Click += (_, _) => SendPromptAnswer("cancel");
     promptChangeEmail.Click += (_, _) => SendPromptAnswer(IsEmailConfirmationPrompt(promptText.Text) ? "n" : "change-email");

@@ -1,5 +1,12 @@
 import z from "zod"
 
+function extractMessage(data: unknown): string | undefined {
+  if (typeof data === "object" && data !== null && "message" in data) {
+    const msg = (data as Record<string, unknown>).message
+    return typeof msg === "string" ? msg : undefined
+  }
+}
+
 export abstract class NamedError extends Error {
   abstract schema(): z.core.$ZodType
   abstract toObject(): { name: string; data: any }
@@ -28,7 +35,7 @@ export abstract class NamedError extends Error {
         public readonly data: z.input<Data>,
         options?: ErrorOptions,
       ) {
-        super(name, options)
+        super(extractMessage(data) ?? name, options)
         this.name = name
       }
 
