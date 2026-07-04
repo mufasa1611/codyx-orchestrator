@@ -465,7 +465,9 @@ while ($true) {
     }
 
     while ($true) {
-      $confirm = (Read-InstallerValue "Use email $candidateEmail? [Y/n]").Trim().ToLowerInvariant()
+      Write-Host ""
+      Write-Host "  Email: $candidateEmail" -ForegroundColor Cyan
+      $confirm = (Read-InstallerValue "Make sure you have entered the right email then press Enter to use it, or type n to edit").Trim().ToLowerInvariant()
       if ($confirm.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
         Write-VerificationWarn "Installation cancelled before registration."
         return New-VerificationResult $false "cancelled"
