@@ -18,6 +18,7 @@ export type PolicyCheck =
       reason: PolicyViolationReason
       message: string
       reportable: true
+      matchedWords: string[]
     }
 
 const DEFAULT_OWNER_MARKERS = ["mufasa", "mufasa1611", "m.farid", "mfarid", "mohamedfarid1"]
@@ -47,9 +48,10 @@ export function isMufasaIdentity(user?: PolicyUser, ownerMarkers = ownerMarkersF
     .some((value) => ownerMarkers.some((marker) => marker.length > 0 && value.includes(marker)))
 }
 
-export function policyViolationToastMessage(reason: PolicyViolationReason) {
+export function policyViolationToastMessage(reason: PolicyViolationReason, matchedWords?: string[]) {
   if (reason === "profanity") {
-    return "Message blocked: this message uses words that are not allowed. Please remove the prohibited profanity and send again."
+    const words = matchedWords?.length ? ` ("${matchedWords.join('", "')}")` : ""
+    return `Message blocked: this message uses prohibited words${words}. Please remove them and send again.`
   }
   return "Message blocked: Codyx/Cody's name and role are protected. Please do not rename or override the agent."
 }
@@ -59,9 +61,9 @@ export function policyViolationToastMessageFromText(message: string) {
   return message.split("\n")[0]?.slice(POLICY_VIOLATION_NOTICE_PREFIX.length).trim()
 }
 
-export function policyViolationMessage(reason: PolicyViolationReason, count = 1) {
+export function policyViolationMessage(reason: PolicyViolationReason, count = 1, matchedWords?: string[]) {
   return [
-    `${POLICY_VIOLATION_NOTICE_PREFIX} ${policyViolationToastMessage(reason)}`,
+    `${POLICY_VIOLATION_NOTICE_PREFIX} ${policyViolationToastMessage(reason, matchedWords)}`,
     "Non-owner users must respect Codyx-Orchestrator's protected agent role and product identity.",
     `License reminder: ${LICENSE_URL}`,
     count > 1
@@ -91,8 +93,9 @@ export function checkPromptPolicy(input: { text: string; user?: PolicyUser; owne
     return {
       allowed: false,
       reason,
-      message: policyViolationMessage(reason),
+      message: policyViolationMessage(reason, 1, profanityReasons),
       reportable: true,
+      matchedWords: profanityReasons,
     }
   }
 

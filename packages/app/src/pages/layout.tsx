@@ -2144,7 +2144,14 @@ export default function Layout(props: ParentProps) {
                     <Button size="large" icon="plus" onClick={() => void chooseProject({ create: true })}>
                       {language.t("command.project.create")}
                     </Button>
-                    <Button size="large" icon="new-session" onClick={() => void chooseProject({ session: true })}>
+                    <Button
+                      size="large"
+                      icon="new-session"
+                      onClick={() => {
+                        const dir = "/"
+                        navigateWithSidebarReset(`/${base64Encode(dir)}/session`)
+                      }}
+                    >
                       {language.t("command.session.new")}
                     </Button>
                     <Button

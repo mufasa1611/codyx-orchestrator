@@ -226,7 +226,9 @@ export const layer = Layer.effect(
       const key = user?.id ?? user?.username ?? "anonymous"
       const count = (policyViolations.get(key) ?? 0) + 1
       policyViolations.set(key, count)
-      const error = new NamedError.Unknown({ message: policyViolationMessage(result.reason, count) })
+      const error = new NamedError.Unknown({
+        message: policyViolationMessage(result.reason, count, result.matchedWords),
+      })
       yield* elog.warn("policy violation", {
         sessionID: input.sessionID,
         userID: user?.id,
