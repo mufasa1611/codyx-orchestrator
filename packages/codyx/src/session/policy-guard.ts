@@ -94,9 +94,6 @@ export function checkPromptPolicy(input: { text: string; user?: PolicyUser; owne
 
   if (profanityReasons.length > 0 || agentReasons > 0) {
     const reason: PolicyViolationReason = profanityReasons.length > 0 ? "profanity" : "agent_identity"
-    console.warn(
-      `[policy-guard] blocked: reason=${reason} profanity_matches=[${profanityReasons.join(",")}] agent_patterns=${agentReasons} text="${text.slice(0, 200)}"`,
-    )
     return {
       allowed: false,
       reason,
