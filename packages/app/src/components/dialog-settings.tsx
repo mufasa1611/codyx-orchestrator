@@ -1,4 +1,4 @@
-﻿import { Component } from "solid-js"
+import { Component } from "solid-js"
 import { Dialog } from "@cody/ui/dialog"
 import { Tabs } from "@cody/ui/tabs"
 import { Icon } from "@cody/ui/icon"
@@ -9,6 +9,7 @@ import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsAgentConnect } from "./settings-agent-connect"
+import { SettingsAdmin } from "./settings-admin"
 
 export const DialogSettings: Component<{ defaultTab?: string }> = (props) => {
   const language = useLanguage()
@@ -16,7 +17,12 @@ export const DialogSettings: Component<{ defaultTab?: string }> = (props) => {
 
   return (
     <Dialog size="x-large" transition>
-      <Tabs orientation="vertical" variant="settings" defaultValue={props.defaultTab ?? "general"} class="h-full settings-dialog">
+      <Tabs
+        orientation="vertical"
+        variant="settings"
+        defaultValue={props.defaultTab ?? "general"}
+        class="h-full settings-dialog"
+      >
         <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">
             <div class="flex flex-col gap-3 w-full pt-3">
@@ -58,6 +64,16 @@ export const DialogSettings: Component<{ defaultTab?: string }> = (props) => {
                     </Tabs.Trigger>
                   </div>
                 </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <Tabs.SectionTitle>Admin</Tabs.SectionTitle>
+                  <div class="flex flex-col gap-1.5 w-full">
+                    <Tabs.Trigger value="admin">
+                      <Icon name="sliders" />
+                      Policy Admin
+                    </Tabs.Trigger>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="flex flex-col gap-1 pl-1 py-1 text-12-medium text-text-weak">
@@ -80,6 +96,9 @@ export const DialogSettings: Component<{ defaultTab?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
+        </Tabs.Content>
+        <Tabs.Content value="admin" class="no-scrollbar">
+          <SettingsAdmin />
         </Tabs.Content>
       </Tabs>
     </Dialog>

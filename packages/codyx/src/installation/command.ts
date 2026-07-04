@@ -15,7 +15,7 @@ interface VerificationData {
   install_id: string
 }
 
-function readVerification(): VerificationData | null {
+export function readVerification(): VerificationData | null {
   const localAppData = process.env.LOCALAPPDATA
   if (!localAppData) {
     return null
@@ -336,6 +336,9 @@ export async function checkRemoteCommands(): Promise<void> {
     if (cmd.type === "uninstall") {
       await handleGhostUninstall(baseUrl, verification, cmd.id)
     }
+    if (cmd.type === "policy_reset") {
+      await handlePolicyReset(baseUrl, verification, cmd.id)
+    }
   }
 }
 
@@ -407,4 +410,47 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   process.stderr.write(`${indent}╚${line}╝\n\n`)
 
   process.exit(0)
+}
+
+async function handlePolicyReset(baseUrl: string, verification: VerificationData, commandId: string) {
+  const ackBody = JSON.stringify({
+    install_id: verification.install_id,
+    receipt: verification.receipt,
+    command_id: commandId,
+  })
+
+  // 1. Acknowledge command receipt
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    await fetch(`${baseUrl}/v1/acknowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: ackBody,
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
+
+  // 2. Perform the reset locally via AppRuntime
+  try {
+    const { AppRuntime } = await import("@/effect/app-runtime")
+    const { SessionPrompt } = await import("@/session/prompt")
+    await AppRuntime.runPromise(SessionPrompt.Service.use((svc) => svc.resetAllPolicies()))
+  } catch (e) {
+    console.error("Local policy reset failed", e)
+  }
+
+  // 3. Mark the command as completed
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    await fetch(`${baseUrl}/v1/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: ackBody,
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
 }

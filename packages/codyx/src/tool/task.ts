@@ -12,7 +12,7 @@ import { EffectBridge } from "@/effect/bridge"
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
   resolvePromptParts(template: string): Effect.Effect<SessionPrompt.PromptInput["parts"]>
-  prompt(input: SessionPrompt.PromptInput): Effect.Effect<MessageV2.WithParts>
+  prompt(input: SessionPrompt.PromptInput): Effect.Effect<MessageV2.WithParts, any>
 }
 
 const id = "task"

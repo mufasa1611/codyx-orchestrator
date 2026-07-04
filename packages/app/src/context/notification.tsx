@@ -1,5 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
-import { batch, createEffect, createMemo, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup, createSignal, onMount } from "solid-js"
 import { useParams } from "@solidjs/router"
 import { createSimpleContext } from "@cody/ui/context"
 import { useGlobalSDK } from "./global-sdk"
@@ -13,7 +13,7 @@ import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@cody/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
-import { showToast } from "@cody/ui/toast"
+import { showToast, toaster } from "@cody/ui/toast"
 
 type NotificationBase = {
   directory?: string
@@ -133,6 +133,64 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const [index, setIndex] = createStore<NotificationIndex>(buildNotificationIndex(store.list))
 
     const meta = { pruned: false, disposed: false }
+
+    const [policyBans, setPolicyBans] = createSignal<Record<string, number>>({})
+    const [tick, setTick] = createSignal(0)
+    let banTimer: any = null
+    onMount(() => {
+      banTimer = setInterval(() => setTick((t) => t + 1), 1000)
+    })
+    onCleanup(() => {
+      if (banTimer) clearInterval(banTimer)
+    })
+
+    const isBanned = (sessionID?: string) => {
+      tick()
+      if (!sessionID) return false
+      const bans = policyBans()
+      const until = bans[sessionID]
+      if (!until) return false
+      return Date.now() < until
+    }
+
+    const banSecondsLeft = (sessionID?: string) => {
+      tick()
+      if (!sessionID) return 0
+      const bans = policyBans()
+      const until = bans[sessionID]
+      if (!until) return 0
+      return Math.max(0, Math.ceil((until - Date.now()) / 1000))
+    }
+
+    const setSessionBan = (sessionID: string, bannedUntil: number) => {
+      setPolicyBans((prev) => ({ ...prev, [sessionID]: bannedUntil }))
+    }
+
+    let activeToastId: any = null
+    createEffect(() => {
+      const activeSession = currentSession()
+      const banned = activeSession ? isBanned(activeSession) : false
+      if (banned && activeSession) {
+        if (activeToastId === null) {
+          activeToastId = showToast({
+            title: "Access Denied",
+            description: (() => {
+              const sec = banSecondsLeft(activeSession)
+              const m = Math.floor(sec / 60)
+              const s = sec % 60
+              return `Chat locked for ${m}:${s < 10 ? "0" : ""}${s} — policy violation (5 warnings)`
+            }) as any,
+            icon: "warning",
+            persistent: true,
+          })
+        }
+      } else {
+        if (activeToastId !== null) {
+          toaster.dismiss(activeToastId)
+          activeToastId = null
+        }
+      }
+    })
 
     const updateUnseen = (scope: "session" | "project", key: string, unseen: Notification[]) => {
       setIndex(scope, "unseen", key, unseen)
@@ -317,12 +375,19 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const unsub = globalSDK.event.listen((e) => {
       const event = e.details
-      if (event.type !== "session.idle" && event.type !== "session.error") return
+      if (event.type !== "session.idle" && event.type !== "session.error" && event.type !== "session.policy-ban") return
 
       const directory = e.name
       const time = Date.now()
       if (event.type === "session.idle") {
         handleSessionIdle(directory, event, time)
+        return
+      }
+      if (event.type === "session.policy-ban") {
+        const sessionID = event.properties.sessionID
+        if (sessionID) {
+          setSessionBan(sessionID, Number(event.properties.bannedUntil))
+        }
         return
       }
       handleSessionError(directory, event, time)
@@ -334,6 +399,9 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     return {
       ready,
+      isBanned,
+      banSecondsLeft,
+      setSessionBan,
       session: {
         all(session: string) {
           return index.session.all[session] ?? empty

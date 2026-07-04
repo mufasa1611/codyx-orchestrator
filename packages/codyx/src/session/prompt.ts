@@ -53,6 +53,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { InstanceRef, UserRef } from "@/effect/instance-ref"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
+import { PolicyBanError } from "./message-v2"
 import { EffectBridge } from "@/effect/bridge"
 import { EventV2 } from "@/v2/event"
 import { SessionEvent } from "@/v2/session-event"
@@ -60,6 +61,7 @@ import { Modelv2 } from "@/v2/model"
 import { AgentAttachment, FileAttachment, Source } from "@/v2/session-prompt"
 import { checkPromptPolicy, policyViolationMessage, type PolicyUser } from "./policy-guard"
 import * as ServerAuth from "@/server/auth/service"
+import { readVerification } from "@/installation/command"
 import * as DateTime from "effect/DateTime"
 import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
@@ -139,11 +141,15 @@ export function shouldAutoCompactForMessages(input: { messages: MessageV2.WithPa
 
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
-  readonly prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts>
+  readonly prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
   readonly loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts>
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts>
-  readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts>
+  readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
   readonly resolvePromptParts: (template: string) => Effect.Effect<PromptInput["parts"]>
+  readonly assertPromptPolicy: (input: { sessionID: SessionID; text: string }) => Effect.Effect<void, PolicyBanError>
+  readonly getPolicyStatus: () => Effect.Effect<Record<string, { count: number; bannedUntil?: number }>>
+  readonly resetPolicy: (sessionID: SessionID) => Effect.Effect<void>
+  readonly resetAllPolicies: () => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@cody/SessionPrompt") {}
@@ -179,11 +185,12 @@ export const layer = Layer.effect(
     const question = yield* Question.Service
     const projects = yield* Project.Service
     const policyViolations = new Map<string, number>()
+    const policyBans = new Map<string, number>() // key -> bannedUntil ms timestamp
     let runFirstInitCommand: (input: {
       sessionID: SessionID
       agent: string
       model?: string
-    }) => Effect.Effect<MessageV2.WithParts> = () => Effect.die("init command is not ready")
+    }) => Effect.Effect<MessageV2.WithParts, PolicyBanError> = () => Effect.die("init command is not ready")
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -216,25 +223,85 @@ export const layer = Layer.effect(
         })
         .join("\n")
 
+    const reportPolicyViolationToCentral = (count: number, bannedUntil: number) => {
+      try {
+        const verification = readVerification()
+        if (!verification) return
+        const baseUrl = verification.server_url.replace(/\/+$/, "")
+        void fetch(`${baseUrl}/v1/installations/${verification.install_id}/policy`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receipt: verification.receipt,
+            count,
+            banned_until: bannedUntil,
+          }),
+        }).catch(() => {})
+      } catch {}
+    }
+
     const assertPromptPolicy = Effect.fn("SessionPrompt.assertPromptPolicy")(function* (input: {
       sessionID: SessionID
       text: string
     }) {
       const user = yield* currentPolicyUser()
+      const key = input.sessionID
+
+      // If user is currently banned, re-publish the ban event to refresh the UI and block the prompt
+      const activeBan = policyBans.get(key)
+      if (activeBan) {
+        if (Date.now() < activeBan) {
+          yield* bus.publish(Session.Event.PolicyBan, {
+            sessionID: input.sessionID,
+            bannedUntil: activeBan,
+            count: policyViolations.get(key) ?? 5,
+          })
+          return yield* Effect.fail(
+            new PolicyBanError({
+              message: `Session is locked due to policy violations. Expiry: ${new Date(activeBan).toISOString()}`,
+              bannedUntil: activeBan,
+              count: policyViolations.get(key) ?? 5,
+            }),
+          )
+        }
+        // Ban expired — clear it
+        policyBans.delete(key)
+      }
+
       const result = checkPromptPolicy({ text: input.text, user })
       if (result.allowed) return
-      const key = user?.id ?? user?.username ?? "anonymous"
       const count = (policyViolations.get(key) ?? 0) + 1
       policyViolations.set(key, count)
-      const error = new NamedError.Unknown({
-        message: policyViolationMessage(result.reason, count, result.matchedWords),
-      })
       yield* elog.warn("policy violation", {
         sessionID: input.sessionID,
         userID: user?.id,
         username: user?.username,
         reason: result.reason,
         count,
+      })
+
+      if (count >= 5) {
+        const bannedUntil = Date.now() + 5 * 60 * 1000
+        policyBans.set(key, bannedUntil)
+        reportPolicyViolationToCentral(count, bannedUntil)
+        yield* bus.publish(Session.Event.PolicyBan, {
+          sessionID: input.sessionID,
+          bannedUntil,
+          count,
+        })
+        return yield* Effect.fail(
+          new PolicyBanError({
+            message: `Session is locked due to policy violations. Expiry: ${new Date(bannedUntil).toISOString()}`,
+            bannedUntil,
+            count,
+          }),
+        )
+      }
+
+      reportPolicyViolationToCentral(count, 0)
+
+      const error = new NamedError.Unknown({
+        message: policyViolationMessage(result.reason, count, result.matchedWords),
       })
       yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
       // Do not throw the error to avoid blocking prompt execution.
@@ -1577,29 +1644,34 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return { info, parts }
     }, Effect.scoped)
 
-    const promptImpl: (input: PromptInput, options?: { skipPolicy?: boolean }) => Effect.Effect<MessageV2.WithParts> =
-      Effect.fn("SessionPrompt.prompt")(function* (input: PromptInput, options?: { skipPolicy?: boolean }) {
-        const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
-        yield* revert.cleanup(session)
-        if (!options?.skipPolicy) {
-          yield* assertPromptPolicy({ sessionID: input.sessionID, text: visiblePromptText(input.parts) })
-        }
+    const promptImpl: (
+      input: PromptInput,
+      options?: { skipPolicy?: boolean },
+    ) => Effect.Effect<MessageV2.WithParts, PolicyBanError> = Effect.fn("SessionPrompt.prompt")(function* (
+      input: PromptInput,
+      options?: { skipPolicy?: boolean },
+    ) {
+      const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      yield* revert.cleanup(session)
+      if (!options?.skipPolicy) {
+        yield* assertPromptPolicy({ sessionID: input.sessionID, text: visiblePromptText(input.parts) })
+      }
 
-        const message = yield* createUserMessage(input)
-        yield* sessions.touch(input.sessionID)
+      const message = yield* createUserMessage(input)
+      yield* sessions.touch(input.sessionID)
 
-        const permissions: Permission.Ruleset = []
-        for (const [t, enabled] of Object.entries(input.tools ?? {})) {
-          permissions.push({ permission: t, action: enabled ? "allow" : "deny", pattern: "*" })
-        }
-        if (permissions.length > 0) {
-          session.permission = permissions
-          yield* sessions.setPermission({ sessionID: session.id, permission: permissions })
-        }
+      const permissions: Permission.Ruleset = []
+      for (const [t, enabled] of Object.entries(input.tools ?? {})) {
+        permissions.push({ permission: t, action: enabled ? "allow" : "deny", pattern: "*" })
+      }
+      if (permissions.length > 0) {
+        session.permission = permissions
+        yield* sessions.setPermission({ sessionID: session.id, permission: permissions })
+      }
 
-        if (input.noReply === true) return message
-        return yield* loop({ sessionID: input.sessionID })
-      })
+      if (input.noReply === true) return message
+      return yield* loop({ sessionID: input.sessionID })
+    })
 
     const prompt: Interface["prompt"] = (input) => promptImpl(input)
 
@@ -2043,6 +2115,42 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         model: input.model,
       })
 
+    const getPolicyStatus = () =>
+      Effect.sync(() => {
+        const result: Record<string, { count: number; bannedUntil?: number }> = {}
+        for (const [sid, count] of policyViolations.entries()) {
+          result[sid] = { count, bannedUntil: policyBans.get(sid) }
+        }
+        return result
+      })
+
+    const resetPolicy = (sessionID: SessionID) =>
+      Effect.gen(function* () {
+        policyViolations.delete(sessionID)
+        policyBans.delete(sessionID)
+        reportPolicyViolationToCentral(0, 0)
+        yield* bus.publish(Session.Event.PolicyBan, {
+          sessionID,
+          bannedUntil: 0,
+          count: 0,
+        })
+      })
+
+    const resetAllPolicies = () =>
+      Effect.gen(function* () {
+        const sessionIDs = [...new Set([...policyViolations.keys(), ...policyBans.keys()])] as SessionID[]
+        policyViolations.clear()
+        policyBans.clear()
+        reportPolicyViolationToCentral(0, 0)
+        for (const sessionID of sessionIDs) {
+          yield* bus.publish(Session.Event.PolicyBan, {
+            sessionID,
+            bannedUntil: 0,
+            count: 0,
+          })
+        }
+      })
+
     return Service.of({
       cancel,
       prompt,
@@ -2050,6 +2158,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       shell,
       command,
       resolvePromptParts,
+      assertPromptPolicy: (input) => assertPromptPolicy(input),
+      getPolicyStatus,
+      resetPolicy: (sessionID) => resetPolicy(sessionID),
+      resetAllPolicies,
     })
   }),
 )

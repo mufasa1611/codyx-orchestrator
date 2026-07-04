@@ -61,6 +61,7 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { TuiConfigProvider, useTuiConfig } from "./context/tui-config"
+import { PolicyBanProvider, usePolicyBan } from "./context/policy-ban"
 import * as TuiConfig from "@/cli/cmd/tui/config/tui"
 import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { createTuiApi } from "@/cli/cmd/tui/plugin/api"
@@ -180,10 +181,12 @@ export function tui(input: {
                                             <PromptHistoryProvider>
                                               <PromptRefProvider>
                                                 <EditorContextProvider>
-                                                  <App
-                                                    onSnapshot={input.onSnapshot}
-                                                    onGitUpgrade={input.onGitUpgrade}
-                                                  />
+                                                  <PolicyBanProvider>
+                                                    <App
+                                                      onSnapshot={input.onSnapshot}
+                                                      onGitUpgrade={input.onGitUpgrade}
+                                                    />
+                                                  </PolicyBanProvider>
                                                 </EditorContextProvider>
                                               </PromptRefProvider>
                                             </PromptHistoryProvider>
@@ -231,6 +234,27 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
+  const { ban, secondsLeft, isBanned } = usePolicyBan()
+
+  createEffect(() => {
+    const sec = secondsLeft()
+    if (sec > 0) {
+      const formatTime = (s: number) => {
+        const m = Math.floor(s / 60)
+        const secRem = s % 60
+        return `${m}:${secRem < 10 ? "0" : ""}${secRem}`
+      }
+      toast.show({
+        variant: "error",
+        message: `Chat locked for ${formatTime(sec)} — policy violation (5 warnings)`,
+        duration: 0,
+      })
+    } else {
+      if (toast.currentToast?.message.includes("Chat locked")) {
+        toast.dismiss()
+      }
+    }
+  })
   const routes: RouteMap = new Map()
   const [routeRev, setRouteRev] = createSignal(0)
   const routeView = (name: string) => {
@@ -860,6 +884,11 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
       message,
       duration: 5000,
     })
+  })
+
+  event.on("session.policy-ban", (evt) => {
+    const { sessionID, bannedUntil } = evt.properties
+    ban({ bannedUntil: Number(bannedUntil), sessionID })
   })
 
   event.on("installation.update-available", async (evt) => {

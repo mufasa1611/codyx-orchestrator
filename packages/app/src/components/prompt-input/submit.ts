@@ -18,6 +18,7 @@ import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
+import { useNotification } from "@/context/notification"
 import { trimSessions } from "@/context/global-sync/session-trim"
 import { formatServerError } from "@/utils/server-errors"
 
@@ -224,6 +225,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const layout = useLayout()
   const language = useLanguage()
   const params = useParams()
+  const notification = useNotification()
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
@@ -235,6 +237,18 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   }
 
   const showPolicyToast = (err: unknown) => {
+    const body = err && typeof err === "object" && "body" in err ? (err as { body: any }).body : err
+    if (body && typeof body === "object" && body.name === "PolicyBanError") {
+      const data = body.data
+      if (data && typeof data === "object" && "bannedUntil" in data && typeof data.bannedUntil === "number") {
+        const sessionID = params.id
+        if (sessionID) {
+          notification.setSessionBan(sessionID, data.bannedUntil)
+          return true
+        }
+      }
+    }
+
     const message = errorMessage(err)
     const policyWarning = policyViolationToastMessageFromText(message) ?? message
     if (!policyWarning.startsWith("Blocked word:") && !policyWarning.startsWith("Warning: Codyx")) return false

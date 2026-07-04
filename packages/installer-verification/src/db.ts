@@ -1,4 +1,4 @@
-﻿import type { Bindings } from "./types"
+import type { Bindings } from "./types"
 
 const schema = `
 CREATE TABLE IF NOT EXISTS challenge (
@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS registration (
   installer_version TEXT NOT NULL,
   platform TEXT NOT NULL,
   machine_id TEXT,
+  policy_violations_count INTEGER DEFAULT 0,
+  policy_banned_until INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   retain_until INTEGER NOT NULL
@@ -106,6 +108,12 @@ export async function ensureSchema(db: D1Database) {
       .filter(Boolean)
       .map((statement) => db.prepare(statement)),
   )
+  try {
+    await db.prepare("ALTER TABLE registration ADD COLUMN policy_violations_count INTEGER DEFAULT 0").run()
+  } catch {}
+  try {
+    await db.prepare("ALTER TABLE registration ADD COLUMN policy_banned_until INTEGER DEFAULT 0").run()
+  } catch {}
 }
 
 export async function cleanup(db: D1Database, now = Date.now()) {

@@ -5,6 +5,12 @@ export type ClientOptions = {
 }
 
 export type Event =
+  | EventTuiPromptAppend
+  | EventTuiCommandExecute
+  | EventTuiToastShow1
+  | EventTuiSessionSelect
+  | EventServerConnected
+  | EventGlobalDisposed
   | EventServerInstanceDisposed
   | EventLspClientDiagnostics
   | EventLspUpdated
@@ -13,13 +19,10 @@ export type Event =
   | EventPermissionReplied
   | EventSessionDiff
   | EventSessionError
+  | EventSessionPolicyBan1
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
   | EventUpdateProgress
-  | EventTuiPromptAppend
-  | EventTuiCommandExecute
-  | EventTuiToastShow1
-  | EventTuiSessionSelect
   | EventMcpToolsChanged
   | EventMcpBrowserOpenFailed
   | EventCommandExecuted
@@ -76,8 +79,6 @@ export type Event =
   | EventSessionNextCompactionStarted
   | EventSessionNextCompactionDelta
   | EventSessionNextCompactionEnded
-  | EventServerConnected
-  | EventGlobalDisposed
 
 export type OAuth = {
   type: "oauth"
@@ -103,6 +104,61 @@ export type WellKnownAuth = {
 }
 
 export type Auth = OAuth | ApiAuth | WellKnownAuth
+
+export type EventTuiPromptAppend = {
+  id: string
+  type: "tui.prompt.append"
+  properties: {
+    text: string
+  }
+}
+
+export type EventTuiCommandExecute = {
+  id: string
+  type: "tui.command.execute"
+  properties: {
+    command:
+      | "session.list"
+      | "session.new"
+      | "session.share"
+      | "session.interrupt"
+      | "session.compact"
+      | "session.page.up"
+      | "session.page.down"
+      | "session.line.up"
+      | "session.line.down"
+      | "session.half.page.up"
+      | "session.half.page.down"
+      | "session.first"
+      | "session.last"
+      | "prompt.clear"
+      | "prompt.submit"
+      | "agent.cycle"
+      | string
+  }
+}
+
+export type EventTuiToastShow = {
+  id: string
+  type: "tui.toast.show"
+  properties: {
+    title?: string
+    message: string
+    variant: "info" | "success" | "warning" | "error"
+    duration?: number
+  }
+}
+
+export type EventTuiSessionSelect = {
+  id: string
+  type: "tui.session.select"
+  properties: {
+    /**
+     * Session ID to navigate to
+     */
+    sessionID: string
+  }
+}
 
 export type PermissionRequest = {
   id: string
@@ -188,58 +244,12 @@ export type ApiError = {
   }
 }
 
-export type EventTuiPromptAppend = {
-  id: string
-  type: "tui.prompt.append"
-  properties: {
-    text: string
-  }
-}
-
-export type EventTuiCommandExecute = {
-  id: string
-  type: "tui.command.execute"
-  properties: {
-    command:
-      | "session.list"
-      | "session.new"
-      | "session.share"
-      | "session.interrupt"
-      | "session.compact"
-      | "session.page.up"
-      | "session.page.down"
-      | "session.line.up"
-      | "session.line.down"
-      | "session.half.page.up"
-      | "session.half.page.down"
-      | "session.first"
-      | "session.last"
-      | "prompt.clear"
-      | "prompt.submit"
-      | "agent.cycle"
-      | string
-  }
-}
-
-export type EventTuiToastShow = {
-  id: string
-  type: "tui.toast.show"
-  properties: {
-    title?: string
+export type PolicyBanError = {
+  name: "PolicyBanError"
+  data: {
     message: string
-    variant: "info" | "success" | "warning" | "error"
-    duration?: number
-  }
-}
-
-export type EventTuiSessionSelect = {
-  id: string
-  type: "tui.session.select"
-  properties: {
-    /**
-     * Session ID to navigate to
-     */
-    sessionID: string
+    bannedUntil: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
@@ -427,6 +437,7 @@ export type AssistantMessage = {
     | StructuredOutputError
     | ContextOverflowError
     | ApiError
+    | PolicyBanError
   parentID: string
   modelID: string
   providerID: string
@@ -780,6 +791,12 @@ export type GlobalEvent = {
   project?: string
   workspace?: string
   payload:
+    | EventTuiPromptAppend
+    | EventTuiCommandExecute
+    | EventTuiToastShow
+    | EventTuiSessionSelect
+    | EventServerConnected
+    | EventGlobalDisposed
     | EventServerInstanceDisposed
     | EventLspClientDiagnostics
     | EventLspUpdated
@@ -788,13 +805,10 @@ export type GlobalEvent = {
     | EventPermissionReplied
     | EventSessionDiff
     | EventSessionError
+    | EventSessionPolicyBan
     | EventInstallationUpdated
     | EventInstallationUpdateAvailable
     | EventUpdateProgress
-    | EventTuiPromptAppend
-    | EventTuiCommandExecute
-    | EventTuiToastShow
-    | EventTuiSessionSelect
     | EventMcpToolsChanged
     | EventMcpBrowserOpenFailed
     | EventCommandExecuted
@@ -851,8 +865,6 @@ export type GlobalEvent = {
     | EventSessionNextCompactionStarted
     | EventSessionNextCompactionDelta
     | EventSessionNextCompactionEnded
-    | EventServerConnected
-    | EventGlobalDisposed
     | SyncEventMessageUpdated
     | SyncEventMessageRemoved
     | SyncEventMessagePartUpdated
@@ -1772,6 +1784,15 @@ export type WorkspaceWarpError = {
   }
 }
 
+export type PolicyBanError2 = {
+  name: "PolicyBanError"
+  data: {
+    message: string
+    bannedUntil: number | "NaN" | "Infinity" | "-Infinity"
+    count: number | "NaN" | "Infinity" | "-Infinity"
+  }
+}
+
 export type SyncEventMessageUpdated = {
   type: "sync"
   name: "message.updated.1"
@@ -2294,6 +2315,22 @@ export type SyncEventSessionNextCompactionEnded = {
   }
 }
 
+export type EventServerConnected = {
+  id: string
+  type: "server.connected"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
+export type EventGlobalDisposed = {
+  id: string
+  type: "global.disposed"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
 export type EventServerInstanceDisposed = {
   id: string
   type: "server.instance.disposed"
@@ -2369,6 +2406,17 @@ export type EventSessionError = {
       | StructuredOutputError
       | ContextOverflowError
       | ApiError
+      | PolicyBanError
+  }
+}
+
+export type EventSessionPolicyBan = {
+  id: string
+  type: "session.policy-ban"
+  properties: {
+    sessionID?: string
+    bannedUntil: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
@@ -3016,22 +3064,6 @@ export type EventSessionNextCompactionEnded = {
   }
 }
 
-export type EventServerConnected = {
-  id: string
-  type: "server.connected"
-  properties: {
-    [key: string]: unknown
-  }
-}
-
-export type EventGlobalDisposed = {
-  id: string
-  type: "global.disposed"
-  properties: {
-    [key: string]: unknown
-  }
-}
-
 export type SessionInfo = {
   id: string
   parentID?: string
@@ -3264,6 +3296,16 @@ export type EventTuiToastShow1 = {
     message: string
     variant: "info" | "success" | "warning" | "error"
     duration?: number
+  }
+}
+
+export type EventSessionPolicyBan1 = {
+  id: string
+  type: "session.policy-ban"
+  properties: {
+    sessionID?: string
+    bannedUntil: number | "NaN" | "Infinity" | "-Infinity"
+    count: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
 
@@ -5425,6 +5467,73 @@ export type SessionStatusResponses = {
 
 export type SessionStatusResponse = SessionStatusResponses[keyof SessionStatusResponses]
 
+export type SessionPolicyStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/policy/status"
+}
+
+export type SessionPolicyStatusErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SessionPolicyStatusError = SessionPolicyStatusErrors[keyof SessionPolicyStatusErrors]
+
+export type SessionPolicyStatusResponses = {
+  /**
+   * Policy status map
+   */
+  200: {
+    [key: string]: {
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      bannedUntil?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+}
+
+export type SessionPolicyStatusResponse = SessionPolicyStatusResponses[keyof SessionPolicyStatusResponses]
+
+export type SessionPolicyResetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/policy/reset"
+}
+
+export type SessionPolicyResetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionPolicyResetError = SessionPolicyResetErrors[keyof SessionPolicyResetErrors]
+
+export type SessionPolicyResetResponses = {
+  /**
+   * Successfully reset policy
+   */
+  200: boolean
+}
+
+export type SessionPolicyResetResponse = SessionPolicyResetResponses[keyof SessionPolicyResetResponses]
+
 export type SessionDeleteData = {
   body?: never
   path: {
@@ -5695,6 +5804,10 @@ export type SessionPromptErrors = {
    */
   400: BadRequestError
   /**
+   * PolicyBanError
+   */
+  403: PolicyBanError
+  /**
    * Not found
    */
   404: NotFoundError
@@ -5875,6 +5988,10 @@ export type SessionInitErrors = {
    */
   400: BadRequestError
   /**
+   * PolicyBanError
+   */
+  403: PolicyBanError
+  /**
    * Not found
    */
   404: NotFoundError
@@ -6030,6 +6147,10 @@ export type SessionPromptAsyncErrors = {
    */
   400: BadRequestError
   /**
+   * PolicyBanError
+   */
+  403: PolicyBanError
+  /**
    * Not found
    */
   404: NotFoundError
@@ -6078,6 +6199,10 @@ export type SessionCommandErrors = {
    * Bad request
    */
   400: BadRequestError
+  /**
+   * PolicyBanError
+   */
+  403: PolicyBanError
   /**
    * Not found
    */

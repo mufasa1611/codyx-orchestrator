@@ -107,6 +107,7 @@ tr:hover td{background:#1c2128}
 <th>Version</th>
 <th>Verified</th>
 <th>Status</th>
+<th>Policy Violations</th>
 <th>Banned</th>
 <th></th>
 </tr>
@@ -278,6 +279,16 @@ async function unbanInstall(id) {
   }
 }
 
+async function resetPolicy(id) {
+  const res = await apiFetch("/v1/admin/installations/" + id + "/policy-reset", { method: "POST" })
+  if (res && res.ok) {
+    showToast("Policy reset command sent for " + id, "success")
+    loadDashboard()
+  } else {
+    showToast("Failed to reset policy", "error")
+  }
+}
+
 async function loadDashboard() {
   const token = getToken()
   if (!token) { showLogin(); return }
@@ -316,6 +327,20 @@ async function loadDashboard() {
     if (r.is_banned) banCell = "<td><span class=\\"badge banned\\">Banned</span></td>"
     else if (r.machine_id) banCell = "<td><span class=\\"badge active\\">Active</span></td>"
     else banCell = '<td style="color:#8b949e">&mdash;</td>'
+
+    let policyCell = ""
+    const isPolicyBanned = r.policy_banned_until && Number(r.policy_banned_until) > Date.now()
+    if (isPolicyBanned) {
+      const remainingSec = Math.max(0, Math.ceil((Number(r.policy_banned_until) - Date.now()) / 1000))
+      const m = Math.floor(remainingSec / 60)
+      const s = remainingSec % 60
+      policyCell = "<td><span class=\\"badge banned\\" style=\\"font-size:11px\\">Locked (" + m + ":" + (s < 10 ? "0" : "") + s + ")</span></td>"
+    } else if (r.policy_violations_count > 0) {
+      policyCell = "<td><span class=\\"badge pending\\" style=\\"font-size:11px\\">" + r.policy_violations_count + " / 5</span></td>"
+    } else {
+      policyCell = "<td><span class=\\"badge active\\" style=\\"font-size:11px\\">Clean</span></td>"
+    }
+
     let banBtn = ""
     if (r.is_banned) {
       banBtn = " <button class=\\"btn-unban\\" onclick=\\"unbanInstall('" + esc(r.install_id) + "')\\">Unban</button>"
@@ -325,18 +350,23 @@ async function loadDashboard() {
       banBtn = " <button class=\\"btn-ban\\" disabled title=\\"No machine ID on record\\">Ban</button>"
     }
     const removeBtn = " <button class=\\"btn-remove\\" onclick=\\"confirmRemove('" + esc(r.install_id) + "','" + esc(r.display_name) + "')\\">Remove</button>"
+    let resetPolicyBtn = ""
+    if (r.policy_violations_count > 0 || isPolicyBanned) {
+      resetPolicyBtn = " <button class=\\"btn-unban\\" style=\\"background:#7c3aed;margin-left:4px\\" onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
+    }
     return "<tr" + rowClass + ">" +
       "<td><strong>" + esc(r.display_name) + "</strong></td>" +
       "<td>" + esc(r.email) + "</td>" +
       "<td><span class=\\"mono\\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
-        "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
+      "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
       midCell +
       "<td>" + badge(r.platform) + "</td>" +
       "<td class=\\"mono\\">" + esc(r.installer_version) + "</td>" +
       "<td>" + fmtDate(r.email_verified_at) + "</td>" +
       "<td>" + statusBadge(r.command_status) + "</td>" +
+      policyCell +
       banCell +
-      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + removeBtn + "</td>" +
+      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + resetPolicyBtn + removeBtn + "</td>" +
     "</tr>"
   }).join("")
 }

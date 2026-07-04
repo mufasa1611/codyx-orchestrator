@@ -39,6 +39,7 @@ import {
   UpdatePayload,
 } from "../groups/session"
 import * as SessionError from "./session-errors"
+import * as ApiError from "../errors"
 
 export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", (handlers) =>
   Effect.gen(function* () {
@@ -67,19 +68,30 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const list = Effect.fn("SessionHttpApi.list")(function* (ctx: { query: typeof ListQuery.Type }) {
       const request = yield* HttpServerRequest.HttpServerRequest
       const userId = Jwt.userIdFromBearer(request.headers.authorization)
-      return yield* session.list({
-        directory: ctx.query.scope === "project" ? undefined : ctx.query.directory,
-        scope: ctx.query.scope,
-        path: ctx.query.path,
-        roots: ctx.query.roots,
-        start: ctx.query.start,
-        search: ctx.query.search,
-        limit: ctx.query.limit,
-      }).pipe(Effect.provideService(UserRef, userId))
+      return yield* session
+        .list({
+          directory: ctx.query.scope === "project" ? undefined : ctx.query.directory,
+          scope: ctx.query.scope,
+          path: ctx.query.path,
+          roots: ctx.query.roots,
+          start: ctx.query.start,
+          search: ctx.query.search,
+          limit: ctx.query.limit,
+        })
+        .pipe(Effect.provideService(UserRef, userId))
     })
 
     const status = Effect.fn("SessionHttpApi.status")(function* () {
       return Object.fromEntries(yield* statusSvc.list())
+    })
+
+    const policyStatus = Effect.fn("SessionHttpApi.policyStatus")(function* () {
+      return yield* promptSvc.getPolicyStatus()
+    })
+
+    const policyReset = Effect.fn("SessionHttpApi.policyReset")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* promptSvc.resetPolicy(ctx.params.sessionID)
+      return true
     })
 
     const get = Effect.fn("SessionHttpApi.get")(function* (ctx: { params: { sessionID: SessionID } }) {
@@ -205,9 +217,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       const request = yield* HttpServerRequest.HttpServerRequest
       const userId = Jwt.userIdFromBearer(request.headers.authorization)
       return yield* SessionError.mapStorageNotFound(
-        session.fork({ sessionID: ctx.params.sessionID, messageID: ctx.payload.messageID }).pipe(
-          Effect.provideService(UserRef, userId),
-        ),
+        session
+          .fork({ sessionID: ctx.params.sessionID, messageID: ctx.payload.messageID })
+          .pipe(Effect.provideService(UserRef, userId)),
       )
     })
 
@@ -220,13 +232,19 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof InitPayload.Type
     }) {
-      yield* promptSvc.command({
-        sessionID: ctx.params.sessionID,
-        messageID: ctx.payload.messageID,
-        model: `${ctx.payload.providerID}/${ctx.payload.modelID}`,
-        command: Command.Default.INIT,
-        arguments: "",
-      })
+      yield* promptSvc
+        .command({
+          sessionID: ctx.params.sessionID,
+          messageID: ctx.payload.messageID,
+          model: `${ctx.payload.providerID}/${ctx.payload.modelID}`,
+          command: Command.Default.INIT,
+          arguments: "",
+        })
+        .pipe(
+          Effect.mapError((err) => {
+            return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+          }),
+        )
       return true
     })
 
@@ -278,7 +296,13 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
               ...ctx.payload,
               sessionID: ctx.params.sessionID,
             }),
-          ).pipe(Effect.provideService(InstanceRef, instance), Effect.provideService(WorkspaceRef, workspace)),
+          ).pipe(
+            Effect.mapError((err) => {
+              return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+            }),
+            Effect.provideService(InstanceRef, instance),
+            Effect.provideService(WorkspaceRef, workspace),
+          ),
         ).pipe(
           Stream.map((message) => JSON.stringify(message)),
           Stream.encodeText,
@@ -292,6 +316,28 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof PromptPayload.Type
     }) {
       const userID = yield* requestUserID
+
+      // Synchronously check if the session is banned before processing
+      const visibleText = ctx.payload.parts
+        .flatMap((part) => {
+          if (part.type === "text" && !part.synthetic) return [part.text]
+          if (part.type === "subtask") return [part.prompt]
+          return []
+        })
+        .join("\n")
+
+      yield* withUserID(
+        userID,
+        promptSvc.assertPromptPolicy({
+          sessionID: ctx.params.sessionID,
+          text: visibleText,
+        }),
+      ).pipe(
+        Effect.mapError((err) => {
+          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+        }),
+      )
+
       yield* withUserID(userID, promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID })).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
@@ -312,7 +358,11 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof CommandPayload.Type
     }) {
       const userID = yield* requestUserID
-      return yield* withUserID(userID, promptSvc.command({ ...ctx.payload, sessionID: ctx.params.sessionID }))
+      return yield* withUserID(userID, promptSvc.command({ ...ctx.payload, sessionID: ctx.params.sessionID })).pipe(
+        Effect.mapError((err) => {
+          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+        }),
+      )
     })
 
     const shell = Effect.fn("SessionHttpApi.shell")(function* (ctx: {
@@ -377,6 +427,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     return handlers
       .handle("list", list)
       .handle("status", status)
+      .handle("policyStatus", policyStatus)
+      .handle("policyReset", policyReset)
       .handle("get", get)
       .handle("children", children)
       .handle("todo", todo)
