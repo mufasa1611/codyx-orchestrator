@@ -546,7 +546,9 @@ function Install-CodyxCompiled {
     }
 
     Ensure-UserMemo -RootPath $InstallRoot
-    Invoke-InstallerVerification -InstallerVersion $manifest.version
+    if (-not $Quiet) {
+      Invoke-InstallerVerification -InstallerVersion $manifest.version
+    }
 
     if (Test-InstalledAssetCurrent $InstallRoot $currentDir $manifest $asset) {
       Write-Ok "Compiled CLI is up to date."
