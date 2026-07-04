@@ -466,20 +466,21 @@ while ($true) {
 
     while ($true) {
       Write-Host ""
-      Write-Host "  Email: $candidateEmail" -ForegroundColor Cyan
-      $confirm = (Read-InstallerValue "Make sure you have entered the right email then press Enter to use it, or type n to edit").Trim().ToLowerInvariant()
-      if ($confirm.Equals("cancel", [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-VerificationWarn "Installation cancelled before registration."
-        return New-VerificationResult $false "cancelled"
-      }
-      if ($confirm -eq "" -or $confirm -eq "y" -or $confirm -eq "yes") {
+      Write-Host "Make sure you have entered the right email"
+      Write-Host "and then press use email"
+      $confirm = (Read-InstallerValue "Email: $candidateEmail  [U]se  [E]dit  [C]ancel").Trim().ToLowerInvariant()
+      if ($confirm -eq "" -or $confirm -eq "u" -or $confirm -eq "use") {
         $email = $candidateEmail
         break
       }
-      if ($confirm -eq "n" -or $confirm -eq "no" -or $confirm -eq "edit" -or $confirm -eq "change" -or $confirm -eq "change-email") {
+      if ($confirm -eq "e" -or $confirm -eq "edit" -or $confirm -eq "change") {
         break
       }
-      Write-VerificationWarn "Send code, or edit email before sending."
+      if ($confirm -eq "c" -or $confirm.StartsWith("cancel")) {
+        Write-VerificationWarn "Installation cancelled before registration."
+        return New-VerificationResult $false "cancelled"
+      }
+      Write-VerificationWarn "Press U to use this email, E to edit, or C to cancel."
     }
   }
 
