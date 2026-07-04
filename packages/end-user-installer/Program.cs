@@ -627,7 +627,7 @@ public sealed class InstallerWindow : Window
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
     var ready = installed || health.Ready;
-    primary.IsEnabled = ready;
+    primary.IsEnabled = true;
     primary.Content = ready ? "Reinstall / update" : "Agree and install";
     SetInstalledActions(ready && !uninstallInProgress);
     if (ready && uninstallInProgress)
