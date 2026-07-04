@@ -627,8 +627,8 @@ public sealed class InstallerWindow : Window
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
     var ready = installed || health.Ready;
-    primary.IsEnabled = !ready;
-    primary.Content = ready ? "Installed" : "Agree and install";
+    primary.IsEnabled = ready;
+    primary.Content = ready ? "Reinstall / update" : "Agree and install";
     SetInstalledActions(ready && !uninstallInProgress);
     if (ready && uninstallInProgress)
     {
@@ -639,6 +639,7 @@ public sealed class InstallerWindow : Window
       var parts = new List<string> { "Codyx-Orchestrator is installed." };
       if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
       status.Text = string.Join(" ", parts);
+      _ = CheckForUpdateAsync(); // fire-and-forget background update check
     }
     else if (health.Missing.Count > 0)
     {
@@ -767,6 +768,43 @@ public sealed class InstallerWindow : Window
     }
   }
 
+  async Task CheckForUpdateAsync()
+  {
+    try
+    {
+      var markerPath = RootMarkerPath();
+      if (!File.Exists(markerPath)) return;
+
+      var marker = System.Text.Json.JsonDocument.Parse(File.ReadAllText(markerPath));
+      var currentVer = marker.RootElement.GetProperty("compiledInstall").GetProperty("version").GetString();
+      if (string.IsNullOrEmpty(currentVer)) return;
+
+      using var http = new System.Net.Http.HttpClient();
+      http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
+      var resp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases/latest");
+      if (!resp.IsSuccessStatusCode) return;
+      var json = await resp.Content.ReadAsStringAsync();
+      var release = System.Text.Json.JsonDocument.Parse(json);
+      var latestVer = release.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v');
+      if (string.IsNullOrEmpty(latestVer)) return;
+
+      var current = Version.TryParse(currentVer, out var cv) ? cv : null;
+      var latest = Version.TryParse(latestVer, out var lv) ? lv : null;
+      if (current is null || latest is null || latest <= current) return;
+
+      await Dispatcher.InvokeAsync(() =>
+      {
+        primary.Content = $"Update to v{latestVer}";
+        primary.IsEnabled = true;
+        status.Text = $"A newer version (v{latestVer}) is available";
+      });
+    }
+    catch
+    {
+      // silent — update check is best-effort
+    }
+  }
+
   static void AddIfFileMissingRequiredText(string path, string label, IEnumerable<string> requiredText, List<string> missing)
   {
     if (!File.Exists(path)) return;
@@ -783,7 +821,8 @@ public sealed class InstallerWindow : Window
 
     foreach (var text in requiredText)
     {
-      if (!content.Contains(text, StringComparison.OrdinalIgnoreCase))
+      var escaped = text.Replace("\\", "\\\\");
+      if (!content.Contains(text, StringComparison.OrdinalIgnoreCase) && !content.Contains(escaped, StringComparison.OrdinalIgnoreCase))
       {
         missing.Add($"{label} is stale or invalid: {path}");
         return;
