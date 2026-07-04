@@ -153,6 +153,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       return Date.now() < until
     }
 
+    const [banReasons, setBanReasons] = createSignal<Record<string, string>>({})
+
     const banSecondsLeft = (sessionID?: string) => {
       tick()
       if (!sessionID) return 0
@@ -162,8 +164,11 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       return Math.max(0, Math.ceil((until - Date.now()) / 1000))
     }
 
-    const setSessionBan = (sessionID: string, bannedUntil: number) => {
+    const setSessionBan = (sessionID: string, bannedUntil: number, reason?: string) => {
       setPolicyBans((prev) => ({ ...prev, [sessionID]: bannedUntil }))
+      if (reason) {
+        setBanReasons((prev) => ({ ...prev, [sessionID]: reason }))
+      }
     }
 
     let activeToastId: any = null
@@ -178,7 +183,9 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
               const sec = banSecondsLeft(activeSession)
               const m = Math.floor(sec / 60)
               const s = sec % 60
-              return `Chat locked for ${m}:${s < 10 ? "0" : ""}${s} — policy violation (5 warnings)`
+              const customReason = banReasons()[activeSession]
+              const baseMsg = customReason ? `${customReason} — ` : ""
+              return `${baseMsg}Chat locked for ${m}:${s < 10 ? "0" : ""}${s}`
             }) as any,
             icon: "warning",
             persistent: true,

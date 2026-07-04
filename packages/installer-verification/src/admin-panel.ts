@@ -390,10 +390,11 @@ async function loadDashboard() {
       banBtn = " <button class=\\"btn-ban\\" disabled title=\\"No machine ID on record\\">Ban</button>"
     }
     const removeBtn = " <button class=\\"btn-remove\\" onclick=\\"confirmRemove('" + esc(r.install_id) + "','" + esc(r.display_name) + "')\\">Remove</button>"
-    let resetPolicyBtn = ""
-    if (r.policy_violations_count > 0 || isPolicyBanned) {
-      resetPolicyBtn = " <button class=\\"btn-unban\\" style=\\"background:#7c3aed;margin-left:4px\\" onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
-    }
+    const hasViolations = r.policy_violations_count > 0 || isPolicyBanned
+    const resetBtnClass = hasViolations ? "btn-unban" : "btn-unban disabled"
+    const resetBtnStyle = hasViolations ? "background:#7c3aed;margin-left:4px" : "background:#484f58;margin-left:4px;cursor:not-allowed;opacity:.5"
+    const resetBtnDisabled = hasViolations ? "" : " disabled"
+    const resetPolicyBtn = " <button class=\\"" + resetBtnClass + "\\" style=\\"" + resetBtnStyle + "\\" " + resetBtnDisabled + " onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
     return "<tr" + rowClass + ">" +
       "<td><strong>" + esc(r.display_name) + "</strong></td>" +
       "<td>" + esc(r.email) + "</td>" +

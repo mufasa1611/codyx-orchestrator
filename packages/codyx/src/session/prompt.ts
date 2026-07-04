@@ -336,7 +336,7 @@ export const layer = Layer.effect(
       reportPolicyViolationToCentral(count, 0)
 
       const error = new NamedError.Unknown({
-        message: policyViolationMessage(result.reason, count, result.matchedWords),
+        message: policyViolationMessage(result.reason, count, result.matchedWords, cachedPolicySettings.maxWarnings),
       })
       yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
       // Do not throw the error to avoid blocking prompt execution.
