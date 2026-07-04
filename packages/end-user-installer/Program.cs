@@ -62,6 +62,7 @@ public sealed class InstallerWindow : Window
   readonly TextBlock promptPrivacy = new()
   {
     TextWrapping = TextWrapping.Wrap,
+    FontSize = 13,
     Margin = new Thickness(0, 0, 0, 10),
     Visibility = Visibility.Collapsed,
   };
@@ -426,9 +427,9 @@ public sealed class InstallerWindow : Window
   {
     promptPrivacy.Inlines.Clear();
     promptPrivacy.Foreground = BuildSparkleBrush();
-    promptPrivacy.Inlines.Add("Codyx uses your email only for installer verification and essential service or security notices. ");
+    promptPrivacy.Inlines.Add("Codyx uses your email only for installer verification and essential service notices. ");
     promptPrivacy.Inlines.Add("Project files, prompts, and model conversations are not collected here. ");
-    promptPrivacy.Inlines.Add(SparkleLink("Privacy notice", "https://install.kingkung.men/privacy"));
+    promptPrivacy.Inlines.Add(SparkleLink("Read Privacy Notes", "https://install.kingkung.men/privacy"));
     promptPrivacy.Inlines.Add(".");
   }
 

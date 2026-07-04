@@ -422,15 +422,15 @@ if ($NonInteractive) {
 Write-Host ""
 Write-Host "Installer email verification" -ForegroundColor Cyan
 Write-Host "Codyx collects your email address to verify email ownership and send"
-Write-Host "essential installer, service, or security notices."
+Write-Host "essential installer and service notices."
 Write-Host "No source code, prompts, project content, or model conversations are collected by this step."
 Write-Host "Verified registration data is retained for up to 24 months."
 $privacyUrl = "$($ServiceUrl.TrimEnd('/'))/privacy"
 if ($env:CODY_LAUNCHER_UI -eq "1") {
-  Write-Host "Privacy: $privacyUrl"
+  Write-Host "Read Privacy Notes: $privacyUrl"
 } else {
   $esc = [char]27
-  $privacyLink = "$esc]8;;$privacyUrl$esc\\$privacyUrl$esc]8;;$esc\\"
+  $privacyLink = "$esc]8;;$privacyUrl$esc\\Read Privacy Notes$esc]8;;$esc\\"
   Write-Host "Privacy: $privacyLink"
 }
 Write-Host "Deletion requests: privacy@kingkung.men"
