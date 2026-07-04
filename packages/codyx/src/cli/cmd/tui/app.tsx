@@ -53,6 +53,7 @@ import { DialogConfirm } from "./ui/dialog-confirm"
 import { ToastProvider, useToast } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session/session"
+import { policyViolationToastMessageFromText } from "@/session/policy-guard"
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
@@ -843,6 +844,18 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     const error = evt.properties.error
     if (error && typeof error === "object" && error.name === "MessageAbortedError") return
     const message = errorMessage(error)
+    const policyWarning = policyViolationToastMessageFromText(message)
+
+    if (policyWarning) {
+      promptRef.current?.restoreLastSubmitted?.(evt.properties.sessionID)
+      toast.show({
+        title: "Message blocked",
+        variant: "warning",
+        message: policyWarning,
+        duration: 3000,
+      })
+      return
+    }
 
     toast.show({
       variant: "error",

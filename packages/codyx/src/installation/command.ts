@@ -368,7 +368,7 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
       "curl",
     )
     printProgress("Running marker-based uninstall cleanup...")
-    await executeUninstall("curl", targets)
+    await executeUninstall("curl", targets, { terminateOtherProcesses: false })
     process.stderr.write(`\r\x1b[K`)
   } catch (e) {
     // silent failure

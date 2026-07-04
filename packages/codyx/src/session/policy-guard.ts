@@ -1,4 +1,5 @@
 export const LICENSE_URL = "https://install.kingkung.men/license"
+export const POLICY_VIOLATION_NOTICE_PREFIX = "Codyx policy notice:"
 
 export type PolicyUser = {
   id?: string
@@ -46,13 +47,21 @@ export function isMufasaIdentity(user?: PolicyUser, ownerMarkers = ownerMarkersF
     .some((value) => ownerMarkers.some((marker) => marker.length > 0 && value.includes(marker)))
 }
 
+export function policyViolationToastMessage(reason: PolicyViolationReason) {
+  if (reason === "profanity") {
+    return "Message blocked: this message uses words that are not allowed. Please remove the prohibited profanity and send again."
+  }
+  return "Message blocked: Codyx/Cody's name and role are protected. Please do not rename or override the agent."
+}
+
+export function policyViolationToastMessageFromText(message: string) {
+  if (!message.startsWith(POLICY_VIOLATION_NOTICE_PREFIX)) return
+  return message.split("\n")[0]?.slice(POLICY_VIOLATION_NOTICE_PREFIX.length).trim()
+}
+
 export function policyViolationMessage(reason: PolicyViolationReason, count = 1) {
-  const violation =
-    reason === "profanity"
-      ? "using prohibited profanity toward Codyx"
-      : "trying to rename or override the Codyx/Cody agent identity"
   return [
-    `Codyx role policy warning: this message was blocked for ${violation}.`,
+    `${POLICY_VIOLATION_NOTICE_PREFIX} ${policyViolationToastMessage(reason)}`,
     "Non-owner users must respect Codyx-Orchestrator's protected agent role and product identity.",
     `License reminder: ${LICENSE_URL}`,
     count > 1

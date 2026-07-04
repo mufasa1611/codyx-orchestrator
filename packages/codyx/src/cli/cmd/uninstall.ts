@@ -32,6 +32,10 @@ interface RemovalTargets {
   installMarkers: string[]
 }
 
+interface ExecuteUninstallOptions {
+  terminateOtherProcesses?: boolean
+}
+
 interface ManagedTool {
   name?: string
   manager?: string
@@ -262,14 +266,28 @@ function isSameOrSubPath(child: string, parent: string | null | undefined): bool
   return normChild === normParent || normChild.startsWith(normParent + path.sep)
 }
 
-export async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
+export async function executeUninstall(
+  method: Installation.Method,
+  targets: RemovalTargets,
+  options: ExecuteUninstallOptions = {},
+) {
   const spinner = prompts.spinner()
   const errors: string[] = []
   const removed: string[] = []
+  const terminateOtherProcesses = options.terminateOtherProcesses ?? true
 
-  // On Windows, stop other codyx processes that may hold file handles
-  if (os.platform() === "win32") {
-    spawn("taskkill.exe", ["/f", "/im", "codyx.exe"], {
+  // On Windows, stop other codyx processes that may hold file handles.
+  // Do not use taskkill /im here: compiled installs run as codyx.exe, and
+  // killing by image name also kills the uninstalling process before it can
+  // finish cleanup or report remote admin completion.
+  if (terminateOtherProcesses && os.platform() === "win32") {
+    const script = [
+      `$current = ${process.pid}`,
+      `Get-Process codyx -ErrorAction SilentlyContinue |`,
+      `  Where-Object { $_.Id -ne $current } |`,
+      `  Stop-Process -Force -ErrorAction SilentlyContinue`,
+    ].join("; ")
+    spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
       detached: true,
       stdio: "ignore",
       windowsHide: true,

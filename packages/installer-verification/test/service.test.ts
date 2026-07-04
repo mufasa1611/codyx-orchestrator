@@ -490,6 +490,28 @@ describe("installer verification service", () => {
     expect((command as any).completed_at).not.toBeNull()
   })
 
+  test("client can retry an acknowledged remote command that did not complete", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    const { command_id } = (await uninstall.json()) as { command_id: string }
+
+    await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+
+    const poll = await request(
+      `/v1/commands?install_id=${created.body.install_id}&receipt=${encodeURIComponent(receipt)}`,
+    )
+    expect(poll.status).toBe(200)
+    const body = (await poll.json()) as { commands: Array<{ id: string; type: string }> }
+    expect(body.commands).toHaveLength(1)
+    expect(body.commands[0]).toMatchObject({ id: command_id, type: "uninstall" })
+  })
+
   test("no pending commands after acknowledge and complete cycle", async () => {
     const created = await createChallenge()
     const verified = await verifyChallenge(created.response.challenge_id)

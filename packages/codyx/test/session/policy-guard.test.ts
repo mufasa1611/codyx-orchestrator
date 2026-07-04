@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { checkPromptPolicy, LICENSE_URL, policyViolationMessage } from "@/session/policy-guard"
+import {
+  checkPromptPolicy,
+  LICENSE_URL,
+  policyViolationMessage,
+  policyViolationToastMessageFromText,
+} from "@/session/policy-guard"
 
 describe("session policy guard", () => {
   test("allows Mufasa owner identities", () => {
@@ -17,6 +22,7 @@ describe("session policy guard", () => {
     expect(result.allowed).toBe(false)
     if (!result.allowed) {
       expect(result.reason).toBe("profanity")
+      expect(policyViolationToastMessageFromText(result.message)).toContain("words that are not allowed")
       expect(result.message).toContain(LICENSE_URL)
       expect(result.message).toContain("suspension or a machine ban")
     }

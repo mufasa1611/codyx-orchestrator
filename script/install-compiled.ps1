@@ -386,6 +386,9 @@ if "%CODYX_SKIP_UPDATE%"=="1" goto codyx_run
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$UpdaterScript" -AcceptLicense -Quiet -NoLaunch
 if errorlevel 1 exit /b %errorlevel%
 :codyx_run
+if /I "%~1"=="uninstall" (
+  if defined TEMP cd /d "%TEMP%"
+)
 set "CODY_DISABLE_AUTOUPDATE=1"
 "$exe" %*
 exit /b %errorlevel%
@@ -405,6 +408,9 @@ exit /b %errorlevel%
 if (-not `$skipUpdate) {
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterLiteral -AcceptLicense -Quiet -NoLaunch
   if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+}
+if (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall") {
+  Set-Location -LiteralPath ([System.IO.Path]::GetTempPath())
 }
 `$env:CODY_DISABLE_AUTOUPDATE = "1"
 & $exeLiteral @args

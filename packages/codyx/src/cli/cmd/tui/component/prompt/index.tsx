@@ -82,8 +82,10 @@ export type PromptProps = {
 export type PromptRef = {
   focused: boolean
   current: PromptInfo
+  lastSubmitted?: { sessionID: string; prompt: PromptInfo }
   set(prompt: PromptInfo): void
   reset(): void
+  restoreLastSubmitted?(sessionID?: string): boolean
   blur(): void
   focus(): void
   submit(): void
@@ -642,12 +644,17 @@ export function Prompt(props: PromptProps) {
     ]),
   }))
 
+  let lastSubmitted: { sessionID: string; prompt: PromptInfo } | undefined
+
   const ref: PromptRef = {
     get focused() {
       return input.focused
     },
     get current() {
       return store.prompt
+    },
+    get lastSubmitted() {
+      return lastSubmitted
     },
     focus() {
       input.focus()
@@ -660,6 +667,13 @@ export function Prompt(props: PromptProps) {
       setStore("prompt", prompt)
       restoreExtmarksFromParts(prompt.parts)
       input.gotoBufferEnd()
+    },
+    restoreLastSubmitted(sessionID) {
+      if (!lastSubmitted) return false
+      if (sessionID && lastSubmitted.sessionID !== sessionID) return false
+      if (store.prompt.input.trim()) return false
+      this.set(lastSubmitted.prompt)
+      return true
     },
     reset() {
       input.clear()
@@ -1190,10 +1204,12 @@ export function Prompt(props: PromptProps) {
         .catch(() => {})
       if (editorParts.length > 0) editor.markSelectionSent()
     }
-    history.append({
+    const submittedPrompt = {
       ...store.prompt,
       mode: currentMode,
-    })
+    }
+    lastSubmitted = { sessionID, prompt: submittedPrompt }
+    history.append(submittedPrompt)
     input.extmarks.clear()
     setStore("prompt", {
       input: "",
