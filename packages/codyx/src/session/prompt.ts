@@ -240,10 +240,43 @@ export const layer = Layer.effect(
       } catch {}
     }
 
+    interface PolicySettings {
+      maxWarnings: number
+      banDurationMs: number
+    }
+
+    let cachedPolicySettings: PolicySettings = { maxWarnings: 5, banDurationMs: 5 * 60 * 1000 }
+    let lastPolicyFetch = 0
+
+    const updatePolicySettingsAsync = () => {
+      const now = Date.now()
+      if (now - lastPolicyFetch < 5 * 60 * 1000) return
+      lastPolicyFetch = now
+
+      const verification = readVerification()
+      if (!verification) return
+      const baseUrl = verification.server_url.replace(/\/+$/, "")
+
+      void fetch(`${baseUrl}/v1/policy-settings`)
+        .then((res) => {
+          if (res.ok) return res.json()
+        })
+        .then((data: any) => {
+          if (data && typeof data.max_warnings === "number" && typeof data.ban_duration_minutes === "number") {
+            cachedPolicySettings = {
+              maxWarnings: data.max_warnings,
+              banDurationMs: data.ban_duration_minutes * 60 * 1000,
+            }
+          }
+        })
+        .catch(() => {})
+    }
+
     const assertPromptPolicy = Effect.fn("SessionPrompt.assertPromptPolicy")(function* (input: {
       sessionID: SessionID
       text: string
     }) {
+      updatePolicySettingsAsync()
       const user = yield* currentPolicyUser()
       const key = input.sessionID
 
@@ -254,18 +287,20 @@ export const layer = Layer.effect(
           yield* bus.publish(Session.Event.PolicyBan, {
             sessionID: input.sessionID,
             bannedUntil: activeBan,
-            count: policyViolations.get(key) ?? 5,
+            count: policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
           })
           return yield* Effect.fail(
             new PolicyBanError({
               message: `Session is locked due to policy violations. Expiry: ${new Date(activeBan).toISOString()}`,
               bannedUntil: activeBan,
-              count: policyViolations.get(key) ?? 5,
+              count: policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
             }),
           )
         }
-        // Ban expired — clear it
+        // Ban expired — clear it and reset warnings count to 0
         policyBans.delete(key)
+        policyViolations.delete(key)
+        reportPolicyViolationToCentral(0, 0)
       }
 
       const result = checkPromptPolicy({ text: input.text, user })
@@ -280,8 +315,8 @@ export const layer = Layer.effect(
         count,
       })
 
-      if (count >= 5) {
-        const bannedUntil = Date.now() + 5 * 60 * 1000
+      if (count >= cachedPolicySettings.maxWarnings) {
+        const bannedUntil = Date.now() + cachedPolicySettings.banDurationMs
         policyBans.set(key, bannedUntil)
         reportPolicyViolationToCentral(count, bannedUntil)
         yield* bus.publish(Session.Event.PolicyBan, {

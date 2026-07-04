@@ -90,6 +90,20 @@ tr:hover td{background:#1c2128}
 </div>
 
 <div id="dashboard">
+<div id="policy-settings-box" style="margin-bottom: 24px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px;">
+  <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #f0f6fc;">Global Policy Settings</h3>
+  <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Max Warnings</label>
+      <input type="number" id="max-warnings-input" style="width: 120px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Ban Duration (minutes)</label>
+      <input type="number" id="ban-duration-input" style="width: 160px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
+    </div>
+    <button onclick="savePolicySettings()" style="padding: 8px 16px; background: #238636; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer;">Save Settings</button>
+  </div>
+</div>
 <div class="toolbar">
 <div class="stats">Registrations: <strong id="count">0</strong> &middot; Environment: <strong id="dash-env">-</strong></div>
 <div>
@@ -289,12 +303,38 @@ async function resetPolicy(id) {
   }
 }
 
+async function savePolicySettings() {
+  const max_warnings = parseInt(document.getElementById("max-warnings-input").value, 10)
+  const ban_duration_minutes = parseInt(document.getElementById("ban-duration-input").value, 10)
+  if (isNaN(max_warnings) || isNaN(ban_duration_minutes)) return
+
+  const res = await apiFetch("/v1/admin/policy-settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ max_warnings, ban_duration_minutes }),
+  })
+  if (res && res.ok) {
+    showToast("Global policy settings updated successfully", "success")
+  } else {
+    showToast("Failed to update policy settings", "error")
+  }
+}
+
 async function loadDashboard() {
   const token = getToken()
   if (!token) { showLogin(); return }
 
   document.getElementById("login").style.display = "none"
   document.getElementById("dashboard").style.display = "block"
+
+  // Load global policy settings
+  const settingsRes = await apiFetch("/v1/policy-settings")
+  if (settingsRes && settingsRes.ok) {
+    const settings = await settingsRes.json()
+    document.getElementById("max-warnings-input").value = settings.max_warnings
+    document.getElementById("ban-duration-input").value = settings.ban_duration_minutes
+  }
+
   document.getElementById("table-body").innerHTML = '<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>'
 
   const res = await apiFetch("/v1/admin/installations")

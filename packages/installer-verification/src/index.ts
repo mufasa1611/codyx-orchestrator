@@ -785,6 +785,34 @@ app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
   return context.json({ success: true, command_id: commandId })
 })
 
+app.get("/v1/policy-settings", async (context) => {
+  const db = context.env.InstallerVerificationDatabase
+  await ensureSchema(db)
+  const settings = await db
+    .prepare("SELECT max_warnings, ban_duration_minutes FROM policy_settings WHERE id = 'global'")
+    .first<{ max_warnings: number; ban_duration_minutes: number }>()
+  return context.json(settings ?? { max_warnings: 5, ban_duration_minutes: 5 })
+})
+
+app.post("/v1/admin/policy-settings", async (context) => {
+  await requireAdmin(context.env, context.req.raw)
+  const db = context.env.InstallerVerificationDatabase
+  const body = parse(
+    z.object({
+      max_warnings: z.number().int().min(1),
+      ban_duration_minutes: z.number().int().min(1),
+    }),
+    await context.req.json(),
+  )
+
+  await db
+    .prepare("INSERT OR REPLACE INTO policy_settings (id, max_warnings, ban_duration_minutes) VALUES ('global', ?, ?)")
+    .bind(body.max_warnings, body.ban_duration_minutes)
+    .run()
+
+  return context.json({ success: true })
+})
+
 app.get("/v1/commands", async (context) => {
   const installId = context.req.query("install_id")
   const receipt = context.req.query("receipt")
