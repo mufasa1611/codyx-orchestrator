@@ -773,25 +773,53 @@ public sealed class InstallerWindow : Window
     try
     {
       var markerPath = RootMarkerPath();
-      if (!File.Exists(markerPath)) return;
+      if (!File.Exists(markerPath))
+      {
+        Append("[update] No install marker found, skipping update check.");
+        return;
+      }
 
       var marker = System.Text.Json.JsonDocument.Parse(File.ReadAllText(markerPath));
       var currentVer = marker.RootElement.GetProperty("compiledInstall").GetProperty("version").GetString();
-      if (string.IsNullOrEmpty(currentVer)) return;
+      if (string.IsNullOrEmpty(currentVer))
+      {
+        Append("[update] Could not read installed version from marker.");
+        return;
+      }
 
       using var http = new System.Net.Http.HttpClient();
       http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
+      http.Timeout = TimeSpan.FromSeconds(10);
       var resp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases/latest");
-      if (!resp.IsSuccessStatusCode) return;
+      if (!resp.IsSuccessStatusCode)
+      {
+        Append($"[update] GitHub API returned {resp.StatusCode}, skipping check.");
+        return;
+      }
       var json = await resp.Content.ReadAsStringAsync();
       var release = System.Text.Json.JsonDocument.Parse(json);
       var latestVer = release.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v');
-      if (string.IsNullOrEmpty(latestVer)) return;
+      if (string.IsNullOrEmpty(latestVer))
+      {
+        Append("[update] Could not parse latest version from GitHub response.");
+        return;
+      }
 
       var current = Version.TryParse(currentVer, out var cv) ? cv : null;
       var latest = Version.TryParse(latestVer, out var lv) ? lv : null;
-      if (current is null || latest is null || latest <= current) return;
+      if (current is null || latest is null)
+      {
+        Append($"[update] Could not compare versions: installed={currentVer}, latest=v{latestVer}");
+        return;
+      }
 
+      if (latest <= current)
+      {
+        Append($"[update] Already up-to-date (v{currentVer}).");
+        return;
+      }
+
+      Append($"[update] New version available: v{currentVer} → v{latestVer}");
       await Dispatcher.InvokeAsync(() =>
       {
         primary.Content = $"Update to v{latestVer}";
@@ -799,9 +827,9 @@ public sealed class InstallerWindow : Window
         status.Text = $"A newer version (v{latestVer}) is available";
       });
     }
-    catch
+    catch (Exception ex)
     {
-      // silent — update check is best-effort
+      Append($"[update] Check failed: {ex.Message}");
     }
   }
 
