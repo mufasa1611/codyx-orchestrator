@@ -15,7 +15,7 @@ function requestIsLocal(request: HttpServerRequest.HttpServerRequest) {
     const headerHost = request.headers.host?.split(":")[0]
     if (headerHost) return headerHost
     try {
-      return new URL(request.url).hostname
+      return new URL(request.url, "http://localhost").hostname
     } catch {
       return undefined
     }
