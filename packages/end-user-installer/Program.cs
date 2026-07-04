@@ -743,9 +743,9 @@ public sealed class InstallerWindow : Window
     }
   }
 
-  static bool HasRunnableInstall()
+  bool HasRunnableInstall()
   {
-    return GetInstallHealth().Ready;
+    return installed || GetInstallHealth().Ready;
   }
 
   async Task<bool> RunEmbeddedInstallPreflightAsync()
