@@ -145,13 +145,23 @@ public sealed class InstallerWindow : Window
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 12, 0, 0),
       FontSize = 14,
+      Text = "This installer downloads compiled release assets with SHA256 verification.",
     };
-    license.Inlines.Add("This installer downloads compiled release assets with SHA256 verification. By continuing, you agree to the ");
-    license.Inlines.Add(SparkleLink("license terms", "https://install.kingkung.men/license"));
-    license.Inlines.Add(" and acknowledge the ");
-    license.Inlines.Add(SparkleLink("privacy notice", "https://install.kingkung.men/privacy"));
-    license.Inlines.Add(".");
     header.Children.Add(license);
+
+    var license2 = new TextBlock
+    {
+      Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+      TextWrapping = TextWrapping.Wrap,
+      Margin = new Thickness(0, 4, 0, 0),
+      FontSize = 14,
+    };
+    license2.Inlines.Add("By continuing, you agree to the ");
+    license2.Inlines.Add(SparkleLink("license terms", "https://install.kingkung.men/license"));
+    license2.Inlines.Add(" and acknowledge the ");
+    license2.Inlines.Add(SparkleLink("privacy notice", "https://install.kingkung.men/privacy"));
+    license2.Inlines.Add(".");
+    header.Children.Add(license2);
 
     var buttons = new StackPanel
     {
