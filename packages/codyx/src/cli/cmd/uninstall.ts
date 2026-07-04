@@ -487,12 +487,16 @@ export async function executeUninstall(
   }
 
   if (method === "curl" && targets.binary) {
-    UI.empty()
-    prompts.log.message("To finish removing the binary, run:")
-    prompts.log.info(`  rm "${targets.binary}"`)
-    const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".cody")) {
-      prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
+    if (targets.installRoot && isSameOrSubPath(targets.binary, targets.installRoot)) {
+      // Defer to install root removal
+    } else {
+      UI.empty()
+      prompts.log.message("To finish removing the binary, run:")
+      prompts.log.info(`  rm "${targets.binary}"`)
+      const binDir = path.dirname(targets.binary)
+      if (binDir.includes(".cody")) {
+        prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
+      }
     }
   }
 
@@ -856,8 +860,9 @@ async function findEnvProxy(marker: InstallMarker | null): Promise<string | null
   }
 }
 
-function spawnDetachedPowershell(script: string) {
+function spawnDetachedPowershell(script: string, cwd = os.tmpdir()) {
   spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    cwd,
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -871,10 +876,11 @@ function spawnDetachedShell(script: string, cwd: string) {
 function scheduleWindowsPathRemoval(targetPath: string, options: { stopCodyx?: boolean } = {}) {
   const escaped = targetPath.replace(/'/g, "''")
   const script = [
+    `Set-Location -LiteralPath $env:TEMP -ErrorAction SilentlyContinue`,
     `$target = '${escaped}'`,
     `Start-Sleep -Seconds 2`,
     options.stopCodyx
-      ? `Get-Process codyx -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`
+      ? `Get-Process -Name codyx, cody, codyx-launcher, codyx-orchestrator, cody-x -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`
       : ``,
     `for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $target); $i++) {`,
     `  Start-Sleep -Milliseconds 500`,
@@ -919,9 +925,10 @@ export async function scheduleInstallRootRemoval(root: string) {
       .then(() => tempRoot)
       .catch(() => root)
     const script = [
+      `Set-Location -LiteralPath $env:TEMP -ErrorAction SilentlyContinue`,
       `$target = '${actualTarget.replace(/'/g, "''")}'`,
       `Start-Sleep -Seconds 3`,
-      `Get-Process codyx -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
+      `Get-Process -Name codyx, cody, codyx-launcher, codyx-orchestrator, cody-x -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
       `for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $target); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
       `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,

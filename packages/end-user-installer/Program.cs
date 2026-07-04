@@ -427,10 +427,9 @@ public sealed class InstallerWindow : Window
   {
     promptPrivacy.Inlines.Clear();
     promptPrivacy.Foreground = BuildSparkleBrush();
-    promptPrivacy.Inlines.Add("Codyx uses your email only for installer verification and essential service notices. ");
-    promptPrivacy.Inlines.Add("Project files, prompts, and model conversations are not collected here. ");
+    promptPrivacy.Inlines.Add("Codyx uses your email only for installer verification and essential service notices.");
+    promptPrivacy.Inlines.Add(new LineBreak());
     promptPrivacy.Inlines.Add(SparkleLink("Read Privacy Notes", "https://install.kingkung.men/privacy"));
-    promptPrivacy.Inlines.Add(".");
   }
 
   async Task InstallAsync()
