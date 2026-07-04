@@ -43,6 +43,19 @@ Choose the installation method that fits your environment:
 
 Downloads the latest release of `codyx-end-user-installer-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
 
+> [!IMPORTANT]
+> **Windows SmartScreen Bypass Guide**
+>
+> Because raw downloads and installer binaries are unsigned, Windows SmartScreen may show a **"Windows protected your PC"** popup.
+>
+> To proceed and install:
+>
+> 1. Click on **More info** (as shown in Step 1).
+> 2. Click the **Run anyway** button that appears (as shown in Step 2).
+>
+> <img src="readme/step1.png" alt="Step 1: Click More info" width="280" /> &nbsp;
+> <img src="readme/step2.png" alt="Step 2: Click Run anyway" width="280" />
+
 ### 2. Global npm Package (Recommended If Node.js Is Installed)
 
 If you already have Node.js and npm installed, simply run:
@@ -58,18 +71,6 @@ To update the package later, run `npm install -g codyx-ai@beta`.
 If you intentionally want a self-updating source checkout, download `codyx-launcher-windows-x64.exe` from the GitHub Release.
 
 This launcher installs Git/Bun when needed, keeps a slim source checkout under the user's profile, and rebuilds when source updates arrive. It is useful for testers and developers, but normal users should prefer the compiled end-user installer above.
-
-> [!IMPORTANT]
-> **Windows SmartScreen Bypass Guide**
->
-> Because raw downloads and installer binaries are unsigned, Windows SmartScreen may show a **"Windows protected your PC"** popup.
->
-> To proceed and install:
->
-> 1. Click on **More info**.
-> 2. Click the **Run anyway** button that appears.
->
-> ![Windows SmartScreen Guide](readme/smartscreen.png)
 
 ### 4. Windows One-Click npm Installer (Without Node.js)
 
