@@ -39,9 +39,9 @@ Choose the installation method that fits your environment:
 
 ### 1. Windows End-User Installer (Recommended For Normal Users)
 
-[![Download from GitHub Releases](https://img.shields.io/badge/Download-Windows%20Installer-blue?style=for-the-badge&logo=windows)](https://github.com/mufasa1611/codyx-orchestrator/releases)
+[![Download Latest](https://img.shields.io/badge/Download-Windows%20Installer-blue?style=for-the-badge&logo=windows)](https://github.com/mufasa1611/codyx-orchestrator/releases/latest/download/codyx-end-user-installer-windows-x64.exe)
 
-Download `codyx-end-user-installer-windows-x64.exe` from the GitHub Release. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
+Downloads the latest release of `codyx-end-user-installer-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
 
 ### 2. Global npm Package (Recommended If Node.js Is Installed)
 
