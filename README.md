@@ -59,7 +59,17 @@ If you intentionally want a self-updating source checkout, download `codyx-launc
 
 This launcher installs Git/Bun when needed, keeps a slim source checkout under the user's profile, and rebuilds when source updates arrive. It is useful for testers and developers, but normal users should prefer the compiled end-user installer above.
 
-Raw unsigned downloads may show a Windows SmartScreen warning. To run a blocked file, right-click the `.exe`, open **Properties**, check **Unblock**, then click **Apply / OK**.
+> [!IMPORTANT]
+> **Windows SmartScreen Bypass Guide**
+>
+> Because raw downloads and installer binaries are unsigned, Windows SmartScreen may show a **"Windows protected your PC"** popup.
+>
+> To proceed and install:
+>
+> 1. Click on **More info**.
+> 2. Click the **Run anyway** button that appears.
+>
+> ![Windows SmartScreen Guide](readme/smartscreen.png)
 
 ### 4. Windows One-Click npm Installer (Without Node.js)
 
