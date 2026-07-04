@@ -627,15 +627,18 @@ public sealed class InstallerWindow : Window
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
     var ready = installed || health.Ready;
+    primary.IsEnabled = !ready;
+    primary.Content = ready ? "Installed" : "Agree and install";
     SetInstalledActions(ready && !uninstallInProgress);
-    primary.Content = ready ? "Check / repair update" : "Agree and install";
     if (ready && uninstallInProgress)
     {
       status.Text = "Uninstall is open. Finish or close the uninstall terminal before launching again.";
     }
     else if (ready)
     {
-      status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
+      var parts = new List<string> { "Codyx-Orchestrator is installed." };
+      if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
+      status.Text = string.Join(" ", parts);
     }
     else if (health.Missing.Count > 0)
     {
@@ -697,7 +700,7 @@ public sealed class InstallerWindow : Window
     return IOPath.Combine(local, "codyx-installer");
   }
 
-  sealed record InstallHealth(bool Ready, IReadOnlyList<string> Missing);
+  sealed record InstallHealth(bool Ready, bool InPath, IReadOnlyList<string> Missing);
 
   static InstallHealth GetInstallHealth()
   {
@@ -728,7 +731,40 @@ public sealed class InstallerWindow : Window
     AddIfFileMissingRequiredText(RootMarkerPath(), "root install marker", [InstallRoot()], missing);
     AddIfFileMissingRequiredText(InstallerMarkerPath(), "installer marker", [InstallRoot(), RootMarkerPath(), VerificationReceiptPath()], missing);
     AddIfFileMissingRequiredText(VerificationReceiptPath(), "verification receipt", ["install_id", "receipt"], missing);
-    return new InstallHealth(missing.Count == 0, missing);
+
+    var inPath = CheckInPath();
+    if (missing.Count == 0 && !inPath)
+    {
+      missing.Add("codyx command not found in PATH");
+    }
+
+    return new InstallHealth(missing.Count == 0, inPath, missing);
+  }
+
+  static bool CheckInPath()
+  {
+    try
+    {
+      using var proc = new System.Diagnostics.Process
+      {
+        StartInfo = new System.Diagnostics.ProcessStartInfo
+        {
+          FileName = "where.exe",
+          Arguments = "codyx.cmd",
+          UseShellExecute = false,
+          CreateNoWindow = true,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+        }
+      };
+      proc.Start();
+      proc.WaitForExit(3000);
+      return proc.ExitCode == 0;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   static void AddIfFileMissingRequiredText(string path, string label, IEnumerable<string> requiredText, List<string> missing)
