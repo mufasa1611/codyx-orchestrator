@@ -613,7 +613,7 @@ SOFTWARE.</div>
         <p data-i18n="moderation_p1">
           Codyx-Orchestrator protects the Codyx/Cody agent role and product identity. Non-owner users must not
           impersonate the administrator, remove attribution, attempt to rename Codyx/Cody/the agent, or use
-          abusive/prohibited profanity in chat, including the blocked words <strong>fuck</strong> and <strong>shit</strong>.
+           abusive/prohibited profanity in chat.
         </p>
         <p style="margin-top:14px;" data-i18n="moderation_p2">
           The app may warn or block a message that violates these rules. Repeated violations after warning may be
@@ -842,7 +842,7 @@ SOFTWARE.\`,
       restrict_p2: "This restriction exists to preserve <strong>system integrity, security, and operational stability</strong> for all users of the platform. Unauthorised modifications to the core may break dependent services, compromise user data safety, or violate third-party service agreements.",
       restrict_p3: "If you have a legitimate need to modify core components — for example, a fork for an internal deployment, a security patch, or an integration contribution — you are <strong>warmly encouraged to reach out</strong>. Most requests are reviewed and responded to promptly.",
       moderation_label: "Moderation, role protection & ban notice",
-      moderation_p1: "Codyx-Orchestrator protects the Codyx/Cody agent role and product identity. Non-owner users must not impersonate the administrator, remove attribution, attempt to rename Codyx/Cody/the agent, or use abusive/prohibited profanity in chat, including the blocked words <strong>fuck</strong> and <strong>shit</strong>.",
+      moderation_p1: "Codyx-Orchestrator protects the Codyx/Cody agent role and product identity. Non-owner users must not impersonate the administrator, remove attribution, attempt to rename Codyx/Cody/the agent, or use abusive/prohibited profanity in chat.",
       moderation_p2: "The app may warn or block a message that violates these rules. Repeated violations after warning may be reported to the administrator through the official feedback or verification service with the verified user identity and installation metadata disclosed during setup, and may lead to suspension or a machine ban.",
       steps_label: "Before modifying the core — required steps",
       step_1: "Contact the administrator at one of the addresses below and describe the modification you intend to make, the reason, and the target environment.",
@@ -887,7 +887,7 @@ LE LOGICIEL EST FOURNI 'EN L'ÉTAT', SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU I
       restrict_p2: "Cette restriction existe pour préserver <strong>l'intégrité du système, la sécurité et la stabilité opérationnelle</strong> pour tous les utilisateurs de la plateforme. Des modifications non autorisées du cœur peuvent perturber les services dépendants, compromettre la sécurité des données des utilisateurs ou enfreindre les accords de services tiers.",
       restrict_p3: "Si vous avez un besoin légitime de modifier des composants du cœur — par exemple, un fork pour un déploiement interne, un correctif de sécurité ou une contribution d'intégration — vous êtes <strong>chaleureusement encouragé à nous contacter</strong>. La plupart des demandes sont examinées et traitées rapidement.",
       moderation_label: "Modération, protection du rôle et avis de bannissement",
-      moderation_p1: "Codyx-Orchestrator protège le rôle d'agent Codyx/Cody et l'identité du produit. Les utilisateurs non propriétaires ne doivent pas usurper l'identité de l'administrateur, retirer l'attribution, tenter de renommer Codyx/Cody/l'agent, ni utiliser un langage abusif ou interdit dans le chat, y compris les mots bloqués <strong>fuck</strong> et <strong>shit</strong>.",
+      moderation_p1: "Codyx-Orchestrator protège le rôle d'agent Codyx/Cody et l'identité du produit. Les utilisateurs non propriétaires ne doivent pas usurper l'identité de l'administrateur, retirer l'attribution, tenter de renommer Codyx/Cody/l'agent, ni utiliser un langage abusif ou interdit dans le chat.",
       moderation_p2: "L'application peut avertir ou bloquer un message qui enfreint ces règles. Les violations répétées après avertissement peuvent être signalées à l'administrateur via le service officiel de feedback ou de vérification avec l'identité utilisateur vérifiée et les métadonnées d'installation communiquées lors de la configuration, et peuvent entraîner une suspension ou un bannissement de la machine.",
       steps_label: "Avant de modifier le cœur — étapes requises",
       step_1: "Contactez l'administrateur aux adresses ci-dessous et décrivez la modification envisagée, la raison et l'environnement cible.",
@@ -932,7 +932,7 @@ DIE SOFTWARE WIRD 'WIE BESEHEN' UND OHNE MÄNGELGEWÄHR ZUR VERFÜGUNG GESTELLT,
       restrict_p2: "Diese Einschränkung dient dazu, die <strong>Systemintegrität, Sicherheit und Betriebsstabilität</strong> für alle Benutzer der Plattform zu wahren. Unbefugte Änderungen am Kern können abhängige Dienste stören, die Sicherheit von Benutzerdaten gefährden oder Vereinbarungen mit Drittanbietern verletzen.",
       restrict_p3: "Wenn Sie einen berechtigten Bedarf haben, Kernkomponenten zu ändern — zum Beispiel einen Fork für eine interne Bereitstellung, einen Sicherheitspatch oder einen Integrationsbeitrag —, werden Sie <strong>herzlich gebeten, uns zu kontaktieren</strong>. Die meisten Anfragen werden schnell geprüft und beantwortet.",
       moderation_label: "Moderation, Rollenschutz und Sperrhinweis",
-      moderation_p1: "Codyx-Orchestrator schützt die Codyx/Cody-Agentenrolle und die Produktidentität. Nicht-Eigentümer dürfen sich nicht als Administrator ausgeben, keine Namensnennung entfernen, nicht versuchen, Codyx/Cody/den Agenten umzubenennen, und im Chat keine missbräuchliche oder verbotene Sprache verwenden, einschließlich der blockierten Wörter <strong>fuck</strong> und <strong>shit</strong>.",
+      moderation_p1: "Codyx-Orchestrator schützt die Codyx/Cody-Agentenrolle und die Produktidentität. Nicht-Eigentümer dürfen sich nicht als Administrator ausgeben, keine Namensnennung entfernen, nicht versuchen, Codyx/Cody/den Agenten umzubenennen, und im Chat keine missbräuchliche oder verbotene Sprache verwenden.",
       moderation_p2: "Die App kann eine Nachricht warnen oder blockieren, wenn sie gegen diese Regeln verstößt. Wiederholte Verstöße nach einer Warnung können über den offiziellen Feedback- oder Verifizierungsdienst mit der bei der Einrichtung offengelegten verifizierten Benutzeridentität und Installationsmetadaten an den Administrator gemeldet werden und können zu einer Sperrung oder einem Gerätebann führen.",
       steps_label: "Vor der Änderung des Kerns — erforderliche Schritte",
       step_1: "Kontaktieren Sie den Administrator unter einer der unten angegebenen Adressen und beschreiben Sie die beabsichtigte Änderung, den Grund und die Zielumgebung.",
@@ -977,7 +977,7 @@ DIE SOFTWARE WIRD 'WIE BESEHEN' UND OHNE MÄNGELGEWÄHR ZUR VERFÜGUNG GESTELLT,
       restrict_p2: "يأتي هذا القيد للحفاظ على <strong>سلامة النظام، وأمنه، واستقراره التشغيلي</strong> لجميع مستخدمي المنصة. قد تؤدي التعديلات غير المصرح بها على النواة إلى تعطل الخدمات التابعة، أو تعريض سلامة بيانات المستخدمين للخطر، أو انتهاك اتفاقيات خدمة الطرف الثالث.",
       restrict_p3: "إذا كانت لديك حاجة مشروعة لتعديل مكونات النواة الأساسية — على سبيل المثال، تفريع مخصص لنشر داخلي، أو إصلاح ثغرة أمنية، أو مساهمة دمج — <strong>فنحن نشجعك بشدة على التواصل معنا</strong>. يتم مراجعة معظم الطلبات والرد عليها على الفور.",
       moderation_label: "الإشراف وحماية الدور وإشعار الحظر",
-      moderation_p1: "يحمي Codyx-Orchestrator دور وكيل Codyx/Cody وهوية المنتج. لا يجوز للمستخدمين غير المالكين انتحال شخصية المدير، أو إزالة الإسناد، أو محاولة إعادة تسمية Codyx/Cody/الوكيل، أو استخدام لغة مسيئة أو محظورة في الدردشة، بما في ذلك الكلمات المحظورة <strong>fuck</strong> و <strong>shit</strong>.",
+      moderation_p1: "يحمي Codyx-Orchestrator دور وكيل Codyx/Cody وهوية المنتج. لا يجوز للمستخدمين غير المالكين انتحال شخصية المدير، أو إزالة الإسناد، أو محاولة إعادة تسمية Codyx/Cody/الوكيل، أو استخدام لغة مسيئة أو محظورة في الدردشة.",
       moderation_p2: "قد يعرض التطبيق تحذيراً أو يحظر رسالة تخالف هذه القواعد. وقد يتم الإبلاغ عن المخالفات المتكررة بعد التحذير إلى المدير عبر خدمة الملاحظات أو التحقق الرسمية مع هوية المستخدم التي تم التحقق منها وبيانات التثبيت التي تم الإفصاح عنها أثناء الإعداد، وقد يؤدي ذلك إلى التعليق أو حظر الجهاز.",
       steps_label: "الخطوات المطلوبة قبل تعديل النواة",
       step_1: "تواصل مع المدير المسؤول عبر أحد العناوين المذكورة أدناه ووصف التعديل الذي تنوي القيام به، والسبب، والبيئة المستهدفة.",

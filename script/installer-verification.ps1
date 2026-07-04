@@ -475,7 +475,7 @@ while ($true) {
       if ($confirm -eq "n" -or $confirm -eq "no" -or $confirm -eq "edit" -or $confirm -eq "change" -or $confirm -eq "change-email") {
         break
       }
-      Write-VerificationWarn "Type Y to send the code to this email, or N to enter it again."
+      Write-VerificationWarn "Send code, or edit email before sending."
     }
   }
 

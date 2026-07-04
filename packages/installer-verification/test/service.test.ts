@@ -109,7 +109,7 @@ describe("installer verification service", () => {
     expect(license.status).toBe(200)
     const terms = await license.text()
     expect(terms).toContain("Moderation, role protection")
-    expect(terms).toContain("blocked words <strong>fuck</strong> and <strong>shit</strong>")
+    expect(terms).toContain("abusive/prohibited profanity")
     expect(terms).toContain("machine ban")
 
     const admin = await request("/admin")

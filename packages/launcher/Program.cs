@@ -48,6 +48,7 @@ public sealed class LauncherWindow : Window
   readonly Button setupSendButton = new();
   readonly Button setupCancelButton = new();
   readonly Button resendButton = new();
+  readonly Button promptChangeEmail = new() { Content = "Change email", Padding = new Thickness(10, 6, 10, 6), FontSize = 12, Margin = new Thickness(8, 0, 4, 0), Visibility = Visibility.Collapsed };
   readonly Button exitButton = new();
   Border modalScanPanel = null!;
   Border yesOption = null!;
@@ -367,6 +368,9 @@ public sealed class LauncherWindow : Window
     resendButton.Click += (_, _) => SendSetupInput("resend");
     codeRow.Children.Add(resendButton);
 
+    promptChangeEmail.Click += (_, _) => SendSetupInput(IsEmailConfirmationPrompt(setupPromptText.Text) ? "n" : "change-email");
+    codeRow.Children.Add(promptChangeEmail);
+
     exitButton.Content = "Exit";
     exitButton.Padding = new Thickness(10, 6, 10, 6);
     exitButton.FontSize = 12;
@@ -621,7 +625,14 @@ public sealed class LauncherWindow : Window
     });
     panel.Children.Add(new TextBlock
     {
-      Text = "codyx-orchestrator is distributed under the MIT License. Continue only if you agree to the license terms. The next setup window will ask for your name, email, and verification code.",
+      Text = "codyx-orchestrator is distributed under the MIT License.",
+      Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224)),
+      TextWrapping = TextWrapping.Wrap,
+      Margin = new Thickness(0, 0, 0, 4),
+    });
+    panel.Children.Add(new TextBlock
+    {
+      Text = "Continue only if you agree to the license terms. The next setup window will ask for your name, email, and verification code.",
       Foreground = new SolidColorBrush(Color.FromRgb(202, 211, 224)),
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 0, 0, 12),
@@ -1188,12 +1199,23 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     {
       value = setupInput.Text.Trim();
     }
+    else if (IsEmailConfirmationPrompt(setupPromptText.Text) && promptChangeEmail.Visibility == Visibility.Visible)
+    {
+      value = "y";
+    }
     else
     {
       value = string.Concat(codeBoxes.Select(b => b.Text));
     }
 
     if (string.IsNullOrEmpty(value)) return;
+
+    if (value == "change-email")
+    {
+      ShowEmailInput();
+      return;
+    }
+
     setupInput.Clear();
     foreach (var box in codeBoxes) box.Text = "";
     ShowSetupInput(false, "Waiting for next installer prompt...");
@@ -1216,11 +1238,12 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     );
 
     bool isScanPrompt = active && prompt.Contains("Scan local", StringComparison.OrdinalIgnoreCase);
+    bool isEmailConfirm = active && IsEmailConfirmationPrompt(prompt);
 
     codeRow.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
 
-    setupInput.Visibility = !isCodePrompt && !isScanPrompt ? Visibility.Visible : Visibility.Collapsed;
-    setupInput.IsEnabled = active && !isCodePrompt && !isScanPrompt;
+    setupInput.Visibility = !isCodePrompt && !isScanPrompt && !isEmailConfirm ? Visibility.Visible : Visibility.Collapsed;
+    setupInput.IsEnabled = active && !isCodePrompt && !isScanPrompt && !isEmailConfirm;
 
     foreach (var box in codeBoxes)
     {
@@ -1231,6 +1254,12 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
 
     resendButton.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
     exitButton.Visibility = isCodePrompt ? Visibility.Visible : Visibility.Collapsed;
+
+    promptChangeEmail.IsEnabled = active && (isCodePrompt || isEmailConfirm);
+    promptChangeEmail.Visibility = promptChangeEmail.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+    promptChangeEmail.Content = isEmailConfirm ? "Re-enter email" : "Change email";
+
+    setupSendButton.Content = isEmailConfirm ? "Use email" : isCodePrompt ? "Verify" : "Send";
 
     modalScanPanel.Visibility = isScanPrompt ? Visibility.Visible : Visibility.Collapsed;
     modalScanPanel.IsEnabled = active && isScanPrompt;
@@ -1248,8 +1277,24 @@ Start-Process -FilePath (Get-Process -Id $PID).Path -WindowStyle Hidden -Argumen
     {
       if (isScanPrompt) modalScanPanel.Focus();
       else if (isCodePrompt) codeBoxes[0].Focus();
-      else setupInput.Focus();
+      else if (!isEmailConfirm) setupInput.Focus();
     }
+  }
+
+  static bool IsEmailConfirmationPrompt(string message)
+  {
+    return message.StartsWith("Use email ", StringComparison.OrdinalIgnoreCase);
+  }
+
+  void ShowEmailInput()
+  {
+    setupInput.Visibility = Visibility.Visible;
+    setupInput.IsEnabled = true;
+    setupInput.Clear();
+    promptChangeEmail.Visibility = Visibility.Collapsed;
+    promptChangeEmail.IsEnabled = false;
+    setupSendButton.Content = "Send";
+    setupInput.Focus();
   }
 
   void UpdateScanSelection()

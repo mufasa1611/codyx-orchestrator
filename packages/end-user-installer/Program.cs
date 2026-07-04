@@ -422,6 +422,7 @@ public sealed class InstallerWindow : Window
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
       primary.Content = "Reinstall / update";
       primary.IsEnabled = true;
+      SetInstalledActions(true);
       RefreshInstalledActions();
     }
     else

@@ -73,16 +73,28 @@ export function policyViolationMessage(reason: PolicyViolationReason, count = 1)
 export function checkPromptPolicy(input: { text: string; user?: PolicyUser; ownerMarkers?: string[] }): PolicyCheck {
   const text = input.text.trim()
   if (!text || isMufasaIdentity(input.user, input.ownerMarkers)) return { allowed: true }
-  const reason = BLOCKED_PROFANITY.test(text)
-    ? "profanity"
-    : AGENT_RENAME_PATTERNS.some((pattern) => pattern.test(text))
-      ? "agent_identity"
-      : undefined
-  if (!reason) return { allowed: true }
-  return {
-    allowed: false,
-    reason,
-    message: policyViolationMessage(reason),
-    reportable: true,
+
+  const profanityReasons: string[] = []
+  let m: RegExpExecArray | null
+  const regex = new RegExp(BLOCKED_PROFANITY.source, BLOCKED_PROFANITY.flags)
+  while ((m = regex.exec(text)) !== null) {
+    profanityReasons.push(m[0])
   }
+
+  const agentReasons = AGENT_RENAME_PATTERNS.filter((p) => p.test(text)).length
+
+  if (profanityReasons.length > 0 || agentReasons > 0) {
+    const reason: PolicyViolationReason = profanityReasons.length > 0 ? "profanity" : "agent_identity"
+    console.warn(
+      `[policy-guard] blocked: reason=${reason} profanity_matches=[${profanityReasons.join(",")}] agent_patterns=${agentReasons} text="${text.slice(0, 200)}"`,
+    )
+    return {
+      allowed: false,
+      reason,
+      message: policyViolationMessage(reason),
+      reportable: true,
+    }
+  }
+
+  return { allowed: true }
 }
