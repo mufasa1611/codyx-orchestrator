@@ -498,6 +498,15 @@ export async function executeUninstall(
 
   await removeManagedTools(targets.managedTools, removed, errors)
 
+  // Remove memo.md inside install root
+  if (targets.installRoot) {
+    const memoPath = path.join(targets.installRoot, "memo.md")
+    try {
+      await fs.unlink(memoPath)
+      removed.push(`user memo: ${memoPath}`)
+    } catch {}
+  }
+
   if (targets.installRoot) {
     const exists = await fs
       .access(targets.installRoot)
