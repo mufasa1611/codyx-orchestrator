@@ -57,8 +57,12 @@ export function policyViolationToastMessage(reason: PolicyViolationReason, match
 }
 
 export function policyViolationToastMessageFromText(message: string) {
-  if (!message.startsWith(POLICY_VIOLATION_NOTICE_PREFIX)) return
-  return message.split("\n")[0]?.slice(POLICY_VIOLATION_NOTICE_PREFIX.length).trim()
+  const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
+  if (idx < 0) return
+  return message
+    .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
+    .split("\n")[0]
+    ?.trim()
 }
 
 export function policyViolationMessage(reason: PolicyViolationReason, count = 1, matchedWords?: string[]) {

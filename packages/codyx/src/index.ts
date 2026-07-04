@@ -229,9 +229,9 @@ const cli = yargs(args)
   .strict()
 
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v", "uninstall"].includes(a)) && rawArgs[0] !== "upgrade") {
-  await ensureVerification().catch(() => {})
-  await syncMachineId().catch(() => {})
   await checkRemoteCommands().catch(() => {})
+  await syncMachineId().catch(() => {})
+  await ensureVerification().catch(() => {})
 }
 
 if (!rawArgs.some((a) => ["--help", "-h", "--version", "-v"].includes(a)) && !rawArgs.includes("--no-banner")) {
