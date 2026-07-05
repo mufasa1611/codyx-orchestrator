@@ -56,8 +56,8 @@ Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` autom
 > [!IMPORTANT]
 > **Windows SmartScreen Bypass Guide**
 >
-> Because raw downloads and installer binaries are unsigned, Windows SmartScreen <br />
-may show a **"Windows protected your PC"** popup.
+> Because raw downloads and installer binaries are unsigned, Windows SmartScreen
+> <br /> may show a **"Windows protected your PC"** popup.
 >
 > To proceed and install:
 >
