@@ -586,14 +586,32 @@ function Install-CodyxCompiled {
       Add-UserPathEntry $binDir
     }
 
+    $launcherDest = Join-Path $InstallRoot "codyx-installer-launcher.exe"
+    $copiedLauncher = $false
+    if ($env:CODY_LAUNCHER_PATH -and (Test-Path -LiteralPath $env:CODY_LAUNCHER_PATH -PathType Leaf)) {
+      try {
+        Copy-Item -LiteralPath $env:CODY_LAUNCHER_PATH -Destination $launcherDest -Force -ErrorAction Stop
+        $copiedLauncher = $true
+        Write-Ok "Launcher copied to installation directory."
+      } catch {
+        Write-Warn "Could not copy launcher executable: $_"
+      }
+    }
+
     $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
     $cliShortcut = Join-Path $startMenuDir "Codyx-Orchestrator.lnk"
     $webShortcut = Join-Path $startMenuDir "Codyx-Orchestrator Web UI.lnk"
     $uninstallShortcut = Join-Path $startMenuDir "Uninstall Codyx-Orchestrator.lnk"
+    $desktopShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)) "Codyx Installer Launcher.lnk"
+
     if (-not $NoShortcuts) {
       New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $InstallRoot
       New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $InstallRoot
       New-Shortcut $uninstallShortcut $cmdExe "/k `"$($shims[0])`" uninstall" $InstallRoot
+      if ($copiedLauncher) {
+        New-Shortcut $desktopShortcut $launcherDest "" $InstallRoot
+        Write-Ok "Created desktop shortcut: Codyx Installer Launcher.lnk"
+      }
     }
 
     Write-Marker $InstallRoot $manifest.version $asset @(
@@ -604,11 +622,21 @@ function Install-CodyxCompiled {
       $downloadsDir,
       $updaterDir,
       $updaterScript,
+      $(if ($copiedLauncher) { $launcherDest }),
       $(if (-not $NoShortcuts) { $startMenuDir }),
       $(if (-not $NoShortcuts) { $cliShortcut }),
       $(if (-not $NoShortcuts) { $webShortcut }),
-      $(if (-not $NoShortcuts) { $uninstallShortcut })
-    ) $(if ($NoPathUpdate) { @() } else { @($binDir) }) $shims $(if ($NoShortcuts) { @() } else { @($cliShortcut, $webShortcut, $uninstallShortcut) })
+      $(if (-not $NoShortcuts) { $uninstallShortcut }),
+      $(if (-not $NoShortcuts -and $copiedLauncher) { $desktopShortcut })
+    ) $(if ($NoPathUpdate) { @() } else { @($binDir) }) $shims $(
+      $sList = @(
+        $(if (-not $NoShortcuts) { $cliShortcut }),
+        $(if (-not $NoShortcuts) { $webShortcut }),
+        $(if (-not $NoShortcuts) { $uninstallShortcut }),
+        $(if (-not $NoShortcuts -and $copiedLauncher) { $desktopShortcut })
+      )
+      $sList | Where-Object { $_ }
+    )
 
     Write-Ok "Install marker refreshed."
 

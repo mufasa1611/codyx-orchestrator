@@ -211,13 +211,13 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
     MDNS.unpublish()
   }
 
-  // Poll remote commands every 30 seconds
+  // Poll remote commands every 15 seconds
   let remoteCommandsInterval: any = null
   if (!process.env.CODY_SKIP_VERIFICATION) {
     import("@/installation/command").then(({ checkRemoteCommands }) => {
       remoteCommandsInterval = setInterval(() => {
         void checkRemoteCommands().catch(() => {})
-      }, 30000)
+      }, 15000)
     })
   }
 

@@ -537,6 +537,7 @@ public sealed class InstallerWindow : Window
       EnableRaisingEvents = true,
     };
     process.StartInfo.EnvironmentVariables["CODY_LAUNCHER_UI"] = "1";
+    process.StartInfo.EnvironmentVariables["CODY_LAUNCHER_PATH"] = Environment.ProcessPath ?? "";
 
     var done = new TaskCompletionSource<int>();
     process.OutputDataReceived += (_, e) => { if (e.Data != null) Dispatcher.Invoke(() => HandleOutputLine(e.Data)); };
