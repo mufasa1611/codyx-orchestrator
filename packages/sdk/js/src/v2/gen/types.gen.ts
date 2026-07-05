@@ -2401,6 +2401,8 @@ export type EventSessionPolicyBan = {
     sessionID?: string
     bannedUntil: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    maxWarnings?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    message?: string
   }
 }
 
@@ -3295,6 +3297,8 @@ export type EventSessionPolicyBan1 = {
     sessionID?: string
     bannedUntil: number | "NaN" | "Infinity" | "-Infinity"
     count: number | "NaN" | "Infinity" | "-Infinity"
+    maxWarnings?: number | "NaN" | "Infinity" | "-Infinity"
+    message?: string
   }
 }
 
