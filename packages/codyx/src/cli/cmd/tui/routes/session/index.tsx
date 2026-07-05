@@ -1202,12 +1202,12 @@ export function Session() {
                     }}
                     sessionID={route.sessionID}
                     right={<TuiPluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
+                    center={
+                      <TuiPluginRuntime.Slot name="session_footer" mode="single_winner" session_id={route.sessionID} />
+                    }
                   />
                 </TuiPluginRuntime.Slot>
               </Show>
-            </box>
-            <box width="100%" flexShrink={0} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2}>
-              <TuiPluginRuntime.Slot name="session_footer" mode="single_winner" session_id={route.sessionID} />
             </box>
           </Show>
           <Toast />
