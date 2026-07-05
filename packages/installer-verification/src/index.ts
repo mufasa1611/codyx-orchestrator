@@ -754,6 +754,7 @@ app.post("/v1/admin/installations/:installID/unban", async (context) => {
 app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   const db = context.env.InstallerVerificationDatabase
+  await ensureSchema(db)
   const installId = parse(z.string().uuid(), context.req.param("installID"))
   const now = Date.now()
 
@@ -768,7 +769,15 @@ app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
     .bind(now, installId)
     .run()
 
-  // 2. Queue remote command for the client to sync
+  const existingCommand = await db
+    .prepare(
+      "SELECT id FROM remote_command WHERE install_id = ? AND type = 'policy_reset' AND status IN ('pending', 'acknowledged') LIMIT 1",
+    )
+    .bind(installId)
+    .first<{ id: string }>()
+
+  if (existingCommand) return context.json({ success: true, command_id: existingCommand.id, reused: true })
+
   const commandId = crypto.randomUUID()
   await db
     .prepare(
@@ -846,13 +855,19 @@ app.post("/v1/complete", async (context) => {
   const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
   const db = context.env.InstallerVerificationDatabase
   const now = Date.now()
+  const command = await db
+    .prepare("SELECT type FROM remote_command WHERE id = ? AND install_id = ?")
+    .bind(input.command_id, payload.install_id)
+    .first<{ type: string }>()
   await db
     .prepare(
       "UPDATE remote_command SET status = 'completed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
     )
     .bind(now, now + 2 * 60 * 1000, input.command_id, payload.install_id)
     .run()
-  context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
+  if (command?.type === "uninstall") {
+    context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
+  }
   return context.json({ status: "completed" })
 })
 

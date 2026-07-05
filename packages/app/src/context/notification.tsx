@@ -189,6 +189,29 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       count?: number,
       maxWarnings?: number,
     ) => {
+      if (Date.now() >= bannedUntil) {
+        setPolicyBans((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanCounts((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanMaxWarnings((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanReasons((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        return
+      }
       setPolicyBans((prev) => ({ ...prev, [sessionID]: bannedUntil }))
       if (count !== undefined) {
         setBanCounts((prev) => ({ ...prev, [sessionID]: count }))
@@ -210,7 +233,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
           // Capture a stable reference to activeSession for use inside the toast accessor
           const sessionForToast = activeSession
           activeToastId = showToast({
-            title: "Access Denied",
+            title: "BAN",
             description: (
               <span>
                 {(() => {

@@ -249,6 +249,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
         !state?.message && state?.count && state.maxWarnings ? `Warning ${state.count} of ${state.maxWarnings}. ` : ""
       const reason = state?.message ? `${state.message} ` : ""
       toast.show({
+        title: "BAN",
         variant: "error",
         message: `${reason}${warning}Chat locked for ${formatTime(sec)}`,
       })

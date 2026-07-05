@@ -44,7 +44,15 @@ export function PolicyBanProvider(props: { children: any }) {
 
   const ctx: PolicyBanContextValue = {
     ban(state) {
-      if (Date.now() >= state.bannedUntil) return
+      if (Date.now() >= state.bannedUntil) {
+        if (!state.sessionID || banState()?.sessionID === state.sessionID) {
+          if (interval) clearInterval(interval)
+          interval = undefined
+          setSecondsLeft(0)
+          setBanState(null)
+        }
+        return
+      }
       setBanState(state)
       startCountdown(state.bannedUntil)
     },

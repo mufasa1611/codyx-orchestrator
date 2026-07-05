@@ -352,6 +352,24 @@ export const layer = Layer.effect(
         const bannedUntil = Date.now() + cachedPolicySettings.banDurationMs
         policyBans.set(key, bannedUntil)
         yield* reportPolicyViolationToCentral(count, bannedUntil)
+        yield* Effect.sleep(`${cachedPolicySettings.banDurationMs} millis`).pipe(
+          Effect.andThen(
+            Effect.gen(function* () {
+              if (policyBans.get(key) !== bannedUntil) return
+              policyBans.delete(key)
+              policyViolations.delete(key)
+              yield* reportPolicyViolationToCentral(0, 0)
+              yield* bus.publish(Session.Event.PolicyBan, {
+                sessionID: input.sessionID,
+                bannedUntil: 0,
+                count: 0,
+                maxWarnings: cachedPolicySettings.maxWarnings,
+              })
+            }),
+          ),
+          Effect.ignore,
+          Effect.forkIn(scope),
+        )
         const message = policyBanMessage(count, cachedPolicySettings.maxWarnings, bannedUntil)
         yield* bus.publish(Session.Event.PolicyBan, {
           sessionID: input.sessionID,
@@ -2200,7 +2218,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       Effect.gen(function* () {
         policyViolations.delete(sessionID)
         policyBans.delete(sessionID)
-        reportPolicyViolationToCentral(0, 0)
+        yield* reportPolicyViolationToCentral(0, 0)
         yield* bus.publish(Session.Event.PolicyBan, {
           sessionID,
           bannedUntil: 0,
@@ -2213,7 +2231,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const sessionIDs = [...new Set([...policyViolations.keys(), ...policyBans.keys()])] as SessionID[]
         policyViolations.clear()
         policyBans.clear()
-        reportPolicyViolationToCentral(0, 0)
+        yield* reportPolicyViolationToCentral(0, 0)
         for (const sessionID of sessionIDs) {
           yield* bus.publish(Session.Event.PolicyBan, {
             sessionID,
