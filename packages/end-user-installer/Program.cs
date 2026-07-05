@@ -508,7 +508,7 @@ public sealed class InstallerWindow : Window
 
     var workingDirectory = isUninstall
       ? IOPath.GetTempPath()
-      : IOPath.GetDirectoryName(shim) ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+      : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     var args = string.IsNullOrWhiteSpace(command)
       ? $"/k \"{shim}\""
       : isUninstall

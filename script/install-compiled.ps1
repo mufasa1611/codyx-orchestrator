@@ -380,6 +380,7 @@ function New-Shims($BinDir, $CurrentDir, $Root, $UpdaterScript) {
   $exe = Join-Path $CurrentDir "codyx.exe"
   $cmd = Join-Path $BinDir "codyx.cmd"
   $ps1 = Join-Path $BinDir "codyx.ps1"
+  $homeDir = [Environment]::GetFolderPath("UserProfile")
 
   $cmdContent = @"
 @echo off
@@ -388,6 +389,12 @@ set "CODY_COMPILED_INSTALL_ROOT=$Root"
 set "CODYX_INSTALL_ROOT=$Root"
 set "CODY_RELEASE_REPO=$Repo"
 set "CODY_RELEASE_CHANNEL=$Channel"
+set "CODYX_INSTALL_BIN=$BinDir"
+set "CODYX_INSTALL_CURRENT=$CurrentDir"
+set "CODYX_START_DIR=%CD%"
+if /I "%CODYX_START_DIR%"=="$Root" set "CODYX_START_DIR=%USERPROFILE%"
+if /I "%CODYX_START_DIR%"=="%CODYX_INSTALL_BIN%" set "CODYX_START_DIR=%USERPROFILE%"
+if /I "%CODYX_START_DIR%"=="%CODYX_INSTALL_CURRENT%" set "CODYX_START_DIR=%USERPROFILE%"
 if /I "%~1"=="uninstall" goto codyx_run
 if "%CODYX_SKIP_UPDATE%"=="1" goto codyx_run
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$UpdaterScript" -AcceptLicense -Quiet -NoLaunch
@@ -395,13 +402,19 @@ if errorlevel 1 exit /b %errorlevel%
 :codyx_run
 if /I "%~1"=="uninstall" (
   if defined TEMP cd /d "%TEMP%"
+) else (
+  cd /d "%CODYX_START_DIR%"
 )
+set "CODY_LAUNCH_DIR=%CD%"
 set "CODY_DISABLE_AUTOUPDATE=1"
 "$exe" %*
 exit /b %errorlevel%
 "@
 
   $rootLiteral = Quote-PowerShellLiteral $Root
+  $binLiteral = Quote-PowerShellLiteral $BinDir
+  $currentLiteral = Quote-PowerShellLiteral $CurrentDir
+  $homeLiteral = Quote-PowerShellLiteral $homeDir
   $repoLiteral = Quote-PowerShellLiteral $Repo
   $channelLiteral = Quote-PowerShellLiteral $Channel
   $updaterLiteral = Quote-PowerShellLiteral $UpdaterScript
@@ -411,6 +424,11 @@ exit /b %errorlevel%
 `$env:CODYX_INSTALL_ROOT = $rootLiteral
 `$env:CODY_RELEASE_REPO = $repoLiteral
 `$env:CODY_RELEASE_CHANNEL = $channelLiteral
+`$launchDir = (Get-Location).Path
+`$internalDirs = @($rootLiteral, $binLiteral, $currentLiteral)
+if (`$internalDirs | Where-Object { `$launchDir.Equals(`$_, [StringComparison]::OrdinalIgnoreCase) }) {
+  `$launchDir = $homeLiteral
+}
 `$skipUpdate = `$env:CODYX_SKIP_UPDATE -eq "1" -or (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall")
 if (-not `$skipUpdate) {
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterLiteral -AcceptLicense -Quiet -NoLaunch
@@ -418,7 +436,10 @@ if (-not `$skipUpdate) {
 }
 if (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall") {
   Set-Location -LiteralPath ([System.IO.Path]::GetTempPath())
+} else {
+  Set-Location -LiteralPath `$launchDir
 }
+`$env:CODY_LAUNCH_DIR = (Get-Location).Path
 `$env:CODY_DISABLE_AUTOUPDATE = "1"
 & $exeLiteral @args
 exit `$LASTEXITCODE
@@ -591,8 +612,9 @@ function Install-CodyxCompiled {
     $webShortcut = Join-Path $startMenuDir "Codyx-Orchestrator Web UI.lnk"
     $uninstallShortcut = Join-Path $startMenuDir "Uninstall Codyx-Orchestrator.lnk"
     if (-not $NoShortcuts) {
-      New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $InstallRoot
-      New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $InstallRoot
+      $userProfile = [Environment]::GetFolderPath("UserProfile")
+      New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $userProfile
+      New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $userProfile
       New-Shortcut $uninstallShortcut $cmdExe "/k `"$($shims[0])`" uninstall" $InstallRoot
     }
 
