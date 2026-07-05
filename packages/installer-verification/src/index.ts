@@ -21,6 +21,7 @@ import {
 import { privacyPage } from "./privacy"
 import { licensePage } from "./license"
 import { adminPanel } from "./admin-panel"
+import { downloadsPage } from "./downloads"
 import { feedbackPage } from "./feedback"
 import type { Bindings, ChallengeRow } from "./types"
 
@@ -233,6 +234,14 @@ app.use("*", async (context, next) => {
   await ensureSchema(context.env.InstallerVerificationDatabase)
   await next()
 })
+
+app.get("/", (context) => context.redirect("/downloads"))
+
+app.get("/downloads", (context) =>
+  context.html(downloadsPage(), 200, {
+    "Content-Type": "text/html; charset=utf-8",
+  }),
+)
 
 app.get("/admin", (context) =>
   context.html(adminPanel(), 200, {
