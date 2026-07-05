@@ -105,6 +105,43 @@ CREATE TABLE IF NOT EXISTS policy_settings (
 );
 `
 
+async function ensureRemoteCommandPolicyReset(db: D1Database) {
+  const row = await db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'remote_command'")
+    .first<{ sql: string | null }>()
+  if (!row?.sql || row.sql.includes("'policy_reset'")) return
+
+  await db.prepare("ALTER TABLE remote_command RENAME TO remote_command_old").run()
+  await db
+    .prepare(
+      `CREATE TABLE remote_command (
+        id TEXT PRIMARY KEY,
+        install_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('uninstall','policy_reset')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','acknowledged','completed','failed')),
+        created_at INTEGER NOT NULL,
+        acknowledged_at INTEGER,
+        completed_at INTEGER,
+        retain_until INTEGER NOT NULL,
+        FOREIGN KEY (install_id) REFERENCES registration (install_id) ON DELETE CASCADE
+      )`,
+    )
+    .run()
+  await db
+    .prepare(
+      `INSERT INTO remote_command (id, install_id, type, status, created_at, acknowledged_at, completed_at, retain_until)
+       SELECT id, install_id, type, status, created_at, acknowledged_at, completed_at, retain_until
+       FROM remote_command_old
+       WHERE type IN ('uninstall','policy_reset')`,
+    )
+    .run()
+  await db.prepare("DROP TABLE remote_command_old").run()
+  await db
+    .prepare("CREATE INDEX IF NOT EXISTS remote_command_install_status_idx ON remote_command (install_id, status)")
+    .run()
+  await db.prepare("CREATE INDEX IF NOT EXISTS remote_command_retain_until_idx ON remote_command (retain_until)").run()
+}
+
 export async function ensureSchema(db: D1Database) {
   await db.batch(
     schema
@@ -124,6 +161,7 @@ export async function ensureSchema(db: D1Database) {
   try {
     await db.prepare("ALTER TABLE registration ADD COLUMN policy_banned_until INTEGER DEFAULT 0").run()
   } catch {}
+  await ensureRemoteCommandPolicyReset(db)
 }
 
 export async function cleanup(db: D1Database, now = Date.now()) {

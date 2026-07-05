@@ -564,12 +564,20 @@ app.get("/v1/admin/installations", async (context) => {
   const format = context.req.query("format") ?? "json"
   if (format !== "json" && format !== "csv") throw new ApiError(400, "invalid_format", "Format must be json or csv.")
   const db = context.env.InstallerVerificationDatabase
+  await ensureSchema(db)
+  const now = Date.now()
+  await db
+    .prepare(
+      "UPDATE registration SET policy_violations_count = 0, policy_banned_until = 0, updated_at = ? WHERE policy_banned_until > 0 AND policy_banned_until <= ?",
+    )
+    .bind(now, now)
+    .run()
   const result = await db
     .prepare(
       `SELECT r.install_id, r.display_name, r.email, r.email_verified_at, r.installer_version, r.platform,
       r.machine_id, r.policy_violations_count, r.policy_banned_until, r.created_at, r.updated_at, r.retain_until,
-      (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_status,
-      (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_id,
+      (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_status,
+      (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_id,
       (SELECT 1 FROM banned_machine b WHERE b.machine_id = r.machine_id LIMIT 1) AS is_banned
      FROM registration r ORDER BY r.created_at DESC LIMIT 10000`,
     )
@@ -701,7 +709,9 @@ app.post("/v1/admin/installations/:installID/ban", async (context) => {
   }
 
   const existingCommand = await db
-    .prepare("SELECT 1 FROM remote_command WHERE install_id = ? AND status IN ('pending', 'acknowledged') LIMIT 1")
+    .prepare(
+      "SELECT 1 FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status IN ('pending', 'acknowledged') LIMIT 1",
+    )
     .bind(installId)
     .first()
 
@@ -754,6 +764,7 @@ app.post("/v1/admin/installations/:installID/unban", async (context) => {
 app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   const db = context.env.InstallerVerificationDatabase
+  await ensureSchema(db)
   const installId = parse(z.string().uuid(), context.req.param("installID"))
   const now = Date.now()
 
@@ -768,7 +779,15 @@ app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
     .bind(now, installId)
     .run()
 
-  // 2. Queue remote command for the client to sync
+  const existingCommand = await db
+    .prepare(
+      "SELECT id FROM remote_command WHERE install_id = ? AND type = 'policy_reset' AND status IN ('pending', 'acknowledged') LIMIT 1",
+    )
+    .bind(installId)
+    .first<{ id: string }>()
+
+  if (existingCommand) return context.json({ success: true, command_id: existingCommand.id, reused: true })
+
   const commandId = crypto.randomUUID()
   await db
     .prepare(
@@ -846,13 +865,19 @@ app.post("/v1/complete", async (context) => {
   const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
   const db = context.env.InstallerVerificationDatabase
   const now = Date.now()
+  const command = await db
+    .prepare("SELECT type FROM remote_command WHERE id = ? AND install_id = ?")
+    .bind(input.command_id, payload.install_id)
+    .first<{ type: string }>()
   await db
     .prepare(
       "UPDATE remote_command SET status = 'completed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
     )
     .bind(now, now + 2 * 60 * 1000, input.command_id, payload.install_id)
     .run()
-  context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
+  if (command?.type === "uninstall") {
+    context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
+  }
   return context.json({ status: "completed" })
 })
 
