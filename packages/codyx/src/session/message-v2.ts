@@ -66,6 +66,7 @@ export const PolicyBanError = namedSchemaError("PolicyBanError", {
   message: Schema.String,
   bannedUntil: Schema.Number,
   count: Schema.Number,
+  maxWarnings: Schema.optional(Schema.Number),
 })
 export type PolicyBanError = z.infer<typeof PolicyBanError.Schema>
 

@@ -24,14 +24,15 @@ export class ApiPolicyBanError extends Schema.ErrorClass<ApiPolicyBanError>("Pol
       message: Schema.String,
       bannedUntil: Schema.Number,
       count: Schema.Number,
+      maxWarnings: Schema.optional(Schema.Number),
     }),
   },
   { httpApiStatus: 403 },
 ) {}
 
-export function policyBan(message: string, bannedUntil: number, count: number) {
+export function policyBan(message: string, bannedUntil: number, count: number, maxWarnings?: number) {
   return new ApiPolicyBanError({
     name: "PolicyBanError",
-    data: { message, bannedUntil, count },
+    data: { message, bannedUntil, count, maxWarnings },
   })
 }

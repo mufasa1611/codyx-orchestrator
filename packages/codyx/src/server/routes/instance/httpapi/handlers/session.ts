@@ -242,7 +242,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         })
         .pipe(
           Effect.mapError((err) => {
-            return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+            return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count, err.data.maxWarnings)
           }),
         )
       return true
@@ -298,7 +298,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
             }),
           ).pipe(
             Effect.mapError((err) => {
-              return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+              return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count, err.data.maxWarnings)
             }),
             Effect.provideService(InstanceRef, instance),
             Effect.provideService(WorkspaceRef, workspace),
@@ -334,7 +334,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         }),
       ).pipe(
         Effect.mapError((err) => {
-          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count, err.data.maxWarnings)
         }),
       )
 
@@ -360,7 +360,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       const userID = yield* requestUserID
       return yield* withUserID(userID, promptSvc.command({ ...ctx.payload, sessionID: ctx.params.sessionID })).pipe(
         Effect.mapError((err) => {
-          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count)
+          return ApiError.policyBan(err.data.message, err.data.bannedUntil, err.data.count, err.data.maxWarnings)
         }),
       )
     })

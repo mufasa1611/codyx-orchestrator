@@ -152,6 +152,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const [policyBans, setPolicyBans] = createSignal<Record<string, number>>({})
     const [banCounts, setBanCounts] = createSignal<Record<string, number>>({})
+    const [banMaxWarnings, setBanMaxWarnings] = createSignal<Record<string, number>>({})
     const [tick, setTick] = createSignal(0)
     let banTimer: any = null
     onMount(() => {
@@ -181,10 +182,19 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       return Math.max(0, Math.ceil((until - Date.now()) / 1000))
     }
 
-    const setSessionBan = (sessionID: string, bannedUntil: number, reason?: string, count?: number) => {
+    const setSessionBan = (
+      sessionID: string,
+      bannedUntil: number,
+      reason?: string,
+      count?: number,
+      maxWarnings?: number,
+    ) => {
       setPolicyBans((prev) => ({ ...prev, [sessionID]: bannedUntil }))
       if (count !== undefined) {
         setBanCounts((prev) => ({ ...prev, [sessionID]: count }))
+      }
+      if (maxWarnings !== undefined) {
+        setBanMaxWarnings((prev) => ({ ...prev, [sessionID]: maxWarnings }))
       }
       if (reason) {
         setBanReasons((prev) => ({ ...prev, [sessionID]: reason }))
@@ -208,9 +218,13 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
                   const m = Math.floor(sec / 60)
                   const s = sec % 60
                   const count = banCounts()[sessionForToast]
+                  const maxWarnings = banMaxWarnings()[sessionForToast]
                   const customReason = banReasons()[sessionForToast]
                   const reason = customReason ? `${customReason} ` : ""
-                  const warning = !customReason && count ? `Warning ${count}. ` : ""
+                  const warning =
+                    !customReason && count
+                      ? `Warning ${count}${maxWarnings ? ` of ${maxWarnings}` : ""}. `
+                      : ""
                   return `${reason}${warning}Chat locked for ${m}:${s < 10 ? "0" : ""}${s}`
                 })()}
               </span>
@@ -425,7 +439,11 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
             "count" in event.properties && typeof event.properties.count === "number"
               ? event.properties.count
               : undefined
-          setSessionBan(sessionID, Number(event.properties.bannedUntil), message, count)
+          const maxWarnings =
+            "maxWarnings" in event.properties && typeof event.properties.maxWarnings === "number"
+              ? event.properties.maxWarnings
+              : undefined
+          setSessionBan(sessionID, Number(event.properties.bannedUntil), message, count, maxWarnings)
         }
         return
       }

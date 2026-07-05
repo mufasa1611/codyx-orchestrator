@@ -248,7 +248,10 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       if (data && typeof data === "object" && "bannedUntil" in data && typeof data.bannedUntil === "number") {
         const sessionID = params.id
         if (sessionID) {
-          notification.setSessionBan(sessionID, data.bannedUntil, data.message)
+          const count = "count" in data && typeof data.count === "number" ? data.count : undefined
+          const maxWarnings =
+            "maxWarnings" in data && typeof data.maxWarnings === "number" ? data.maxWarnings : undefined
+          notification.setSessionBan(sessionID, data.bannedUntil, data.message, count, maxWarnings)
           return true
         }
       }

@@ -251,7 +251,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
       toast.show({
         variant: "error",
         message: `${reason}${warning}Chat locked for ${formatTime(sec)}`,
-        duration: 0,
       })
     } else {
       if (toast.currentToast?.message.includes("Chat locked")) {

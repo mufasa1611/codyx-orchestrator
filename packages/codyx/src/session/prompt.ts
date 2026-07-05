@@ -250,8 +250,15 @@ export const layer = Layer.effect(
       banDurationMs: number
     }
 
-    let cachedPolicySettings: PolicySettings = { maxWarnings: 5, banDurationMs: 5 * 60 * 1000 }
+    const DEFAULT_POLICY_SETTINGS: PolicySettings = { maxWarnings: 5, banDurationMs: 5 * 60 * 1000 }
+    let cachedPolicySettings: PolicySettings = DEFAULT_POLICY_SETTINGS
     let lastPolicyFetch = 0
+
+    const positiveInteger = (value: unknown) => {
+      const number = Number(value)
+      if (!Number.isFinite(number) || number < 1) return
+      return Math.floor(number)
+    }
 
     const updatePolicySettings = Effect.fn("SessionPrompt.policy.settings")(function* () {
       const now = Date.now()
@@ -271,17 +278,13 @@ export const layer = Layer.effect(
         catch: () => undefined,
       }).pipe(Effect.orElseSucceed(() => undefined))
 
-      if (
-        data &&
-        typeof data === "object" &&
-        "max_warnings" in data &&
-        "ban_duration_minutes" in data &&
-        typeof data.max_warnings === "number" &&
-        typeof data.ban_duration_minutes === "number"
-      ) {
+      if (data && typeof data === "object" && "max_warnings" in data && "ban_duration_minutes" in data) {
+        const maxWarnings = positiveInteger(data.max_warnings)
+        const banDurationMinutes = positiveInteger(data.ban_duration_minutes)
+        if (!maxWarnings || !banDurationMinutes) return
         cachedPolicySettings = {
-          maxWarnings: data.max_warnings,
-          banDurationMs: data.ban_duration_minutes * 60 * 1000,
+          maxWarnings,
+          banDurationMs: banDurationMinutes * 60 * 1000,
         }
       }
     })
@@ -323,6 +326,7 @@ export const layer = Layer.effect(
               ),
               bannedUntil: activeBan,
               count: policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
+              maxWarnings: cachedPolicySettings.maxWarnings,
             }),
           )
         }
@@ -361,6 +365,7 @@ export const layer = Layer.effect(
             message,
             bannedUntil,
             count,
+            maxWarnings: cachedPolicySettings.maxWarnings,
           }),
         )
       }
