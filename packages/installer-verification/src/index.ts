@@ -564,12 +564,20 @@ app.get("/v1/admin/installations", async (context) => {
   const format = context.req.query("format") ?? "json"
   if (format !== "json" && format !== "csv") throw new ApiError(400, "invalid_format", "Format must be json or csv.")
   const db = context.env.InstallerVerificationDatabase
+  await ensureSchema(db)
+  const now = Date.now()
+  await db
+    .prepare(
+      "UPDATE registration SET policy_violations_count = 0, policy_banned_until = 0, updated_at = ? WHERE policy_banned_until > 0 AND policy_banned_until <= ?",
+    )
+    .bind(now, now)
+    .run()
   const result = await db
     .prepare(
       `SELECT r.install_id, r.display_name, r.email, r.email_verified_at, r.installer_version, r.platform,
       r.machine_id, r.policy_violations_count, r.policy_banned_until, r.created_at, r.updated_at, r.retain_until,
-      (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_status,
-      (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id ORDER BY c.created_at DESC LIMIT 1) AS command_id,
+      (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_status,
+      (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_id,
       (SELECT 1 FROM banned_machine b WHERE b.machine_id = r.machine_id LIMIT 1) AS is_banned
      FROM registration r ORDER BY r.created_at DESC LIMIT 10000`,
     )
@@ -701,7 +709,9 @@ app.post("/v1/admin/installations/:installID/ban", async (context) => {
   }
 
   const existingCommand = await db
-    .prepare("SELECT 1 FROM remote_command WHERE install_id = ? AND status IN ('pending', 'acknowledged') LIMIT 1")
+    .prepare(
+      "SELECT 1 FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status IN ('pending', 'acknowledged') LIMIT 1",
+    )
     .bind(installId)
     .first()
 

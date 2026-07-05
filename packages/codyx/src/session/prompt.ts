@@ -146,7 +146,11 @@ export interface Interface {
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts>
   readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
   readonly resolvePromptParts: (template: string) => Effect.Effect<PromptInput["parts"]>
-  readonly assertPromptPolicy: (input: { sessionID: SessionID; text: string }) => Effect.Effect<void, PolicyBanError>
+  readonly assertPromptPolicy: (input: {
+    sessionID: SessionID
+    text: string
+    countViolation?: boolean
+  }) => Effect.Effect<void, PolicyBanError>
   readonly getPolicyStatus: () => Effect.Effect<Record<string, { count: number; bannedUntil?: number }>>
   readonly resetPolicy: (sessionID: SessionID) => Effect.Effect<void>
   readonly resetAllPolicies: () => Effect.Effect<void>
@@ -297,6 +301,7 @@ export const layer = Layer.effect(
     const assertPromptPolicy = Effect.fn("SessionPrompt.assertPromptPolicy")(function* (input: {
       sessionID: SessionID
       text: string
+      countViolation?: boolean
     }) {
       yield* updatePolicySettings()
       const user = yield* currentPolicyUser()
@@ -335,6 +340,8 @@ export const layer = Layer.effect(
         policyViolations.delete(key)
         yield* reportPolicyViolationToCentral(0, 0)
       }
+
+      if (input.countViolation === false) return
 
       const result = checkPromptPolicy({ text: input.text, user })
       if (result.allowed) return

@@ -331,6 +331,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         promptSvc.assertPromptPolicy({
           sessionID: ctx.params.sessionID,
           text: visibleText,
+          countViolation: false,
         }),
       ).pipe(
         Effect.mapError((err) => {
