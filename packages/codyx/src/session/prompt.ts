@@ -72,6 +72,7 @@ import { Project } from "@/project/project"
 import { Global } from "@cody/core/global"
 import { Hash } from "@cody/core/util/hash"
 import type { InstanceContext } from "@/project/instance"
+import { registerLivePolicyResetListener } from "./policy-reset"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -2247,6 +2248,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           })
         }
       })
+
+    const livePolicyResetBridge = yield* EffectBridge.make()
+    const unregisterLivePolicyReset = registerLivePolicyResetListener(() =>
+      livePolicyResetBridge.promise(resetAllPolicies()),
+    )
+    yield* Effect.addFinalizer(() => Effect.sync(unregisterLivePolicyReset))
 
     return Service.of({
       cancel,

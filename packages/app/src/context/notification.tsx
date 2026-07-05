@@ -245,9 +245,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
                   const customReason = banReasons()[sessionForToast]
                   const reason = customReason ? `${customReason} ` : ""
                   const warning =
-                    !customReason && count
-                      ? `Warning ${count}${maxWarnings ? ` of ${maxWarnings}` : ""}. `
-                      : ""
+                    !customReason && count ? `Warning ${count}${maxWarnings ? ` of ${maxWarnings}` : ""}. ` : ""
                   return `${reason}${warning}Chat locked for ${m}:${s < 10 ? "0" : ""}${s}`
                 })()}
               </span>
@@ -453,20 +451,24 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       }
       if (event.type === "session.policy-ban") {
         const sessionID = event.properties.sessionID
+        const bannedUntil = Number(event.properties.bannedUntil)
+        const message =
+          "message" in event.properties && typeof event.properties.message === "string"
+            ? event.properties.message
+            : undefined
+        const count =
+          "count" in event.properties && typeof event.properties.count === "number" ? event.properties.count : undefined
+        const maxWarnings =
+          "maxWarnings" in event.properties && typeof event.properties.maxWarnings === "number"
+            ? event.properties.maxWarnings
+            : undefined
         if (sessionID) {
-          const message =
-            "message" in event.properties && typeof event.properties.message === "string"
-              ? event.properties.message
-              : undefined
-          const count =
-            "count" in event.properties && typeof event.properties.count === "number"
-              ? event.properties.count
-              : undefined
-          const maxWarnings =
-            "maxWarnings" in event.properties && typeof event.properties.maxWarnings === "number"
-              ? event.properties.maxWarnings
-              : undefined
-          setSessionBan(sessionID, Number(event.properties.bannedUntil), message, count, maxWarnings)
+          setSessionBan(sessionID, bannedUntil, message, count, maxWarnings)
+        } else if (Date.now() >= bannedUntil) {
+          setPolicyBans({})
+          setBanCounts({})
+          setBanMaxWarnings({})
+          setBanReasons({})
         }
         return
       }

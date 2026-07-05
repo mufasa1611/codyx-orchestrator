@@ -432,14 +432,9 @@ async function handlePolicyReset(baseUrl: string, verification: VerificationData
     clearTimeout(timeout)
   } catch {}
 
-  // 2. Perform the reset locally via AppRuntime
-  try {
-    const { AppRuntime } = await import("@/effect/app-runtime")
-    const { SessionPrompt } = await import("@/session/prompt")
-    await AppRuntime.runPromise(SessionPrompt.Service.use((svc) => svc.resetAllPolicies()))
-  } catch (e) {
-    console.error("Local policy reset failed", e)
-  }
+  // 2. Perform the reset in every live SessionPrompt runtime in this process.
+  const { requestLivePolicyReset } = await import("@/session/policy-reset")
+  await requestLivePolicyReset()
 
   // 3. Mark the command as completed
   try {

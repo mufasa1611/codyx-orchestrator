@@ -11,6 +11,7 @@ Use this tool proactively in these scenarios:
 5. After receiving new instructions - Immediately capture user requirements as todos. Feel free to edit the todo list based on new information.
 6. After completing a task - Mark it complete and add any new follow-up tasks
 7. When you start working on a new task, mark the todo as in_progress. Ideally you should only have one todo as in_progress at a time. Complete existing tasks before starting new ones.
+8. When all tracked work is completed, cancelled, obsolete, or no longer useful to show, call this tool with an empty todo list to clear the sidebar.
 
 ## When NOT to Use This Tool
 

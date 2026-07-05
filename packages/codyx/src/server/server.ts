@@ -211,13 +211,14 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
     MDNS.unpublish()
   }
 
-  // Poll remote commands every 15 seconds
+  // Poll remote commands every 5 seconds so admin policy reset reaches live users quickly.
   let remoteCommandsInterval: any = null
   if (!process.env.CODY_SKIP_VERIFICATION) {
     import("@/installation/command").then(({ checkRemoteCommands }) => {
+      void checkRemoteCommands().catch(() => {})
       remoteCommandsInterval = setInterval(() => {
         void checkRemoteCommands().catch(() => {})
-      }, 15000)
+      }, 5000)
     })
   }
 
