@@ -29,55 +29,6 @@ function View(props: { api: TuiPluginApi }) {
       name: list.at(-1) ?? "",
     }
   })
-  const feedbackUrl = createMemo(() => {
-    const candidates = [
-      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "codyx-installer", "verification.json") : "",
-      path.join(os.homedir(), "Library", "Application Support", "codyx-installer", "verification.json"),
-      path.join(
-        process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
-        "codyx-installer",
-        "verification.json",
-      ),
-    ]
-    for (const filePath of candidates) {
-      if (!filePath) continue
-      try {
-        const raw = fs
-          .readFileSync(filePath, "utf8")
-          .replace(/^\uFEFF/, "")
-          .trim()
-        if (!raw) continue
-        const data = JSON.parse(raw) as { install_id?: string }
-        if (data.install_id)
-          return `https://install.kingkung.men/feedback?install_id=${encodeURIComponent(data.install_id)}`
-      } catch {
-        continue
-      }
-    }
-    return "https://install.kingkung.men/feedback"
-  })
-  const feedbackText = "Send your feedback - "
-  const feedbackChars = [...feedbackText]
-  const shineWidth = 4
-  const maxOffset = feedbackChars.length - shineWidth
-  const [shine, setShine] = createSignal({ offset: maxOffset, dir: -1 })
-  const shineTimer = setInterval(() => {
-    setShine((prev) => {
-      const next = prev.offset + prev.dir
-      if (next <= 0) return { offset: 0, dir: 1 }
-      if (next >= maxOffset) return { offset: maxOffset, dir: -1 }
-      return { offset: next, dir: prev.dir }
-    })
-  }, 100)
-  onCleanup(() => clearInterval(shineTimer))
-  const textParts = createMemo(() => {
-    const offset = shine().offset
-    return {
-      left: feedbackChars.slice(0, offset).join(""),
-      middle: feedbackChars.slice(offset, offset + shineWidth).join(""),
-      right: feedbackChars.slice(offset + shineWidth).join(""),
-    }
-  })
 
   return (
     <box gap={1}>
@@ -134,12 +85,6 @@ function View(props: { api: TuiPluginApi }) {
           <b>(Mufasa)</b>
         </span>
       </text>
-      <Link href={feedbackUrl()}>
-        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().left}</span>
-        <span style={{ fg: RGBA.fromHex("#ff4444") }}>{textParts().middle}</span>
-        <span style={{ fg: RGBA.fromHex("#ffffff") }}>{textParts().right}</span>
-        <span style={{ fg: RGBA.fromHex("#58a6ff") }}>click here</span>
-      </Link>
     </box>
   )
 }
