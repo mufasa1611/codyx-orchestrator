@@ -18,6 +18,7 @@ import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
+import { useNotification } from "@/context/notification"
 import { trimSessions } from "@/context/global-sync/session-trim"
 import { formatServerError } from "@/utils/server-errors"
 
@@ -56,10 +57,15 @@ const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttac
 function policyViolationToastMessageFromText(message: string) {
   const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
   if (idx < 0) return
-  return message
+  const lines = message
     .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
-    .split("\n")[0]
-    ?.trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const first = lines[0]
+  if (!first) return
+  const warning = lines.find((line) => /^This is warning \d+ of \d+\./.test(line))
+  return warning ? `${first} ${warning}` : first
 }
 
 export async function sendFollowupDraft(input: FollowupSendInput) {
@@ -224,6 +230,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const layout = useLayout()
   const language = useLanguage()
   const params = useParams()
+  const notification = useNotification()
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
@@ -235,6 +242,21 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   }
 
   const showPolicyToast = (err: unknown) => {
+    const body = err && typeof err === "object" && "body" in err ? (err as { body: any }).body : err
+    if (body && typeof body === "object" && body.name === "PolicyBanError") {
+      const data = body.data
+      if (data && typeof data === "object" && "bannedUntil" in data && typeof data.bannedUntil === "number") {
+        const sessionID = params.id
+        if (sessionID) {
+          const count = "count" in data && typeof data.count === "number" ? data.count : undefined
+          const maxWarnings =
+            "maxWarnings" in data && typeof data.maxWarnings === "number" ? data.maxWarnings : undefined
+          notification.setSessionBan(sessionID, data.bannedUntil, data.message, count, maxWarnings)
+          return true
+        }
+      }
+    }
+
     const message = errorMessage(err)
     const policyWarning = policyViolationToastMessageFromText(message) ?? message
     if (!policyWarning.startsWith("Blocked word:") && !policyWarning.startsWith("Warning: Codyx")) return false

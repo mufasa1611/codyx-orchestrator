@@ -59,20 +59,28 @@ export function policyViolationToastMessage(reason: PolicyViolationReason, match
 export function policyViolationToastMessageFromText(message: string) {
   const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
   if (idx < 0) return
-  return message
+  const lines = message
     .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
-    .split("\n")[0]
-    ?.trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const first = lines[0]
+  if (!first) return
+  const warning = lines.find((line) => /^This is warning \d+ of \d+\./.test(line))
+  return warning ? `${first} ${warning}` : first
 }
 
-export function policyViolationMessage(reason: PolicyViolationReason, count = 1, matchedWords?: string[]) {
+export function policyViolationMessage(
+  reason: PolicyViolationReason,
+  count = 1,
+  matchedWords?: string[],
+  maxWarnings = 5,
+) {
   return [
     `${POLICY_VIOLATION_NOTICE_PREFIX} ${policyViolationToastMessage(reason, matchedWords)}`,
     "Non-owner users must respect Codyx-Orchestrator's protected agent role and product identity.",
     `License reminder: ${LICENSE_URL}`,
-    count > 1
-      ? `This is warning ${count}. Repeated violations may be reported to the administrator with the verified identity and installation metadata disclosed during setup, and can lead to suspension or a machine ban.`
-      : "Repeated violations after this warning may be reported to the administrator and can lead to suspension or a machine ban.",
+    `This is warning ${count} of ${maxWarnings}. Repeated violations may be reported to the administrator with the verified identity and installation metadata disclosed during setup, and can lead to suspension or a machine ban.`,
   ].join("\n")
 }
 

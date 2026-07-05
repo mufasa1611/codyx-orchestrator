@@ -155,6 +155,10 @@ import type {
   SessionMessageResponses,
   SessionMessagesErrors,
   SessionMessagesResponses,
+  SessionPolicyResetErrors,
+  SessionPolicyResetResponses,
+  SessionPolicyStatusErrors,
+  SessionPolicyStatusResponses,
   SessionPromptAsyncErrors,
   SessionPromptAsyncResponses,
   SessionPromptErrors,
@@ -3419,6 +3423,68 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<SessionStatusResponses, SessionStatusErrors, ThrowOnError>({
       url: "/session/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get policy violations status
+   *
+   * Retrieve a list of sessions with their warning count and ban expiry timestamp.
+   */
+  public policyStatus<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionPolicyStatusResponses, SessionPolicyStatusErrors, ThrowOnError>({
+      url: "/session/policy/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Reset policy violations and ban
+   *
+   * Clear the warning count and lift active ban lockout for a session.
+   */
+  public policyReset<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionPolicyResetResponses, SessionPolicyResetErrors, ThrowOnError>({
+      url: "/session/{sessionID}/policy/reset",
       ...options,
       ...params,
     })

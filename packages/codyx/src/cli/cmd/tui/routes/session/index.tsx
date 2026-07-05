@@ -23,15 +23,7 @@ import { Spinner } from "@tui/component/spinner"
 import { selectedForeground, useTheme } from "@tui/context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import type {
-  AssistantMessage,
-  Part,
-  Provider,
-  ToolPart,
-  UserMessage,
-  TextPart,
-  ReasoningPart,
-} from "@cody/sdk/v2"
+import type { AssistantMessage, Part, Provider, ToolPart, UserMessage, TextPart, ReasoningPart } from "@cody/sdk/v2"
 import { useLocal } from "@tui/context/local"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
@@ -74,6 +66,7 @@ import * as Editor from "../../util/editor"
 import stripAnsi from "strip-ansi"
 import { usePromptRef } from "../../context/prompt"
 import { useExit } from "../../context/exit"
+import { usePolicyBan } from "../../context/policy-ban"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@cody/core/global"
 import { PermissionPrompt } from "./permission"
@@ -166,8 +159,11 @@ export function Session() {
     if (session()?.parentID) return []
     return children().flatMap((x) => sync.data.question[x.id] ?? [])
   })
+  const policyBan = usePolicyBan()
   const visible = createMemo(() => !session()?.parentID && permissions().length === 0 && questions().length === 0)
-  const disabled = createMemo(() => permissions().length > 0 || questions().length > 0)
+  const disabled = createMemo(
+    () => permissions().length > 0 || questions().length > 0 || policyBan.isBanned(route.sessionID),
+  )
 
   const pending = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id

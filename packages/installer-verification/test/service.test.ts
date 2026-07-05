@@ -404,6 +404,108 @@ describe("installer verification service", () => {
     expect((command as any).status).toBe("pending")
   })
 
+  test("admin resets policy counters and creates a policy reset command", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    await db
+      .prepare("UPDATE registration SET policy_violations_count = 2, policy_banned_until = ? WHERE install_id = ?")
+      .bind(Date.now() + 60_000, created.body.install_id)
+      .run()
+
+    const reset = await admin(`/v1/admin/installations/${created.body.install_id}/policy-reset`, { method: "POST" })
+    expect(reset.status).toBe(200)
+    const resetBody = (await reset.json()) as { success: boolean; command_id: string }
+    expect(resetBody.success).toBe(true)
+    expect(resetBody.command_id).toBeDefined()
+
+    const registration = await db
+      .prepare("SELECT policy_violations_count, policy_banned_until FROM registration WHERE install_id = ?")
+      .bind(created.body.install_id)
+      .first()
+    expect((registration as any).policy_violations_count).toBe(0)
+    expect((registration as any).policy_banned_until).toBe(0)
+
+    const command = await db
+      .prepare("SELECT id, type, status FROM remote_command WHERE id = ?")
+      .bind(resetBody.command_id)
+      .first()
+    expect((command as any).type).toBe("policy_reset")
+    expect((command as any).status).toBe("pending")
+
+    const poll = await request(
+      `/v1/commands?install_id=${created.body.install_id}&receipt=${encodeURIComponent(receipt)}`,
+    )
+    expect(poll.status).toBe(200)
+    const pollBody = (await poll.json()) as { commands: Array<{ id: string; type: string; created_at: number }> }
+    expect(pollBody.commands).toHaveLength(1)
+    expect(pollBody.commands[0]).toMatchObject({ id: resetBody.command_id, type: "policy_reset" })
+    expect(typeof pollBody.commands[0].created_at).toBe("number")
+
+    const dashboard = await admin("/v1/admin/installations?format=json")
+    const dashboardBody = (await dashboard.json()) as {
+      installations: Array<{
+        install_id: string
+        command_status: string | null
+        policy_violations_count: number
+        policy_banned_until: number
+      }>
+    }
+    const row = dashboardBody.installations.find((item) => item.install_id === created.body.install_id)
+    expect(row).toMatchObject({
+      command_status: null,
+      policy_violations_count: 0,
+      policy_banned_until: 0,
+    })
+  })
+
+  test("admin dashboard clears expired policy bans", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    await db
+      .prepare("UPDATE registration SET policy_violations_count = 2, policy_banned_until = ? WHERE install_id = ?")
+      .bind(Date.now() - 1_000, created.body.install_id)
+      .run()
+
+    const dashboard = await admin("/v1/admin/installations?format=json")
+    expect(dashboard.status).toBe(200)
+    const body = (await dashboard.json()) as {
+      installations: Array<{ install_id: string; policy_violations_count: number; policy_banned_until: number }>
+    }
+    const row = body.installations.find((item) => item.install_id === created.body.install_id)
+    expect(row).toMatchObject({
+      policy_violations_count: 0,
+      policy_banned_until: 0,
+    })
+  })
+
+  test("policy reset commands do not block later uninstall commands", async () => {
+    const machineId = `machine-${crypto.randomUUID()}`
+    const created = await createChallenge(Object.assign(challengeBody(), { machine_id: machineId }))
+    const verified = await verifyChallenge(created.response.challenge_id)
+    expect(verified.status).toBe(200)
+
+    const reset = await admin(`/v1/admin/installations/${created.body.install_id}/policy-reset`, { method: "POST" })
+    expect(reset.status).toBe(200)
+
+    const ban = await admin(`/v1/admin/installations/${created.body.install_id}/ban`, { method: "POST" })
+    expect(ban.status).toBe(200)
+    expect((await ban.json()) as { uninstall_triggered: boolean }).toMatchObject({ uninstall_triggered: true })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const commands = await db
+      .prepare("SELECT type FROM remote_command WHERE install_id = ? ORDER BY created_at ASC")
+      .bind(created.body.install_id)
+      .all<{ type: string }>()
+    expect(commands.results.map((command) => command.type)).toEqual(["policy_reset", "uninstall"])
+  })
+
   test("admin bans and unbans a verified machine", async () => {
     const machineId = `machine-${crypto.randomUUID()}`
     const created = await createChallenge(Object.assign(challengeBody(), { machine_id: machineId }))

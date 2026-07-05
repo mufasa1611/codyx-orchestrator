@@ -93,9 +93,18 @@ function init() {
       const toastOptions = decodeToastOptions(options)
       setStore("currentToast", toastOptions)
       if (timeoutHandle) clearTimeout(timeoutHandle)
-      timeoutHandle = setTimeout(() => {
-        setStore("currentToast", null)
-      }, toastOptions.duration).unref()
+      if (toastOptions.duration && toastOptions.duration > 0) {
+        timeoutHandle = setTimeout(() => {
+          setStore("currentToast", null)
+        }, toastOptions.duration).unref()
+      }
+    },
+    dismiss() {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
+        timeoutHandle = null
+      }
+      setStore("currentToast", null)
     },
     error: (err: any) => {
       if (err instanceof Error)

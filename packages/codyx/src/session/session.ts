@@ -356,6 +356,16 @@ export const Event = {
       error: MessageV2.Assistant.fields.error,
     }),
   ),
+  PolicyBan: BusEvent.define(
+    "session.policy-ban",
+    Schema.Struct({
+      sessionID: Schema.optional(SessionID),
+      bannedUntil: Schema.Number,
+      count: Schema.Number,
+      maxWarnings: Schema.optional(Schema.Number),
+      message: Schema.optional(Schema.String),
+    }),
+  ),
 }
 
 export function plan(input: { slug: string; time: { created: number } }, instance: InstanceContext) {

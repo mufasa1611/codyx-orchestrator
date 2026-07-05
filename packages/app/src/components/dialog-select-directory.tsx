@@ -11,6 +11,9 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLayout } from "@/context/layout"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
+import { fetchForServer } from "@/utils/server"
 
 interface DialogSelectDirectoryProps {
   title?: string
@@ -23,6 +26,12 @@ type Row = {
   absolute: string
   search: string
   group: "recent" | "folders" | "create"
+}
+
+type RemoteFileNode = {
+  name: string
+  path: string
+  type: "file" | "directory"
 }
 
 function cleanInput(value: string) {
@@ -131,6 +140,8 @@ function uniqueRows(rows: Row[]) {
 
 function useDirectorySearch(args: {
   sdk: ReturnType<typeof useGlobalSDK>
+  server: ReturnType<typeof useServer>
+  fetcher: () => typeof globalThis.fetch
   start: () => string | undefined
   home: () => string
 }) {
@@ -153,13 +164,31 @@ function useDirectorySearch(args: {
     return { directory: trimTrailing(base), path: raw }
   }
 
-  const dirs = async (dir: string) => {
-    const key = trimTrailing(dir)
-    const existing = cache.get(key)
-    if (existing) return existing
+  const localFilesystemDirs = async (dir: string) => {
+    const current = args.server.current?.http
+    if (!current || !args.server.isLocal()) return undefined
 
-    const request = args.sdk.client.file
-      .list({ directory: key, path: "" })
+    const url = new URL("/agent/fs/list", current.url)
+    url.searchParams.set("path", dir || "/")
+    const res = await fetchForServer(current, args.fetcher())(url, {
+      headers: { Accept: "application/json" },
+    }).catch(() => undefined)
+    if (!res?.ok) return undefined
+
+    const data = (await res.json().catch(() => undefined)) as { files?: RemoteFileNode[] } | undefined
+    if (!data) return undefined
+
+    return (data.files ?? [])
+      .filter((node) => node.type === "directory")
+      .map((node) => ({
+        name: node.name,
+        absolute: trimTrailing(normalizeDriveRoot(node.path)),
+      }))
+  }
+
+  const projectScopedDirs = async (dir: string) => {
+    return args.sdk.client.file
+      .list({ directory: dir, path: "" })
       .then((x) => x.data ?? [])
       .catch(() => [])
       .then((nodes) =>
@@ -170,6 +199,14 @@ function useDirectorySearch(args: {
             absolute: trimTrailing(normalizeDriveRoot(n.absolute)),
           })),
       )
+  }
+
+  const dirs = async (dir: string) => {
+    const key = trimTrailing(dir)
+    const existing = cache.get(key)
+    if (existing) return existing
+
+    const request = localFilesystemDirs(key).then((nodes) => nodes ?? projectScopedDirs(key))
 
     cache.set(key, request)
     return request
@@ -200,9 +237,9 @@ function useDirectorySearch(args: {
         .catch(() => [])
 
     if (!isPath) {
-      const results = await find()
+      const [roots, results] = await Promise.all([match("/", query, query ? 10 : 50).catch(() => []), find()])
       if (!active()) return []
-      return results.map((rel) => joinPath(scopedInput.directory, rel)).slice(0, 50)
+      return Array.from(new Set([...roots, ...results.map((rel) => joinPath(scopedInput.directory, rel))])).slice(0, 50)
     }
 
     const segments = query.replace(/^\/+/, "").split("/")
@@ -253,6 +290,8 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
   const layout = useLayout()
   const dialog = useDialog()
   const language = useLanguage()
+  const platform = usePlatform()
+  const server = useServer()
 
   const [filter, setFilter] = createSignal("")
   const [creating, setCreating] = createSignal(false)
@@ -277,6 +316,8 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
 
   const directories = useDirectorySearch({
     sdk,
+    server,
+    fetcher: () => platform.fetch ?? globalThis.fetch,
     home,
     start,
   })

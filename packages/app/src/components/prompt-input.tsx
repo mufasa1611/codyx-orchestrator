@@ -35,6 +35,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { useNotification } from "@/context/notification"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
@@ -118,6 +119,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
   const { params, tabs, view } = useSessionLayout()
+  const notification = useNotification()
+  const banned = createMemo(() => notification.isBanned(params.id))
   let editorRef!: HTMLDivElement
   let fileInputRef: HTMLInputElement | undefined
   let scrollRef!: HTMLDivElement
@@ -343,15 +346,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const suggest = createMemo(() => !hasUserPrompt())
 
-  const placeholder = createMemo(() =>
-    promptPlaceholder({
+  const placeholder = createMemo(() => {
+    if (banned()) {
+      const sec = notification.banSecondsLeft(params.id)
+      const m = Math.floor(sec / 60)
+      const s = sec % 60
+      return `Chat locked for ${m}:${s < 10 ? "0" : ""}${s} — policy violation`
+    }
+    return promptPlaceholder({
       mode: store.mode,
       commentCount: commentCount(),
       example: suggest() ? (store.mode === "shell" ? "git status" : language.t(EXAMPLES[store.placeholder])) : "",
       suggest: suggest(),
       t: (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
-    }),
-  )
+    })
+  })
 
   const historyComments = () => {
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
@@ -1349,7 +1358,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               role="textbox"
               aria-multiline="true"
               aria-label={placeholder()}
-              contenteditable="true"
+              contenteditable={banned() ? "false" : "true"}
               dir="auto"
               autocapitalize={store.mode === "normal" ? "sentences" : "off"}
               autocorrect={store.mode === "normal" ? "on" : "off"}
@@ -1369,6 +1378,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 "[&_[data-type=file]]:text-syntax-property": true,
                 "[&_[data-type=agent]]:text-syntax-type": true,
                 "font-mono!": store.mode === "shell",
+                "opacity-50 pointer-events-none": banned(),
               }}
               style={{ "padding-bottom": space }}
             />
@@ -1410,7 +1420,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 <IconButton
                   data-action="prompt-submit"
                   type="submit"
-                  disabled={!working() && blank()}
+                  disabled={banned() || (!working() && blank())}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                   variant="primary"
@@ -1441,7 +1451,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   class="size-8 p-0"
                   style={buttons()}
                   onClick={pick}
-                  disabled={store.mode !== "normal"}
+                  disabled={banned() || store.mode !== "normal"}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   aria-label={language.t("prompt.action.attachFile")}
                 >

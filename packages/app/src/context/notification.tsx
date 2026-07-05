@@ -1,5 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
-import { batch, createEffect, createMemo, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup, createSignal, onMount } from "solid-js"
 import { useParams } from "@solidjs/router"
 import { createSimpleContext } from "@cody/ui/context"
 import { useGlobalSDK } from "./global-sdk"
@@ -13,7 +13,23 @@ import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@cody/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
-import { showToast } from "@cody/ui/toast"
+import { showToast, toaster } from "@cody/ui/toast"
+
+const POLICY_VIOLATION_NOTICE_PREFIX = "Codyx policy notice:"
+
+function policyViolationToastMessageFromText(message: string) {
+  const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
+  if (idx < 0) return
+  const lines = message
+    .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const first = lines[0]
+  if (!first) return
+  const warning = lines.find((line) => /^This is warning \d+ of \d+\./.test(line))
+  return warning ? `${first} ${warning}` : first
+}
 
 type NotificationBase = {
   directory?: string
@@ -133,6 +149,120 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const [index, setIndex] = createStore<NotificationIndex>(buildNotificationIndex(store.list))
 
     const meta = { pruned: false, disposed: false }
+
+    const [policyBans, setPolicyBans] = createSignal<Record<string, number>>({})
+    const [banCounts, setBanCounts] = createSignal<Record<string, number>>({})
+    const [banMaxWarnings, setBanMaxWarnings] = createSignal<Record<string, number>>({})
+    const [tick, setTick] = createSignal(0)
+    let banTimer: any = null
+    onMount(() => {
+      banTimer = setInterval(() => setTick((t) => t + 1), 1000)
+    })
+    onCleanup(() => {
+      if (banTimer) clearInterval(banTimer)
+    })
+
+    const isBanned = (sessionID?: string) => {
+      tick()
+      if (!sessionID) return false
+      const bans = policyBans()
+      const until = bans[sessionID]
+      if (!until) return false
+      return Date.now() < until
+    }
+
+    const [banReasons, setBanReasons] = createSignal<Record<string, string>>({})
+
+    const banSecondsLeft = (sessionID?: string) => {
+      tick()
+      if (!sessionID) return 0
+      const bans = policyBans()
+      const until = bans[sessionID]
+      if (!until) return 0
+      return Math.max(0, Math.ceil((until - Date.now()) / 1000))
+    }
+
+    const setSessionBan = (
+      sessionID: string,
+      bannedUntil: number,
+      reason?: string,
+      count?: number,
+      maxWarnings?: number,
+    ) => {
+      if (Date.now() >= bannedUntil) {
+        setPolicyBans((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanCounts((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanMaxWarnings((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        setBanReasons((prev) => {
+          const next = { ...prev }
+          delete next[sessionID]
+          return next
+        })
+        return
+      }
+      setPolicyBans((prev) => ({ ...prev, [sessionID]: bannedUntil }))
+      if (count !== undefined) {
+        setBanCounts((prev) => ({ ...prev, [sessionID]: count }))
+      }
+      if (maxWarnings !== undefined) {
+        setBanMaxWarnings((prev) => ({ ...prev, [sessionID]: maxWarnings }))
+      }
+      if (reason) {
+        setBanReasons((prev) => ({ ...prev, [sessionID]: reason }))
+      }
+    }
+
+    let activeToastId: any = null
+    createEffect(() => {
+      const activeSession = currentSession()
+      const banned = activeSession ? isBanned(activeSession) : false
+      if (banned && activeSession) {
+        if (activeToastId === null) {
+          // Capture a stable reference to activeSession for use inside the toast accessor
+          const sessionForToast = activeSession
+          activeToastId = showToast({
+            title: "BAN",
+            description: (
+              <span>
+                {(() => {
+                  const sec = banSecondsLeft(sessionForToast)
+                  const m = Math.floor(sec / 60)
+                  const s = sec % 60
+                  const count = banCounts()[sessionForToast]
+                  const maxWarnings = banMaxWarnings()[sessionForToast]
+                  const customReason = banReasons()[sessionForToast]
+                  const reason = customReason ? `${customReason} ` : ""
+                  const warning =
+                    !customReason && count
+                      ? `Warning ${count}${maxWarnings ? ` of ${maxWarnings}` : ""}. `
+                      : ""
+                  return `${reason}${warning}Chat locked for ${m}:${s < 10 ? "0" : ""}${s}`
+                })()}
+              </span>
+            ),
+            icon: "warning",
+            persistent: true,
+          })
+        }
+      } else {
+        if (activeToastId !== null) {
+          toaster.dismiss(activeToastId)
+          activeToastId = null
+        }
+      }
+    })
 
     const updateUnseen = (scope: "session" | "project", key: string, unseen: Notification[]) => {
       setIndex(scope, "unseen", key, unseen)
@@ -283,12 +413,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
                   : ""
               : ""
 
-        if (errMsg.includes("Codyx policy notice:")) {
-          const idx = errMsg.indexOf("Codyx policy notice:")
-          const toastMsg = errMsg
-            .slice(idx + "Codyx policy notice:".length)
-            .split("\n")[0]
-            ?.trim()
+        const toastMsg = policyViolationToastMessageFromText(errMsg)
+        if (toastMsg) {
           showToast({
             description: toastMsg || errMsg,
             icon: "warning",
@@ -317,12 +443,31 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const unsub = globalSDK.event.listen((e) => {
       const event = e.details
-      if (event.type !== "session.idle" && event.type !== "session.error") return
+      if (event.type !== "session.idle" && event.type !== "session.error" && event.type !== "session.policy-ban") return
 
       const directory = e.name
       const time = Date.now()
       if (event.type === "session.idle") {
         handleSessionIdle(directory, event, time)
+        return
+      }
+      if (event.type === "session.policy-ban") {
+        const sessionID = event.properties.sessionID
+        if (sessionID) {
+          const message =
+            "message" in event.properties && typeof event.properties.message === "string"
+              ? event.properties.message
+              : undefined
+          const count =
+            "count" in event.properties && typeof event.properties.count === "number"
+              ? event.properties.count
+              : undefined
+          const maxWarnings =
+            "maxWarnings" in event.properties && typeof event.properties.maxWarnings === "number"
+              ? event.properties.maxWarnings
+              : undefined
+          setSessionBan(sessionID, Number(event.properties.bannedUntil), message, count, maxWarnings)
+        }
         return
       }
       handleSessionError(directory, event, time)
@@ -334,6 +479,9 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     return {
       ready,
+      isBanned,
+      banSecondsLeft,
+      setSessionBan,
       session: {
         all(session: string) {
           return index.session.all[session] ?? empty

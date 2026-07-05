@@ -15,7 +15,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, Op
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware } from "../middleware/workspace-routing"
-import { ApiNotFoundError } from "../errors"
+import { ApiNotFoundError, ApiPolicyBanError } from "../errors"
 import { described } from "./metadata"
 
 const root = "/session"
@@ -71,6 +71,8 @@ export const PermissionResponsePayload = Schema.Struct({
 export const SessionPaths = {
   list: root,
   status: `${root}/status`,
+  policyStatus: `${root}/policy/status`,
+  policyReset: `${root}/:sessionID/policy/reset`,
   get: `${root}/:sessionID`,
   children: `${root}/:sessionID/children`,
   todo: `${root}/:sessionID/todo`,
@@ -119,6 +121,36 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.status",
             summary: "Get session status",
             description: "Retrieve the current status of all sessions, including active, idle, and completed states.",
+          }),
+        ),
+        HttpApiEndpoint.get("policyStatus", SessionPaths.policyStatus, {
+          success: described(
+            Schema.Record(
+              Schema.String,
+              Schema.Struct({
+                count: Schema.Number,
+                bannedUntil: Schema.optional(Schema.Number),
+              }),
+            ),
+            "Policy status map",
+          ),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.policyStatus",
+            summary: "Get policy violations status",
+            description: "Retrieve a list of sessions with their warning count and ban expiry timestamp.",
+          }),
+        ),
+        HttpApiEndpoint.post("policyReset", SessionPaths.policyReset, {
+          params: { sessionID: SessionID },
+          success: described(Schema.Boolean, "Successfully reset policy"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.policyReset",
+            summary: "Reset policy violations and ban",
+            description: "Clear the warning count and lift active ban lockout for a session.",
           }),
         ),
         HttpApiEndpoint.get("get", SessionPaths.get, {
@@ -249,7 +281,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           payload: InitPayload,
           success: described(Schema.Boolean, "200"),
-          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound, ApiPolicyBanError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.init",
@@ -296,7 +328,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           payload: PromptPayload,
           success: described(MessageV2.WithParts, "Created message"),
-          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound, ApiPolicyBanError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.prompt",
@@ -308,7 +340,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           payload: PromptPayload,
           success: described(HttpApiSchema.NoContent, "Prompt accepted"),
-          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound, ApiPolicyBanError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.prompt_async",
@@ -321,7 +353,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           payload: CommandPayload,
           success: described(MessageV2.WithParts, "Created message"),
-          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound, ApiPolicyBanError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.command",

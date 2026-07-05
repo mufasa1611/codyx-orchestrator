@@ -62,6 +62,14 @@ export const ContextOverflowError = namedSchemaError("ContextOverflowError", {
   responseBody: Schema.optional(Schema.String),
 })
 
+export const PolicyBanError = namedSchemaError("PolicyBanError", {
+  message: Schema.String,
+  bannedUntil: Schema.Number,
+  count: Schema.Number,
+  maxWarnings: Schema.optional(Schema.Number),
+})
+export type PolicyBanError = z.infer<typeof PolicyBanError.Schema>
+
 export class OutputFormatText extends Schema.Class<OutputFormatText>("OutputFormatText")({
   type: Schema.Literal("text"),
 }) {
@@ -455,6 +463,7 @@ const AssistantErrorZod = z.discriminatedUnion("name", [
   StructuredOutputError.Schema,
   ContextOverflowError.Schema,
   APIError.Schema,
+  PolicyBanError.Schema,
 ])
 type AssistantError = z.infer<typeof AssistantErrorZod>
 
@@ -469,6 +478,7 @@ const AssistantErrorSchema = Schema.Union([
   StructuredOutputError.EffectSchema,
   ContextOverflowError.EffectSchema,
   APIError.EffectSchema,
+  PolicyBanError.EffectSchema,
 ]).annotate({ discriminator: "name" })
 
 // ── Prompt input schemas ─────────────────────────────────────────────────────
@@ -791,7 +801,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
   for (const msg of input) {
     if (msg.parts.length === 0 && (msg.info as any).type !== "compaction") continue
 
-    
     // @ts-ignore
     if (msg.info.type === "compaction") {
       result.push({
@@ -800,7 +809,9 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         parts: [
           {
             type: "text",
-            text: "This is a summary of the conversation so far to provide context for the current session:\n\n" + (msg.info as any).summary,
+            text:
+              "This is a summary of the conversation so far to provide context for the current session:\n\n" +
+              (msg.info as any).summary,
           },
         ],
       })
