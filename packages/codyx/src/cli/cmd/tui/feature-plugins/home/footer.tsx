@@ -147,8 +147,8 @@ function View(props: { api: TuiPluginApi }) {
 
 function SessionFooterView(props: { api: TuiPluginApi }) {
   return (
-    <box width="100%" alignItems="center" flexShrink={0} paddingTop={1} paddingBottom={1}>
-      <box width="100%" maxWidth={75} alignItems="center">
+    <box width="100%" alignItems="center" flexShrink={0}>
+      <box maxWidth={75} alignItems="center">
         <Feedback api={props.api} />
       </box>
     </box>
