@@ -145,6 +145,16 @@ function View(props: { api: TuiPluginApi }) {
   )
 }
 
+function SessionFooterView(props: { api: TuiPluginApi }) {
+  return (
+    <box width="100%" alignItems="center" flexShrink={0} paddingTop={1} paddingBottom={1}>
+      <box width="100%" maxWidth={75} alignItems="center">
+        <Feedback api={props.api} />
+      </box>
+    </box>
+  )
+}
+
 const tui: TuiPlugin = async (api) => {
   api.slots.register({
     order: 100,
@@ -153,7 +163,7 @@ const tui: TuiPlugin = async (api) => {
         return <View api={api} />
       },
       session_footer() {
-        return <View api={api} />
+        return <SessionFooterView api={api} />
       },
     },
   })
