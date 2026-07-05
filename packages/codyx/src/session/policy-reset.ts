@@ -1,7 +1,7 @@
 import { GlobalBus } from "@/bus/global"
 import { Identifier } from "@/id/id"
 
-type ResetListener = () => void | Promise<void>
+type ResetListener = () => string[] | void | Promise<string[] | void>
 
 const listeners = new Set<ResetListener>()
 
@@ -22,7 +22,27 @@ export async function requestLivePolicyReset() {
     )
   }
 
+  const sessionIDs = results
+    .flatMap((result) => (result.status === "fulfilled" ? (result.value ?? []) : []))
+    .filter((sessionID, index, list) => sessionID && list.indexOf(sessionID) === index)
+
+  for (const sessionID of sessionIDs) {
+    GlobalBus.emit("event", {
+      directory: "global",
+      payload: {
+        id: Identifier.create("evt", "ascending"),
+        type: "session.policy-ban",
+        properties: {
+          sessionID,
+          bannedUntil: 0,
+          count: 0,
+        },
+      },
+    })
+  }
+
   GlobalBus.emit("event", {
+    directory: "global",
     payload: {
       id: Identifier.create("evt", "ascending"),
       type: "session.policy-ban",

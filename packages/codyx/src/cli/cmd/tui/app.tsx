@@ -234,7 +234,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
-  const { ban, secondsLeft, isBanned, current: currentPolicyBan } = usePolicyBan()
+  const { ban, clear: clearPolicyBan, secondsLeft, isBanned, current: currentPolicyBan } = usePolicyBan()
 
   createEffect(() => {
     const sec = secondsLeft()
@@ -893,6 +893,11 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
   event.on("session.policy-ban", (evt) => {
     const properties = evt.properties as typeof evt.properties & { maxWarnings?: number; message?: string }
     const bannedUntil = Number(properties.bannedUntil)
+    if (bannedUntil === 0) {
+      clearPolicyBan()
+      toast.dismiss()
+      return
+    }
     ban({
       bannedUntil,
       sessionID: properties.sessionID,
@@ -900,8 +905,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
       maxWarnings: properties.maxWarnings,
       message: properties.message,
     })
-    // Reset from admin (bannedUntil=0) — dismiss ban toast immediately
-    if (bannedUntil === 0) toast.dismiss()
   })
 
   event.on("installation.update-available", async (evt) => {

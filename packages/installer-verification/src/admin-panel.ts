@@ -349,7 +349,7 @@ async function loadDashboard() {
   document.getElementById("dash-env").textContent = document.getElementById("env-label").textContent || "production"
   renderRows(installations)
 
-  // Auto-refresh every 30s so policy countdown stays live
+  // Auto-refresh every 5s so remote policy/uninstall status is visible quickly.
   if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
   dashboardRefreshTimer = setInterval(async () => {
     const r2 = await apiFetch("/v1/admin/installations")
@@ -358,7 +358,7 @@ async function loadDashboard() {
     const rows2 = d2.installations || []
     document.getElementById("count").textContent = rows2.length
     renderRows(rows2)
-  }, 30000)
+  }, 5000)
 }
 
 function renderRows(installations) {

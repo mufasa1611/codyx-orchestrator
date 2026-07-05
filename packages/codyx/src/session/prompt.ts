@@ -154,7 +154,7 @@ export interface Interface {
   }) => Effect.Effect<void, PolicyBanError>
   readonly getPolicyStatus: () => Effect.Effect<Record<string, { count: number; bannedUntil?: number }>>
   readonly resetPolicy: (sessionID: SessionID) => Effect.Effect<void>
-  readonly resetAllPolicies: () => Effect.Effect<void>
+  readonly resetAllPolicies: () => Effect.Effect<SessionID[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@cody/SessionPrompt") {}
@@ -2247,6 +2247,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             count: 0,
           })
         }
+        return sessionIDs
       })
 
     const livePolicyResetBridge = yield* EffectBridge.make()

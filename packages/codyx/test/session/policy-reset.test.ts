@@ -19,6 +19,7 @@ describe("live policy reset", () => {
     let resetCount = 0
     register(() => {
       resetCount++
+      return ["ses_live"]
     })
 
     const eventPromise = new Promise<GlobalEvent>((resolve) => {
@@ -35,7 +36,8 @@ describe("live policy reset", () => {
 
     expect(listenerCount).toBe(1)
     expect(resetCount).toBe(1)
-    expect(event.payload.properties).toEqual({ bannedUntil: 0, count: 0 })
+    expect(event.directory).toBe("global")
+    expect(event.payload.properties).toEqual({ sessionID: "ses_live", bannedUntil: 0, count: 0 })
   })
 
   test("propagates listener failures without hiding them", async () => {
