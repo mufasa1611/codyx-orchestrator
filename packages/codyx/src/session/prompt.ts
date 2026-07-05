@@ -250,7 +250,7 @@ export const layer = Layer.effect(
 
     const updatePolicySettingsAsync = () => {
       const now = Date.now()
-      if (now - lastPolicyFetch < 5 * 60 * 1000) return
+      if (now - lastPolicyFetch < 30 * 1000) return
       lastPolicyFetch = now
 
       const verification = readVerification()

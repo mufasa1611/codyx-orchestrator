@@ -177,13 +177,18 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       const banned = activeSession ? isBanned(activeSession) : false
       if (banned && activeSession) {
         if (activeToastId === null) {
+          // Capture a stable reference to activeSession for use inside the toast accessor
+          const sessionForToast = activeSession
           activeToastId = showToast({
             title: "Access Denied",
+            // Pass a SolidJS accessor (function) so the description re-evaluates every
+            // second as tick() changes, giving a live countdown.
             description: (() => {
-              const sec = banSecondsLeft(activeSession)
+              tick() // subscribe to tick so this re-evaluates every second
+              const sec = banSecondsLeft(sessionForToast)
               const m = Math.floor(sec / 60)
               const s = sec % 60
-              const customReason = banReasons()[activeSession]
+              const customReason = banReasons()[sessionForToast]
               const baseMsg = customReason ? `${customReason} — ` : ""
               return `${baseMsg}Chat locked for ${m}:${s < 10 ? "0" : ""}${s}`
             }) as any,

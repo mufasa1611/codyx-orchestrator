@@ -205,6 +205,8 @@ function fmtDate(ts) {
 
 let targetInstallId = null
 let targetAction = "uninstall"
+let currentMaxWarnings = 5
+let dashboardRefreshTimer = null
 
 function confirmUninstall(id, name) {
   openConfirm("uninstall", id, name)
@@ -331,6 +333,7 @@ async function loadDashboard() {
   const settingsRes = await apiFetch("/v1/policy-settings")
   if (settingsRes && settingsRes.ok) {
     const settings = await settingsRes.json()
+    currentMaxWarnings = settings.max_warnings || 5
     document.getElementById("max-warnings-input").value = settings.max_warnings
     document.getElementById("ban-duration-input").value = settings.ban_duration_minutes
   }
@@ -344,12 +347,26 @@ async function loadDashboard() {
   const tbody = document.getElementById("table-body")
   document.getElementById("count").textContent = installations.length
   document.getElementById("dash-env").textContent = document.getElementById("env-label").textContent || "production"
+  renderRows(installations)
 
+  // Auto-refresh every 30s so policy countdown stays live
+  if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
+  dashboardRefreshTimer = setInterval(async () => {
+    const r2 = await apiFetch("/v1/admin/installations")
+    if (!r2) return
+    const d2 = await r2.json()
+    const rows2 = d2.installations || []
+    document.getElementById("count").textContent = rows2.length
+    renderRows(rows2)
+  }, 30000)
+}
+
+function renderRows(installations) {
+  const tbody = document.getElementById("table-body")
   if (installations.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" class="empty">No registrations found.</td></tr>'
     return
   }
-
   tbody.innerHTML = installations.map((r) => {
     const disabled = r.command_status === "acknowledged" || r.command_status === "completed"
     const btnLabel = r.command_status === "completed" ? "Uninstalled" : "Uninstall"
@@ -376,7 +393,7 @@ async function loadDashboard() {
       const s = remainingSec % 60
       policyCell = "<td><span class=\\"badge banned\\" style=\\"font-size:11px\\">Locked (" + m + ":" + (s < 10 ? "0" : "") + s + ")</span></td>"
     } else if (r.policy_violations_count > 0) {
-      policyCell = "<td><span class=\\"badge pending\\" style=\\"font-size:11px\\">" + r.policy_violations_count + " / 5</span></td>"
+      policyCell = "<td><span class=\\"badge pending\\" style=\\"font-size:11px\\">" + r.policy_violations_count + " / " + currentMaxWarnings + "</span></td>"
     } else {
       policyCell = "<td><span class=\\"badge active\\" style=\\"font-size:11px\\">Clean</span></td>"
     }
