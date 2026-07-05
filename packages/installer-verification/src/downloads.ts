@@ -431,10 +431,12 @@ export function downloadsPage() {
     mask-image: radial-gradient(circle, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 70%);
     -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 70%);
     background: url('data:image/png;base64,${base64}');
-    background-size: 72%;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
-    opacity: 0.18;
+    opacity: 0.15;
+    filter: blur(1px) grayscale(20%);
+    pointer-events: none;
   }
 
   /* credit built by watermark text in down right under mufasa */
