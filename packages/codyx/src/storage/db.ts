@@ -51,8 +51,39 @@ type Journal = { sql: string; timestamp: number; name: string }[]
 // Drizzle's migrate overloads trigger expensive variance checks here; narrow to the journal overload we actually use.
 const migrateFromJournal = migrate as unknown as (db: SQLiteBunDatabase, entries: Journal) => void
 
+type RawClient = { query: (sql: string) => { all: (...params: unknown[]) => unknown[] } }
+
+function safeEntries(db: SQLiteBunDatabase, entries: Journal): Journal {
+  const client = (db as SQLiteBunDatabase & { $client: RawClient }).$client
+  const tableExists = (name: string) =>
+    client.query(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).all(name).length > 0
+  const columnExists = (table: string, col: string) =>
+    (client.query(`PRAGMA table_info("${table}")`).all() as { name: string }[]).some((c) => c.name === col)
+  const indexExists = (name: string) =>
+    client.query(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).all(name).length > 0
+
+  const keep = (stmt: string) => {
+    const s = stmt.trim()
+    const tableMatch = s.match(/^CREATE TABLE\s+`?(\w+)`?/i)
+    if (tableMatch) return !tableExists(tableMatch[1])
+    const addColMatch = s.match(/^ALTER TABLE\s+`?(\w+)`?\s+ADD(?:\s+COLUMN)?\s+`?(\w+)`?/i)
+    if (addColMatch) return !tableExists(addColMatch[1]) || !columnExists(addColMatch[1], addColMatch[2])
+    const indexMatch = s.match(/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+`?(\w+)`?/i)
+    if (indexMatch) return !indexExists(indexMatch[1])
+    return true
+  }
+
+  return entries.map((entry) => ({
+    ...entry,
+    sql: entry.sql
+      .split(/-->\s*statement-breakpoint/g)
+      .filter(keep)
+      .join("\n--> statement-breakpoint\n"),
+  }))
+}
+
 function applyMigrations(db: SQLiteBunDatabase, entries: Journal) {
-  migrateFromJournal(db, entries)
+  migrateFromJournal(db, safeEntries(db, entries))
 }
 
 function time(tag: string) {
@@ -91,9 +122,7 @@ function migrations(dir: string): Journal {
 function ensureColumn(db: Client, table: string, column: string, definition: string) {
   const client = (db as Client & { $client: { query: (sql: string) => { all: (...params: unknown[]) => unknown[] } } })
     .$client
-  const tableExists = client
-    .query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
-    .all(table)
+  const tableExists = client.query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`).all(table)
   if (tableExists.length === 0) return
   const columns = client.query(`PRAGMA table_info("${table}")`).all() as { name: string }[]
   if (columns.some((item) => item.name === column)) return
