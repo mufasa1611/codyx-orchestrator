@@ -1,4 +1,4 @@
-﻿import type { Bindings } from "./types"
+import type { Bindings } from "./types"
 
 const schema = `
 CREATE TABLE IF NOT EXISTS challenge (
@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS registration (
   installer_version TEXT NOT NULL,
   platform TEXT NOT NULL,
   machine_id TEXT,
+  policy_violations_count INTEGER DEFAULT 0,
+  policy_banned_until INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   retain_until INTEGER NOT NULL
@@ -96,6 +98,11 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 CREATE INDEX IF NOT EXISTS feedback_created_at_idx ON feedback (created_at);
 CREATE INDEX IF NOT EXISTS feedback_retain_until_idx ON feedback (retain_until);
+CREATE TABLE IF NOT EXISTS policy_settings (
+  id TEXT PRIMARY KEY,
+  max_warnings INTEGER NOT NULL DEFAULT 5,
+  ban_duration_minutes INTEGER NOT NULL DEFAULT 5
+);
 `
 
 export async function ensureSchema(db: D1Database) {
@@ -106,6 +113,17 @@ export async function ensureSchema(db: D1Database) {
       .filter(Boolean)
       .map((statement) => db.prepare(statement)),
   )
+  try {
+    await db
+      .prepare("INSERT OR IGNORE INTO policy_settings (id, max_warnings, ban_duration_minutes) VALUES ('global', 5, 5)")
+      .run()
+  } catch {}
+  try {
+    await db.prepare("ALTER TABLE registration ADD COLUMN policy_violations_count INTEGER DEFAULT 0").run()
+  } catch {}
+  try {
+    await db.prepare("ALTER TABLE registration ADD COLUMN policy_banned_until INTEGER DEFAULT 0").run()
+  } catch {}
 }
 
 export async function cleanup(db: D1Database, now = Date.now()) {

@@ -90,6 +90,20 @@ tr:hover td{background:#1c2128}
 </div>
 
 <div id="dashboard">
+<div id="policy-settings-box" style="margin-bottom: 24px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px;">
+  <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #f0f6fc;">Global Policy Settings</h3>
+  <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Max Warnings</label>
+      <input type="number" id="max-warnings-input" style="width: 120px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Ban Duration (minutes)</label>
+      <input type="number" id="ban-duration-input" style="width: 160px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
+    </div>
+    <button onclick="savePolicySettings()" style="padding: 8px 16px; background: #238636; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer;">Save Settings</button>
+  </div>
+</div>
 <div class="toolbar">
 <div class="stats">Registrations: <strong id="count">0</strong> &middot; Environment: <strong id="dash-env">-</strong></div>
 <div>
@@ -107,6 +121,7 @@ tr:hover td{background:#1c2128}
 <th>Version</th>
 <th>Verified</th>
 <th>Status</th>
+<th>Policy Violations</th>
 <th>Banned</th>
 <th></th>
 </tr>
@@ -190,6 +205,8 @@ function fmtDate(ts) {
 
 let targetInstallId = null
 let targetAction = "uninstall"
+let currentMaxWarnings = 5
+let dashboardRefreshTimer = null
 
 function confirmUninstall(id, name) {
   openConfirm("uninstall", id, name)
@@ -278,12 +295,49 @@ async function unbanInstall(id) {
   }
 }
 
+async function resetPolicy(id) {
+  const res = await apiFetch("/v1/admin/installations/" + id + "/policy-reset", { method: "POST" })
+  if (res && res.ok) {
+    showToast("Policy reset command sent for " + id, "success")
+    loadDashboard()
+  } else {
+    showToast("Failed to reset policy", "error")
+  }
+}
+
+async function savePolicySettings() {
+  const max_warnings = parseInt(document.getElementById("max-warnings-input").value, 10)
+  const ban_duration_minutes = parseInt(document.getElementById("ban-duration-input").value, 10)
+  if (isNaN(max_warnings) || isNaN(ban_duration_minutes)) return
+
+  const res = await apiFetch("/v1/admin/policy-settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ max_warnings, ban_duration_minutes }),
+  })
+  if (res && res.ok) {
+    showToast("Global policy settings updated successfully", "success")
+  } else {
+    showToast("Failed to update policy settings", "error")
+  }
+}
+
 async function loadDashboard() {
   const token = getToken()
   if (!token) { showLogin(); return }
 
   document.getElementById("login").style.display = "none"
   document.getElementById("dashboard").style.display = "block"
+
+  // Load global policy settings
+  const settingsRes = await apiFetch("/v1/policy-settings")
+  if (settingsRes && settingsRes.ok) {
+    const settings = await settingsRes.json()
+    currentMaxWarnings = settings.max_warnings || 5
+    document.getElementById("max-warnings-input").value = settings.max_warnings
+    document.getElementById("ban-duration-input").value = settings.ban_duration_minutes
+  }
+
   document.getElementById("table-body").innerHTML = '<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>'
 
   const res = await apiFetch("/v1/admin/installations")
@@ -293,12 +347,26 @@ async function loadDashboard() {
   const tbody = document.getElementById("table-body")
   document.getElementById("count").textContent = installations.length
   document.getElementById("dash-env").textContent = document.getElementById("env-label").textContent || "production"
+  renderRows(installations)
 
+  // Auto-refresh every 30s so policy countdown stays live
+  if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
+  dashboardRefreshTimer = setInterval(async () => {
+    const r2 = await apiFetch("/v1/admin/installations")
+    if (!r2) return
+    const d2 = await r2.json()
+    const rows2 = d2.installations || []
+    document.getElementById("count").textContent = rows2.length
+    renderRows(rows2)
+  }, 30000)
+}
+
+function renderRows(installations) {
+  const tbody = document.getElementById("table-body")
   if (installations.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" class="empty">No registrations found.</td></tr>'
     return
   }
-
   tbody.innerHTML = installations.map((r) => {
     const disabled = r.command_status === "acknowledged" || r.command_status === "completed"
     const btnLabel = r.command_status === "completed" ? "Uninstalled" : "Uninstall"
@@ -316,6 +384,20 @@ async function loadDashboard() {
     if (r.is_banned) banCell = "<td><span class=\\"badge banned\\">Banned</span></td>"
     else if (r.machine_id) banCell = "<td><span class=\\"badge active\\">Active</span></td>"
     else banCell = '<td style="color:#8b949e">&mdash;</td>'
+
+    let policyCell = ""
+    const isPolicyBanned = r.policy_banned_until && Number(r.policy_banned_until) > Date.now()
+    if (isPolicyBanned) {
+      const remainingSec = Math.max(0, Math.ceil((Number(r.policy_banned_until) - Date.now()) / 1000))
+      const m = Math.floor(remainingSec / 60)
+      const s = remainingSec % 60
+      policyCell = "<td><span class=\\"badge banned\\" style=\\"font-size:11px\\">Locked (" + m + ":" + (s < 10 ? "0" : "") + s + ")</span></td>"
+    } else if (r.policy_violations_count > 0) {
+      policyCell = "<td><span class=\\"badge pending\\" style=\\"font-size:11px\\">" + r.policy_violations_count + " / " + currentMaxWarnings + "</span></td>"
+    } else {
+      policyCell = "<td><span class=\\"badge active\\" style=\\"font-size:11px\\">Clean</span></td>"
+    }
+
     let banBtn = ""
     if (r.is_banned) {
       banBtn = " <button class=\\"btn-unban\\" onclick=\\"unbanInstall('" + esc(r.install_id) + "')\\">Unban</button>"
@@ -325,18 +407,24 @@ async function loadDashboard() {
       banBtn = " <button class=\\"btn-ban\\" disabled title=\\"No machine ID on record\\">Ban</button>"
     }
     const removeBtn = " <button class=\\"btn-remove\\" onclick=\\"confirmRemove('" + esc(r.install_id) + "','" + esc(r.display_name) + "')\\">Remove</button>"
+    const hasViolations = r.policy_violations_count > 0 || isPolicyBanned
+    const resetBtnClass = hasViolations ? "btn-unban" : "btn-unban disabled"
+    const resetBtnStyle = hasViolations ? "background:#7c3aed;margin-left:4px" : "background:#484f58;margin-left:4px;cursor:not-allowed;opacity:.5"
+    const resetBtnDisabled = hasViolations ? "" : " disabled"
+    const resetPolicyBtn = " <button class=\\"" + resetBtnClass + "\\" style=\\"" + resetBtnStyle + "\\" " + resetBtnDisabled + " onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
     return "<tr" + rowClass + ">" +
       "<td><strong>" + esc(r.display_name) + "</strong></td>" +
       "<td>" + esc(r.email) + "</td>" +
       "<td><span class=\\"mono\\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
-        "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
+      "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
       midCell +
       "<td>" + badge(r.platform) + "</td>" +
       "<td class=\\"mono\\">" + esc(r.installer_version) + "</td>" +
       "<td>" + fmtDate(r.email_verified_at) + "</td>" +
       "<td>" + statusBadge(r.command_status) + "</td>" +
+      policyCell +
       banCell +
-      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + removeBtn + "</td>" +
+      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + resetPolicyBtn + removeBtn + "</td>" +
     "</tr>"
   }).join("")
 }
