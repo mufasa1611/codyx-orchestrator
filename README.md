@@ -204,28 +204,51 @@ Three extension surfaces:
 
 ## CLI Commands
 
-| Command             | Description                                            |
-| ------------------- | ------------------------------------------------------ |
-| `codyx`             | Launch the terminal UI                                 |
-| `run`               | Run a one-shot task from the command line              |
-| `serve`             | Start the headless HTTP API server (port 4097)         |
-| `web`               | Start the web UI server                                |
-| `session`           | List, view, and manage sessions                        |
-| `providers`         | Manage AI provider configurations                      |
-| `models`            | List available models from all providers               |
-| `agent`             | Run a specific agent (`operator`, `infra-audit`, etc.) |
-| `mcp`               | Manage MCP server connections                          |
-| `acp`               | Manage ACP agent connections                           |
-| `plugin`            | Install and manage plugins                             |
-| `github`            | Manage GitHub PRs and issues from the CLI              |
-| `pr`                | Create and review pull requests                        |
-| `setup`             | First-run setup wizard                                 |
-| `doctor`            | Diagnose installation and configuration issues         |
-| `upgrade`           | Update to the latest version                           |
-| `export` / `import` | Transfer sessions between instances                    |
-| `stats`             | Show usage statistics                                  |
-| `users`             | Manage server users (multi-user mode)                  |
-| `debug`             | Debug tools (LSP, ripgrep, snapshot, skills)           |
+| Command             | Category            | Description                                                  |
+| :------------------ | :------------------ | :----------------------------------------------------------- |
+| `codyx`             | Core / UI           | Launches the interactive Terminal UI (TUI)                   |
+| `run`               | Core / UI           | Executes a one-shot query or task from the command line      |
+| `serve`             | Core / UI           | Starts a headless Codyx background HTTP API server           |
+| `web`               | Core / UI           | Launches the local Web UI server                             |
+| `setup`             | Setup & Config      | Runs the first-time setup wizard for configurations          |
+| `doctor`            | Maintenance & Debug | Diagnoses environment and installation health                |
+| `uninstall`         | Maintenance & Debug | Uninstalls Codyx and cleans up related files                 |
+| `upgrade`           | Maintenance & Debug | Updates Codyx CLI/launcher to the latest version             |
+| `providers`         | Setup & Config      | Manages AI provider setups (Ollama, Gemini, OpenAI)          |
+| `models`            | Setup & Config      | Lists available models from active AI providers              |
+| `mcp`               | Setup & Config      | Manages Model Context Protocol (MCP) server integrations     |
+| `acp`               | Setup & Config      | Manages Agent Connection Protocol (ACP) integrations         |
+| `plugin`            | Setup & Config      | Installs, updates, and configures system plugins             |
+| `agent`             | Data & Workspaces   | Runs a specific agent definition (`operator`, `infra-audit`) |
+| `session`           | Data & Workspaces   | Lists, views, and deletes session history                    |
+| `export` / `import` | Data & Workspaces   | Transfers active chat sessions between machines              |
+| `stats`             | Data & Workspaces   | Shows local AI token and API usage statistics                |
+| `users`             | Setup & Config      | Manages server users in multi-user environments              |
+| `github` / `pr`     | Data & Workspaces   | Integrates with GitHub issues and pulls PR workflows         |
+| `debug`             | Maintenance & Debug | Debug tools (LSP diagnostics, ripgrep, snapshot helper)      |
+
+### TUI Chat Slash Commands
+
+These slash commands can be typed directly into the TUI prompt text field during an active chat session.
+
+| Command        | Category | Aliases                | Description                                                                          |
+| :------------- | :------- | :--------------------- | :----------------------------------------------------------------------------------- |
+| `/sessions`    | Session  | `/resume`, `/continue` | Opens the session list switcher to browse or switch active chat logs                 |
+| `/new`         | Session  | `/clear`               | Cleans up the workspace and starts a new session                                     |
+| `/editor`      | Session  | -                      | Opens an external text editor (Notepad, VS Code, etc.) to write complex prompts      |
+| `/warp`        | Session  | -                      | Shifts the session to a different workspace (if experimental workspaces are enabled) |
+| `/permissions` | System   | -                      | Sets the permission level standard: `restricted`, `standard`, or `full`              |
+| `/models`      | Agent    | -                      | Opens the AI model selection manager dialog                                          |
+| `/agents`      | Agent    | -                      | Opens the agent selector dialog to swap role definitions                             |
+| `/mcps`        | Agent    | -                      | Opens the Model Context Protocol (MCP) server checklist                              |
+| `/variants`    | Agent    | -                      | Toggles/switches selected provider model variant configurations                      |
+| `/connect`     | Provider | -                      | Opens the developer AI provider credential configuration wizard                      |
+| `/org`         | Provider | `/orgs`, `/switch-org` | Switches connected organizations (in multi-org setups)                               |
+| `/status`      | System   | -                      | Displays active system and connection health details                                 |
+| `/themes`      | System   | -                      | Opens the theme switcher dialog to change layout colors                              |
+| `/skills`      | Prompt   | -                      | Opens custom rules and guideline checklist (Codyx Skills)                            |
+| `/help`        | System   | -                      | Displays the TUI cheat-sheet help overlay                                            |
+| `/exit`        | System   | `/quit`, `/q`          | Closes and exits the Codyx terminal interface                                        |
 
 ### Usage Examples
 
