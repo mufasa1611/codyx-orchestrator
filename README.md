@@ -494,7 +494,7 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 
 ## Acknowledgements
 
-- **[James Long](https://github.com/jlongster)** — Special thanks for your pioneering work on Prettier, and Big THanks for outstanding contributions to the project.
+- **[James Long](https://github.com/jlongster)** — Special thanks for your pioneering work on Prettier,<br />and Big THanks for outstanding contributions to the project.
 - **[Brendan Allan](https://github.com/Brendonovich)**
 - **[David Hill](https://github.com/iamdavidhill)**
 - **[Adam](https://github.com/adamdotdevin)**
