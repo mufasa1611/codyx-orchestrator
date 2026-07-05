@@ -9,14 +9,14 @@
 | Electron installer        | Install once          | The desktop app uses `electron-updater` against this repo's GitHub Releases, downloads updates in the background on startup, and installs the downloaded update on app quit/restart.               |
 | Android APK/AAB           | Install once          | The Android package is a Trusted Web Activity that opens the hosted codyx PWA, so web updates are fetched on app start. Native APK/AAB updates are distributed through releases or Play Store.     |
 
-All packages are produced by the release workflow. Normal Windows users should receive `codyx-end-user-installer-windows-x64.exe`. The source launcher release asset is `codyx-launcher-windows-x64.exe`; Electron installers are produced from `packages/desktop`; Android artifacts are produced from `packages/android`.
+All packages are produced by the release workflow. Normal Windows users should receive `codyx-installer-launcher-windows-x64.exe`. The source launcher release asset is `codyx-launcher-windows-x64.exe`; Electron installers are produced from `packages/desktop`; Android artifacts are produced from `packages/android`.
 
 ## Recommended User Install
 
 For normal Windows users, distribute the compiled end-user installer from GitHub Releases:
 
 ```text
-codyx-end-user-installer-windows-x64.exe
+codyx-installer-launcher-windows-x64.exe
 ```
 
 It shows the hosted license link, installs the compiled CLI under:

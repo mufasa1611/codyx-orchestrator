@@ -39,9 +39,9 @@ Choose the installation method that fits your environment:
 
 ### 1. Windows End-User Installer (Recommended For Normal Users)
 
-[![Download Latest](https://img.shields.io/badge/Download-Windows%20Installer-blue?style=for-the-badge&logo=windows)](https://github.com/mufasa1611/codyx-orchestrator/releases/latest/download/codyx-end-user-installer-windows-x64.exe)
+[![Download Latest](https://img.shields.io/badge/Download-Windows%20Installer-blue?style=for-the-badge&logo=windows)](https://github.com/mufasa1611/codyx-orchestrator/releases/latest/download/codyx-installer-launcher-windows-x64.exe)
 
-Downloads the latest release of `codyx-end-user-installer-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
+Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
 
 > [!IMPORTANT]
 > **Windows SmartScreen Bypass Guide**

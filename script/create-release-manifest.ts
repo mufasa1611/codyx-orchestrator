@@ -33,7 +33,7 @@ const candidates = [
   "dist/*.zip",
   "dist/*.tar.gz",
   "dist/release-assets/*",
-  "dist/codyx-end-user-installer-windows-x64.exe",
+  "dist/codyx-installer-launcher-windows-x64.exe",
   ...(includeSourceLauncher ? ["dist/codyx-launcher-windows-x64.exe"] : []),
 ]
 
@@ -62,7 +62,7 @@ function classify(file: string): Omit<Asset, "file" | "url" | "sha256" | "size">
   if (/^codyx-launcher-windows-x64\.exe$/.test(file)) {
     return { id: "installer.windows-x64.source", kind: "launcher", platform: "windows", arch: "x64" }
   }
-  if (/^codyx-end-user-installer-windows-x64\.exe$/.test(file)) {
+  if (/^codyx-installer-launcher-windows-x64\.exe$/.test(file)) {
     return { id: "installer.windows-x64", kind: "installer", platform: "windows", arch: "x64" }
   }
   if (/^cody-desktop-.*\.exe$/.test(file)) {
