@@ -195,6 +195,7 @@ export type PolicyBanError = {
     message: string
     bannedUntil: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    maxWarnings?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
@@ -1790,6 +1791,7 @@ export type PolicyBanError2 = {
     message: string
     bannedUntil: number | "NaN" | "Infinity" | "-Infinity"
     count: number | "NaN" | "Infinity" | "-Infinity"
+    maxWarnings?: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
 

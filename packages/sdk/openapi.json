@@ -10391,6 +10391,29 @@
                     "enum": ["Infinity", "-Infinity", "NaN"]
                   }
                 ]
+              },
+              "maxWarnings": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
               }
             },
             "required": ["message", "bannedUntil", "count"],
@@ -14941,6 +14964,25 @@
                 ]
               },
               "count": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  }
+                ]
+              },
+              "maxWarnings": {
                 "anyOf": [
                   {
                     "type": "number"
