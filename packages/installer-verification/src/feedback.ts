@@ -150,6 +150,17 @@ async function submitFeedback(e) {
 `
     : ""
 }
+${
+  sent
+    ? `
+<script>
+setTimeout(function() {
+  window.location.href = "https://install.kingkung.men/downloads";
+}, 4000);
+</script>
+`
+    : ""
+}
 </body>
 </html>`
 }
