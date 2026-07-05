@@ -234,7 +234,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
-  const { ban, secondsLeft, isBanned } = usePolicyBan()
+  const { ban, secondsLeft, isBanned, current: currentPolicyBan } = usePolicyBan()
 
   createEffect(() => {
     const sec = secondsLeft()
@@ -244,9 +244,13 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
         const secRem = s % 60
         return `${m}:${secRem < 10 ? "0" : ""}${secRem}`
       }
+      const state = currentPolicyBan()
+      const warning =
+        !state?.message && state?.count && state.maxWarnings ? `Warning ${state.count} of ${state.maxWarnings}. ` : ""
+      const reason = state?.message ? `${state.message} ` : ""
       toast.show({
         variant: "error",
-        message: `Chat locked for ${formatTime(sec)} — policy violation (5 warnings)`,
+        message: `${reason}${warning}Chat locked for ${formatTime(sec)}`,
         duration: 0,
       })
     } else {
@@ -887,8 +891,14 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
   })
 
   event.on("session.policy-ban", (evt) => {
-    const { sessionID, bannedUntil } = evt.properties
-    ban({ bannedUntil: Number(bannedUntil), sessionID })
+    const properties = evt.properties as typeof evt.properties & { maxWarnings?: number; message?: string }
+    ban({
+      bannedUntil: Number(properties.bannedUntil),
+      sessionID: properties.sessionID,
+      count: Number(properties.count),
+      maxWarnings: properties.maxWarnings,
+      message: properties.message,
+    })
   })
 
   event.on("installation.update-available", async (evt) => {

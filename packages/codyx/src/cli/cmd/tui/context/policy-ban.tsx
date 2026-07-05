@@ -3,12 +3,16 @@ import { createContext, useContext, createSignal, onCleanup } from "solid-js"
 type BanState = {
   bannedUntil: number
   sessionID?: string
+  count?: number
+  maxWarnings?: number
+  message?: string
 }
 
 type PolicyBanContextValue = {
   ban: (state: BanState) => void
   isBanned: (sessionID?: string) => boolean
   secondsLeft: () => number
+  current: () => BanState | null
 }
 
 const PolicyBanContext = createContext<PolicyBanContextValue>()
@@ -51,6 +55,7 @@ export function PolicyBanProvider(props: { children: any }) {
       return Date.now() < s.bannedUntil
     },
     secondsLeft,
+    current: banState,
   }
 
   return <PolicyBanContext.Provider value={ctx}>{props.children}</PolicyBanContext.Provider>

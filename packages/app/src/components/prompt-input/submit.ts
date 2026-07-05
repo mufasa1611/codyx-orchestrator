@@ -57,10 +57,15 @@ const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttac
 function policyViolationToastMessageFromText(message: string) {
   const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
   if (idx < 0) return
-  return message
+  const lines = message
     .slice(idx + POLICY_VIOLATION_NOTICE_PREFIX.length)
-    .split("\n")[0]
-    ?.trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const first = lines[0]
+  if (!first) return
+  const warning = lines.find((line) => /^This is warning \d+ of \d+\./.test(line))
+  return warning ? `${first} ${warning}` : first
 }
 
 export async function sendFollowupDraft(input: FollowupSendInput) {

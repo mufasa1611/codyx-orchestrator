@@ -362,6 +362,8 @@ export const Event = {
       sessionID: Schema.optional(SessionID),
       bannedUntil: Schema.Number,
       count: Schema.Number,
+      maxWarnings: Schema.optional(Schema.Number),
+      message: Schema.optional(Schema.String),
     }),
   ),
 }

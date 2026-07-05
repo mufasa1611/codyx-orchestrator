@@ -107,7 +107,7 @@ export interface ToastAction {
 
 export interface ToastOptions {
   title?: string
-  description?: string
+  description?: JSX.Element
   icon?: IconProps["name"]
   variant?: ToastVariant
   duration?: number

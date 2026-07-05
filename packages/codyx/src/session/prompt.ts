@@ -223,22 +223,27 @@ export const layer = Layer.effect(
         })
         .join("\n")
 
-    const reportPolicyViolationToCentral = (count: number, bannedUntil: number) => {
-      try {
-        const verification = readVerification()
-        if (!verification) return
-        const baseUrl = verification.server_url.replace(/\/+$/, "")
-        void fetch(`${baseUrl}/v1/installations/${verification.install_id}/policy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            receipt: verification.receipt,
-            count,
-            banned_until: bannedUntil,
+    const reportPolicyViolationToCentral = Effect.fn("SessionPrompt.policy.report")(function* (
+      count: number,
+      bannedUntil: number,
+    ) {
+      const verification = readVerification()
+      if (!verification) return
+      const baseUrl = verification.server_url.replace(/\/+$/, "")
+      yield* Effect.tryPromise({
+        try: () =>
+          fetch(`${baseUrl}/v1/installations/${verification.install_id}/policy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              receipt: verification.receipt,
+              count,
+              banned_until: bannedUntil,
+            }),
           }),
-        }).catch(() => {})
-      } catch {}
-    }
+        catch: () => undefined,
+      }).pipe(Effect.ignore)
+    })
 
     interface PolicySettings {
       maxWarnings: number
@@ -248,7 +253,7 @@ export const layer = Layer.effect(
     let cachedPolicySettings: PolicySettings = { maxWarnings: 5, banDurationMs: 5 * 60 * 1000 }
     let lastPolicyFetch = 0
 
-    const updatePolicySettingsAsync = () => {
+    const updatePolicySettings = Effect.fn("SessionPrompt.policy.settings")(function* () {
       const now = Date.now()
       if (now - lastPolicyFetch < 30 * 1000) return
       lastPolicyFetch = now
@@ -257,26 +262,40 @@ export const layer = Layer.effect(
       if (!verification) return
       const baseUrl = verification.server_url.replace(/\/+$/, "")
 
-      void fetch(`${baseUrl}/v1/policy-settings`)
-        .then((res) => {
-          if (res.ok) return res.json()
-        })
-        .then((data: any) => {
-          if (data && typeof data.max_warnings === "number" && typeof data.ban_duration_minutes === "number") {
-            cachedPolicySettings = {
-              maxWarnings: data.max_warnings,
-              banDurationMs: data.ban_duration_minutes * 60 * 1000,
-            }
-          }
-        })
-        .catch(() => {})
-    }
+      const data = yield* Effect.tryPromise({
+        try: async () => {
+          const res = await fetch(`${baseUrl}/v1/policy-settings`)
+          if (!res.ok) return undefined
+          return res.json() as Promise<unknown>
+        },
+        catch: () => undefined,
+      }).pipe(Effect.orElseSucceed(() => undefined))
+
+      if (
+        data &&
+        typeof data === "object" &&
+        "max_warnings" in data &&
+        "ban_duration_minutes" in data &&
+        typeof data.max_warnings === "number" &&
+        typeof data.ban_duration_minutes === "number"
+      ) {
+        cachedPolicySettings = {
+          maxWarnings: data.max_warnings,
+          banDurationMs: data.ban_duration_minutes * 60 * 1000,
+        }
+      }
+    })
+
+    const policyBanMessage = (count: number, maxWarnings: number, bannedUntil: number) =>
+      `Session is locked due to policy violations. Warning ${count} of ${maxWarnings}. Ban expires ${new Date(
+        bannedUntil,
+      ).toLocaleTimeString()}.`
 
     const assertPromptPolicy = Effect.fn("SessionPrompt.assertPromptPolicy")(function* (input: {
       sessionID: SessionID
       text: string
     }) {
-      updatePolicySettingsAsync()
+      yield* updatePolicySettings()
       const user = yield* currentPolicyUser()
       const key = input.sessionID
 
@@ -288,10 +307,20 @@ export const layer = Layer.effect(
             sessionID: input.sessionID,
             bannedUntil: activeBan,
             count: policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
+            maxWarnings: cachedPolicySettings.maxWarnings,
+            message: policyBanMessage(
+              policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
+              cachedPolicySettings.maxWarnings,
+              activeBan,
+            ),
           })
           return yield* Effect.fail(
             new PolicyBanError({
-              message: `Session is locked due to policy violations. Expiry: ${new Date(activeBan).toISOString()}`,
+              message: policyBanMessage(
+                policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
+                cachedPolicySettings.maxWarnings,
+                activeBan,
+              ),
               bannedUntil: activeBan,
               count: policyViolations.get(key) ?? cachedPolicySettings.maxWarnings,
             }),
@@ -300,7 +329,7 @@ export const layer = Layer.effect(
         // Ban expired — clear it and reset warnings count to 0
         policyBans.delete(key)
         policyViolations.delete(key)
-        reportPolicyViolationToCentral(0, 0)
+        yield* reportPolicyViolationToCentral(0, 0)
       }
 
       const result = checkPromptPolicy({ text: input.text, user })
@@ -318,22 +347,25 @@ export const layer = Layer.effect(
       if (count >= cachedPolicySettings.maxWarnings) {
         const bannedUntil = Date.now() + cachedPolicySettings.banDurationMs
         policyBans.set(key, bannedUntil)
-        reportPolicyViolationToCentral(count, bannedUntil)
+        yield* reportPolicyViolationToCentral(count, bannedUntil)
+        const message = policyBanMessage(count, cachedPolicySettings.maxWarnings, bannedUntil)
         yield* bus.publish(Session.Event.PolicyBan, {
           sessionID: input.sessionID,
           bannedUntil,
           count,
+          maxWarnings: cachedPolicySettings.maxWarnings,
+          message,
         })
         return yield* Effect.fail(
           new PolicyBanError({
-            message: `Session is locked due to policy violations. Expiry: ${new Date(bannedUntil).toISOString()}`,
+            message,
             bannedUntil,
             count,
           }),
         )
       }
 
-      reportPolicyViolationToCentral(count, 0)
+      yield* reportPolicyViolationToCentral(count, 0)
 
       const error = new NamedError.Unknown({
         message: policyViolationMessage(result.reason, count, result.matchedWords, cachedPolicySettings.maxWarnings),

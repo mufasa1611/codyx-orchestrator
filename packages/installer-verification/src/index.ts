@@ -547,12 +547,7 @@ app.post("/v1/installations/:installID/policy", async (context) => {
     await context.req.json(),
   )
 
-  // Verify receipt
-  const registration = await db
-    .prepare("SELECT 1 FROM receipt WHERE install_id = ? AND id = ? LIMIT 1")
-    .bind(installId, body.receipt)
-    .first()
-  if (!registration) throw new ApiError(401, "unauthorized", "Invalid receipt.")
+  await verifyReceiptPayload(context.env, installId, body.receipt)
 
   await db
     .prepare(

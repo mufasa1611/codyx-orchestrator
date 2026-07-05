@@ -22,9 +22,10 @@ describe("session policy guard", () => {
     expect(result.allowed).toBe(false)
     if (!result.allowed) {
       expect(result.reason).toBe("profanity")
-      expect(policyViolationToastMessageFromText(result.message)).toBe(
+      expect(policyViolationToastMessageFromText(result.message)).toContain(
         'Blocked word: "shit". Warning: this violates Codyx role rules.',
       )
+      expect(policyViolationToastMessageFromText(result.message)).toContain("This is warning 1 of 5.")
       expect(result.matchedWords).toEqual(["shit"])
       expect(result.message).toContain(LICENSE_URL)
       expect(result.message).toContain("suspension or a machine ban")
@@ -40,5 +41,8 @@ describe("session policy guard", () => {
 
   test("formats repeated warning counts", () => {
     expect(policyViolationMessage("agent_identity", 2)).toContain("This is warning 2")
+    expect(policyViolationToastMessageFromText(policyViolationMessage("agent_identity", 2, [], 3))).toContain(
+      "This is warning 2 of 3.",
+    )
   })
 })
