@@ -272,7 +272,7 @@ codyx models
 ## Architecture
 
 ```mermaid
-flowchart TB
+flowchart LR
     classDef interface fill:#6366f1,color:#fff,stroke:#4f46e5,stroke-width:2px
     classDef gateway fill:#0ea5e9,color:#fff,stroke:#0284c7,stroke-width:2px
     classDef core fill:#8b5cf6,color:#fff,stroke:#7c3aed,stroke-width:2px
@@ -321,8 +321,10 @@ flowchart TB
     AGT --> INFRA & VCS & SEARCH
 ```
 
+<div align="center">
+
 | Layer            | Technology                                     |
-| ---------------- | ---------------------------------------------- |
+| :--------------- | :--------------------------------------------- |
 | Runtime          | Bun (primary) / Node.js 22+                    |
 | Language         | TypeScript (strict, ESM)                       |
 | TUI              | `@opentui/solid` (SolidJS-based terminal UI)   |
@@ -332,6 +334,8 @@ flowchart TB
 | State Management | Effect v4 (composable, typed workflows)        |
 | Protocols        | ACP, MCP, JSON-RPC, WebSocket                  |
 | Search           | tree-sitter, fuzzysort                         |
+
+</div>
 
 ---
 
