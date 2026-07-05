@@ -309,16 +309,16 @@ jobs:
             -p:DebugType=none `
             -p:DebugSymbols=false `
             -o dist\end-user-installer
-          Copy-Item dist\end-user-installer\Codyx.EndUserInstaller.exe dist\codyx-end-user-installer-windows-x64.exe -Force
+          Copy-Item dist\end-user-installer\Codyx.EndUserInstaller.exe dist\codyx-installer-launcher-windows-x64.exe -Force
 
       - name: Sign compiled-assets installer exe
         shell: pwsh
-        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File script\sign-windows.ps1 dist\codyx-end-user-installer-windows-x64.exe
+        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File script\sign-windows.ps1 dist\codyx-installer-launcher-windows-x64.exe
 
       - name: Verify compiled-assets installer signature
         shell: pwsh
         run: |
-          $sig = Get-AuthenticodeSignature dist\codyx-end-user-installer-windows-x64.exe
+          $sig = Get-AuthenticodeSignature dist\codyx-installer-launcher-windows-x64.exe
           if ($env:AZURE_TRUSTED_SIGNING_ACCOUNT_NAME -and $sig.Status -ne "Valid") {
             throw "Invalid signature for compiled-assets installer: $($sig.Status)"
           }
@@ -328,12 +328,12 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
-        run: gh release upload "v${{ needs.version.outputs.version }}" dist\codyx-end-user-installer-windows-x64.exe --clobber --repo "${{ needs.version.outputs.repo }}"
+        run: gh release upload "v${{ needs.version.outputs.version }}" dist\codyx-installer-launcher-windows-x64.exe --clobber --repo "${{ needs.version.outputs.repo }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: codyx-end-user-installer-windows
-          path: dist/codyx-end-user-installer-windows-x64.exe
+          name: codyx-installer-launcher-windows
+          path: dist/codyx-installer-launcher-windows-x64.exe
 
   publish:
     needs:
@@ -366,7 +366,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: codyx-end-user-installer-windows
+          name: codyx-installer-launcher-windows
           path: dist
 
       - name: Generate release manifest
