@@ -152,6 +152,9 @@ const tui: TuiPlugin = async (api) => {
       home_footer() {
         return <View api={api} />
       },
+      session_footer() {
+        return <View api={api} />
+      },
     },
   })
 }

@@ -1206,6 +1206,9 @@ export function Session() {
                 </TuiPluginRuntime.Slot>
               </Show>
             </box>
+            <box width="100%" flexShrink={0} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2}>
+              <TuiPluginRuntime.Slot name="session_footer" mode="single_winner" session_id={route.sessionID} />
+            </box>
           </Show>
           <Toast />
         </box>
