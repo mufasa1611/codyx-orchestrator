@@ -342,6 +342,24 @@ export async function checkRemoteCommands(): Promise<void> {
   }
 }
 
+let remoteCommandPollingInterval: ReturnType<typeof setInterval> | undefined
+
+export function startRemoteCommandPolling() {
+  if (process.env.CODY_SKIP_VERIFICATION) return () => {}
+  if (remoteCommandPollingInterval) return () => {}
+
+  void checkRemoteCommands().catch(() => {})
+  remoteCommandPollingInterval = setInterval(() => {
+    void checkRemoteCommands().catch(() => {})
+  }, 5000)
+
+  return () => {
+    if (!remoteCommandPollingInterval) return
+    clearInterval(remoteCommandPollingInterval)
+    remoteCommandPollingInterval = undefined
+  }
+}
+
 async function handleGhostUninstall(baseUrl: string, verification: VerificationData, commandId: string) {
   const ackBody = JSON.stringify({
     install_id: verification.install_id,

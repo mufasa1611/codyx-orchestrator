@@ -212,22 +212,14 @@ export async function listen(opts: ListenOptions): Promise<Listener> {
   }
 
   // Poll remote commands every 5 seconds so admin policy reset reaches live users quickly.
-  let remoteCommandsInterval: any = null
-  if (!process.env.CODY_SKIP_VERIFICATION) {
-    import("@/installation/command").then(({ checkRemoteCommands }) => {
-      void checkRemoteCommands().catch(() => {})
-      remoteCommandsInterval = setInterval(() => {
-        void checkRemoteCommands().catch(() => {})
-      }, 5000)
-    })
-  }
+  const stopRemoteCommandPolling = (await import("@/installation/command")).startRemoteCommandPolling()
 
   return {
     hostname: inner.hostname,
     port: inner.port,
     url: next,
     stop(close?: boolean) {
-      if (remoteCommandsInterval) clearInterval(remoteCommandsInterval)
+      stopRemoteCommandPolling()
       unpublish()
       const next = inner.stop(close)
       closing ??= next

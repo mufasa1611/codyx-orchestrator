@@ -15,6 +15,7 @@ import { ensureProcessMetadata } from "@cody/core/util/cody-process"
 import { Effect } from "effect"
 import { Flag } from "@cody/core/flag/flag"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
+import { startRemoteCommandPolling } from "@/installation/command"
 
 ensureProcessMetadata("worker")
 
@@ -51,11 +52,14 @@ if (!Installation.isLocal() && !Flag.CODY_DISABLE_AUTOUPDATE) {
   upgrade().catch(() => {})
 }
 
+const stopRemoteCommandPolling = startRemoteCommandPolling()
+
 let server: Awaited<ReturnType<typeof Server.listen>> | undefined
 
 export const rpc = {
   async fetch(input: { url: string; method: string; headers: Record<string, string>; body?: string }) {
-    const headers = { ...input.headers }; headers['x-cody-cli-local'] = '1';
+    const headers = { ...input.headers }
+    headers["x-cody-cli-local"] = "1"
     const auth = ServerAuth.header()
     if (auth && !headers["authorization"] && !headers["Authorization"]) {
       headers["Authorization"] = auth
@@ -105,6 +109,7 @@ export const rpc = {
   async shutdown() {
     Log.Default.info("worker shutting down")
 
+    stopRemoteCommandPolling()
     await InstanceRuntime.disposeAllInstances()
     if (server) await server.stop(true)
   },
