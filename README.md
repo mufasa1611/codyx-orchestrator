@@ -495,15 +495,10 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 ## Acknowledgements
 
 - **[James Long](https://github.com/jlongster)** — Special thanks for your pioneering work on Prettier,
-     and Big THanks for outstanding contributions to the project.
-- **[Brendan Allan](https://github.com/Brendonovich)**
-- **[David Hill](https://github.com/iamdavidhill)**
-- **[Adam](https://github.com/adamdotdevin)**
-- **[Aiden Cline](https://github.com/rekram1-node)**
-- **[Kit Langton](https://github.com/kitlangton)**
-- **[Frank](https://github.com/fwang)**
-- **[Jay](https://github.com/jayair)**
-- **[Dax](https://github.com/thdxr)**
+- and Big THanks for outstanding contributions to the project.
+
+• **[Brendan Allan](https://github.com/Brendonovich)** &nbsp;&nbsp; • **[David Hill](https://github.com/iamdavidhill)** &nbsp;&nbsp; • **[Adam](https://github.com/adamdotdevin)** &nbsp;&nbsp; • **[Aiden Cline](https://github.com/rekram1-node)**
+• **[Kit Langton](https://github.com/kitlangton)** &nbsp;&nbsp; • **[Frank](https://github.com/fwang)** &nbsp;&nbsp; • **[Jay](https://github.com/jayair)** &nbsp;&nbsp; • **[Dax](https://github.com/thdxr)**
 
 ---
 
