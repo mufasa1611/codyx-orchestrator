@@ -492,6 +492,20 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 
 ---
 
+## Acknowledgements
+
+- **[James Long](https://github.com/jlongster)** — Special thanks for your pioneering work on Prettier,
+- **[Brendan Allan](https://github.com/Brendonovich)** — and Big THanks for outstanding contributions to the project.
+- **[David Hill](https://github.com/iamdavidhill)** — and Big THanks for outstanding contributions to the project.
+- **[Adam](https://github.com/adamdotdevin)** — and Big THanks for outstanding contributions to the project.
+- **[Aiden Cline](https://github.com/rekram1-node)** — and Big THanks for outstanding contributions to the project.
+- **[Kit Langton](https://github.com/kitlangton)** — and Big THanks for outstanding contributions to the project.
+- **[Frank](https://github.com/fwang)** — and Big THanks for outstanding contributions to the project.
+- **[Jay](https://github.com/jayair)** — and Big THanks for outstanding contributions to the project.
+- **[Dax](https://github.com/thdxr)** — and Big THanks for outstanding contributions to the project.
+
+---
+
 ## License
 
 MIT © 2026 Mufasa (M. Farid)
