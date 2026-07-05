@@ -6,9 +6,9 @@ CREATE TABLE IF NOT EXISTS `user` (
 	`time_updated` integer NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE `workspace` ADD COLUMN IF NOT EXISTS `user_id` text;--> statement-breakpoint
-ALTER TABLE `project` ADD COLUMN IF NOT EXISTS `user_id` text;--> statement-breakpoint
-ALTER TABLE `permission` ADD COLUMN IF NOT EXISTS `mode` text DEFAULT 'standard' NOT NULL;--> statement-breakpoint
-ALTER TABLE `session` ADD COLUMN IF NOT EXISTS `user_id` text;--> statement-breakpoint
+ALTER TABLE `workspace` ADD `user_id` text;--> statement-breakpoint
+ALTER TABLE `project` ADD `user_id` text;--> statement-breakpoint
+ALTER TABLE `permission` ADD `mode` text DEFAULT 'standard' NOT NULL;--> statement-breakpoint
+ALTER TABLE `session` ADD `user_id` text;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `user_username_idx` ON `user` (`username`);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `session_user_idx` ON `session` (`user_id`);
