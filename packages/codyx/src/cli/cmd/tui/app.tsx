@@ -878,7 +878,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
       toast.show({
         variant: "warning",
         message: policyWarning,
-        duration: 4000,
+        duration: 5000,
       })
       return
     }
@@ -892,13 +892,16 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
 
   event.on("session.policy-ban", (evt) => {
     const properties = evt.properties as typeof evt.properties & { maxWarnings?: number; message?: string }
+    const bannedUntil = Number(properties.bannedUntil)
     ban({
-      bannedUntil: Number(properties.bannedUntil),
+      bannedUntil,
       sessionID: properties.sessionID,
       count: Number(properties.count),
       maxWarnings: properties.maxWarnings,
       message: properties.message,
     })
+    // Reset from admin (bannedUntil=0) — dismiss ban toast immediately
+    if (bannedUntil === 0) toast.dismiss()
   })
 
   event.on("installation.update-available", async (evt) => {
