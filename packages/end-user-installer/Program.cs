@@ -90,6 +90,8 @@ public sealed class InstallerWindow : Window
   bool installed;
   DateTime lastUpdateCheckUtc = DateTime.MinValue;
   bool updateCheckRunning;
+  bool releaseChannelTouched;
+  bool settingReleaseChannel;
 
   public InstallerWindow()
   {
@@ -179,6 +181,13 @@ public sealed class InstallerWindow : Window
     releaseChannel.Items.Add(new ComboBoxItem { Content = "Stable release", Tag = "prod" });
     releaseChannel.Items.Add(new ComboBoxItem { Content = "Beta / pre-release", Tag = "beta" });
     releaseChannel.SelectedIndex = 0;
+    releaseChannel.SelectionChanged += (_, _) =>
+    {
+      if (settingReleaseChannel) return;
+      releaseChannelTouched = true;
+      lastUpdateCheckUtc = DateTime.MinValue;
+      QueueUpdateCheck();
+    };
     var channelRow = new StackPanel
     {
       Orientation = Orientation.Horizontal,
@@ -686,7 +695,7 @@ public sealed class InstallerWindow : Window
     if (!health.Ready) uninstallInProgress = false;
     installed = health.Ready;
     var ready = health.Ready;
-    if (ready) SetReleaseChannel(InstalledReleaseChannel());
+    if (ready && !releaseChannelTouched) SetReleaseChannel(InstalledReleaseChannel());
     primary.IsEnabled = true;
     primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
     SetInstalledActions(health.Ready && !uninstallInProgress);
@@ -702,12 +711,14 @@ public sealed class InstallerWindow : Window
     else if (ready)
     {
       var channel = InstalledReleaseChannel();
+      var selectedChannel = SelectedReleaseChannel();
       var parts = new List<string>
       {
         channel == "beta"
           ? "Codyx-Orchestrator is installed on beta/pre-release channel."
           : "Codyx-Orchestrator is installed on stable channel.",
       };
+      if (selectedChannel != channel) parts.Add($"Selected channel: {ChannelLabel(selectedChannel)}.");
       if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
       status.Text = string.Join(" ", parts);
       QueueUpdateCheck();
@@ -788,7 +799,9 @@ public sealed class InstallerWindow : Window
 
   void SetReleaseChannel(string channel)
   {
+    settingReleaseChannel = true;
     releaseChannel.SelectedIndex = NormalizeReleaseChannel(channel) == "beta" ? 1 : 0;
+    settingReleaseChannel = false;
   }
 
   static string NormalizeReleaseChannel(string? channel)
@@ -897,7 +910,8 @@ public sealed class InstallerWindow : Window
         Append("[update] Could not read installed version from marker.");
         return;
       }
-      var channel = InstalledReleaseChannel();
+      var channel = SelectedReleaseChannel();
+      Append($"[update] Checking {ChannelLabel(channel)} channel against installed v{currentVer}.");
 
       using var http = new System.Net.Http.HttpClient();
       http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
@@ -1050,7 +1064,8 @@ public sealed class InstallerWindow : Window
   async Task<bool> RunEmbeddedInstallPreflightAsync()
   {
     scriptPath = ExtractScripts();
-    var channel = InstalledReleaseChannel();
+    var channel = SelectedReleaseChannel();
+    Append($"[update] Running launch preflight on {ChannelLabel(channel)} channel.");
     var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -Quiet -NoLaunch -Channel {channel}";
     var localManifest = LocalManifestPath();
     if (localManifest is not null)
