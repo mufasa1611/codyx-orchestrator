@@ -15,6 +15,40 @@ everything through plugins, agents, and custom tools.
 
 ---
 
+## Index
+
+<div align="center">
+
+| Start Here                                                                    | Build With It                         | Go Deeper                       |
+| :---------------------------------------------------------------------------- | :------------------------------------ | :------------------------------ |
+| [Download Windows Installer](https://install.kingkung.men/downloads)          | [Interfaces](#interfaces)             | [Architecture](#architecture)   |
+| [Installation & Setup](#installation--setup)                                  | [CLI Commands](#cli-commands)         | [Configuration](#configuration) |
+| [Quick npm Install](#2-global-npm-package-recommended-if-nodejs-is-installed) | [Agent System](#agent-system)         | [Documentation](#documentation) |
+| [Docker Server](#5-headless-server-docker)                                    | [Local Models](CODYX_LOCAL_MODELS.md) | [Development](#development)     |
+
+</div>
+
+### Choose Your Path
+
+| Path                    | Best For                                          | First Action                                                             |
+| :---------------------- | :------------------------------------------------ | :----------------------------------------------------------------------- |
+| **Normal Windows User** | Clean install, silent updates, no source checkout | [Download the Windows installer](https://install.kingkung.men/downloads) |
+| **Power User**          | npm-based global command                          | `npm install -g codyx-ai@beta && codyx`                                  |
+| **Developer**           | Editable repo, local builds, contribution work    | [Run from source](#6-from-source-development)                            |
+| **Team / Server**       | Shared headless API and Web UI                    | [Run Docker](#5-headless-server-docker) or `codyx serve`                 |
+
+### Project Map
+
+| Area                          | What You Will Find                                 |
+| :---------------------------- | :------------------------------------------------- |
+| [Why codyx?](#why-codyx)      | Feature comparison and product positioning         |
+| [Features](#features)         | TUI, Web UI, providers, sessions, plugins, privacy |
+| [Use Cases](#use-cases)       | Solo development, DevOps, research, CI/CD, teams   |
+| [Ecosystem](#ecosystem)       | Monorepo packages and their responsibilities       |
+| [Contributing](#contributing) | Local workflow, tests, and contribution rules      |
+
+---
+
 ## Why codyx?
 
 Most AI coding tools are either SaaS-locked (your code leaves your machine), CLI-only (no UI),
@@ -41,7 +75,9 @@ Choose the installation method that fits your environment:
 
 [![Download Latest](https://img.shields.io/badge/Download-Windows%20Installer-blue?style=for-the-badge&logo=windows)](https://github.com/mufasa1611/codyx-orchestrator/releases/latest/download/codyx-installer-launcher-windows-x64.exe)
 
-Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available, then launch the same TUI/Web UI commands.
+Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` automatically. It installs from compiled release assets only: no Git install, no Bun install, and no source checkout. The installer asks the user to accept the license, save the display name codyx should use, and verify email ownership before installation continues.
+
+The installed `codyx` shims perform a quiet release-manifest check on every start, update the compiled CLI when a newer asset is available for the selected channel, then launch the same TUI/Web UI commands. Stable is the default channel; the installer also offers a beta/pre-release channel and falls back to the latest stable release if no published pre-release is available. Installed files live under `%LOCALAPPDATA%\Programs\Codyx-Orchestrator`, with installer verification and marker state under `%LOCALAPPDATA%\codyx-installer`.
 
 <p align="center">
   <a href="https://install.kingkung.men/downloads">
@@ -56,7 +92,7 @@ Downloads the latest release of `codyx-installer-launcher-windows-x64.exe` autom
 > [!IMPORTANT]
 > **Windows SmartScreen Bypass Guide**
 >
-> Because raw downloads and installer binaries are unsigned, Windows SmartScreen may show a **"Windows protected your PC"** popup.
+> Windows SmartScreen may show a **"Windows protected your PC"** popup, especially for new builds or unsigned/local test builds.
 >
 > To proceed and install:
 >
@@ -76,11 +112,13 @@ npm install -g codyx-ai@beta && codyx
 
 To update the package later, run `npm install -g codyx-ai@beta`.
 
+This path installs the npm package command. It does not install the Windows compiled-assets launcher, release marker, desktop shortcut, or Windows installer UI.
+
 ### 3. Windows Source Launcher (Developer / Power User)
 
 If you intentionally want a self-updating source checkout, download `codyx-launcher-windows-x64.exe` from the GitHub Release.
 
-This launcher installs Git/Bun when needed, keeps a slim source checkout under the user's profile, and rebuilds when source updates arrive. It is useful for testers and developers, but normal users should prefer the compiled end-user installer above.
+This launcher installs Git/Bun when needed, keeps a slim source checkout under the user's profile, and rebuilds when source updates arrive. It is useful for testers and developers who need source-driven updates, but normal users should prefer the compiled end-user installer above.
 
 ### 4. Windows One-Click npm Installer (Without Node.js)
 
@@ -488,7 +526,7 @@ Contributions are welcome! See `CONTRIBUTING.md` for guidelines.
 - Send installer problems, update requests, or product notes through [feedback](https://install.kingkung.men/feedback)
 - Submit pull requests — PRs welcome
 - Follow the coding style in `AGENTS.md`
-- Run `bun run typecheck` and `bun test` before submitting
+- Run typechecks and tests from the package directory you changed, for example `cd packages/codyx && bun typecheck && bun test`
 
 ---
 
