@@ -1,4 +1,15 @@
-﻿import { type JSX, For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+﻿import {
+  type JSX,
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@cody/ui/tabs"
@@ -83,7 +94,9 @@ export function SessionSidePanel(props: {
         const data = await res.json()
         setConnected(data.connected)
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   const requestDisconnect = async () => {
@@ -341,16 +354,20 @@ export function SessionSidePanel(props: {
                           </TooltipKeybind>
                           <DropdownMenu.Portal>
                             <DropdownMenu.Content>
-                              <DropdownMenu.Item onSelect={() => {
-                                void import("@/components/dialog-select-file").then((x) => {
-                                  dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
-                                })
-                              }}>
+                              <DropdownMenu.Item
+                                onSelect={() => {
+                                  void import("@/components/dialog-select-file").then((x) => {
+                                    dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+                                  })
+                                }}
+                              >
                                 <DropdownMenu.ItemLabel>{language.t("command.file.open")}</DropdownMenu.ItemLabel>
                               </DropdownMenu.Item>
-                              <DropdownMenu.Item onSelect={() => {
-                                navigate(`/${params.dir}/session`)
-                              }}>
+                              <DropdownMenu.Item
+                                onSelect={() => {
+                                  navigate(`/${params.dir}/session`)
+                                }}
+                              >
                                 <DropdownMenu.ItemLabel>{language.t("command.session.new")}</DropdownMenu.ItemLabel>
                               </DropdownMenu.Item>
                             </DropdownMenu.Content>
@@ -471,18 +488,21 @@ export function SessionSidePanel(props: {
                   </Tabs.Content>
                   <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
                     <Switch>
-                      <Match when={hasFileSource()}>
+                      <Match when={server.isLocal()}>
+                        <div class="flex-1 overflow-y-auto">
+                          <FileTree path="" class="pt-3" draggable={false} />
+                        </div>
+                      </Match>
+                      <Match when={!server.isLocal() && connected()}>
                         <div class="flex flex-col h-full">
                           <div class="flex-1 overflow-y-auto">
-                            <FileTreeRemote fallbackText={server.isLocal() ? "Loading local files..." : undefined} />
+                            <FileTreeRemote />
                           </div>
-                          <Show when={connected()}>
-                            <div class="shrink-0 border-t border-border-secondary px-3 py-2">
-                              <Button variant="secondary" size="small" class="w-full" onClick={disconnect}>
-                                Disconnect from PC
-                              </Button>
-                            </div>
-                          </Show>
+                          <div class="shrink-0 border-t border-border-secondary px-3 py-2">
+                            <Button variant="secondary" size="small" class="w-full" onClick={disconnect}>
+                              Disconnect from PC
+                            </Button>
+                          </div>
                         </div>
                       </Match>
                       <Match when={!hasFileSource()}>
