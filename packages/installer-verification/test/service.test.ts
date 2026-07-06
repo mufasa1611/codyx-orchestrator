@@ -411,6 +411,11 @@ describe("installer verification service", () => {
 
     const cancelled = await db.prepare("SELECT id FROM remote_command WHERE id = ?").bind(body.command_id).first()
     expect(cancelled).toBeNull()
+    const revocations = await db
+      .prepare("SELECT COUNT(*) AS count FROM revocation WHERE install_id = ?")
+      .bind(created.body.install_id)
+      .first<{ count: number }>()
+    expect(revocations?.count).toBe(0)
 
     const validation = await request("/v1/receipts/validate", {
       method: "POST",

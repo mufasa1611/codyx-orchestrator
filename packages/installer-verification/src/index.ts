@@ -685,12 +685,14 @@ app.delete("/v1/admin/installations/:installID/uninstall", async (context) => {
     .first()
   if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
 
-  const result = await db
-    .prepare("DELETE FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status = 'pending'")
-    .bind(installId)
-    .run()
+  const result = await db.batch([
+    db
+      .prepare("DELETE FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status = 'pending'")
+      .bind(installId),
+    db.prepare("DELETE FROM revocation WHERE install_id = ?").bind(installId),
+  ])
 
-  return context.json({ cancelled: result.meta.changes > 0 })
+  return context.json({ cancelled: result[0].meta.changes > 0 })
 })
 
 app.post("/v1/admin/installations/:installID/ban", async (context) => {
