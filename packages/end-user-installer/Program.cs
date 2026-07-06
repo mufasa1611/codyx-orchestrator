@@ -42,6 +42,7 @@ public sealed class InstallerWindow : Window
   readonly Button web = new() { Content = "Open Web UI", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly Button uninstall = new() { Content = "Uninstall", Padding = new Thickness(16, 9, 16, 9), IsEnabled = false };
   readonly Button close = new() { Content = "Close", Padding = new Thickness(16, 9, 16, 9) };
+  readonly ComboBox releaseChannel = new() { MinWidth = 210, Margin = new Thickness(10, 0, 0, 0) };
   readonly TextBlock status = new() { Foreground = Brushes.White, FontSize = 14 };
   readonly Border promptPanel = new()
   {
@@ -170,6 +171,26 @@ public sealed class InstallerWindow : Window
     license2.Inlines.Add(SparkleLink("privacy notice", "https://install.kingkung.men/privacy"));
     license2.Inlines.Add(".");
     header.Children.Add(license2);
+
+    releaseChannel.Items.Add(new ComboBoxItem { Content = "Stable release", Tag = "prod" });
+    releaseChannel.Items.Add(new ComboBoxItem { Content = "Beta / pre-release", Tag = "beta" });
+    releaseChannel.SelectedIndex = 0;
+    var channelRow = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      HorizontalAlignment = HorizontalAlignment.Center,
+      Margin = new Thickness(0, 12, 0, 0),
+    };
+    channelRow.Children.Add(new TextBlock
+    {
+      Text = "Release channel",
+      Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+      FontSize = 14,
+      FontWeight = FontWeights.SemiBold,
+      VerticalAlignment = VerticalAlignment.Center,
+    });
+    channelRow.Children.Add(releaseChannel);
+    header.Children.Add(channelRow);
 
     var buttons = new StackPanel
     {
@@ -440,7 +461,9 @@ public sealed class InstallerWindow : Window
     log.Clear();
     scriptPath = ExtractScripts();
 
-    var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -NoLaunch";
+    var channel = SelectedReleaseChannel();
+    var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -NoLaunch -Channel {channel}";
+    Append(channel == "beta" ? "Using beta/pre-release channel." : "Using stable release channel.");
     var localManifest = LocalManifestPath();
     if (localManifest is not null)
     {
@@ -656,6 +679,7 @@ public sealed class InstallerWindow : Window
     if (!health.Ready) uninstallInProgress = false;
     installed = health.Ready;
     var ready = health.Ready;
+    if (ready) SetReleaseChannel(InstalledReleaseChannel());
     primary.IsEnabled = true;
     primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
     SetInstalledActions(health.Ready && !uninstallInProgress);
@@ -665,7 +689,13 @@ public sealed class InstallerWindow : Window
     }
     else if (ready)
     {
-      var parts = new List<string> { "Codyx-Orchestrator is installed." };
+      var channel = InstalledReleaseChannel();
+      var parts = new List<string>
+      {
+        channel == "beta"
+          ? "Codyx-Orchestrator is installed on beta/pre-release channel."
+          : "Codyx-Orchestrator is installed on stable channel.",
+      };
       if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
       status.Text = string.Join(" ", parts);
       _ = CheckForUpdateAsync(); // fire-and-forget background update check
@@ -728,6 +758,50 @@ public sealed class InstallerWindow : Window
   {
     var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     return IOPath.Combine(local, "codyx-installer");
+  }
+
+  string SelectedReleaseChannel()
+  {
+    if (releaseChannel.SelectedItem is ComboBoxItem item && item.Tag is string tag) return NormalizeReleaseChannel(tag);
+    return "prod";
+  }
+
+  void SetReleaseChannel(string channel)
+  {
+    releaseChannel.SelectedIndex = NormalizeReleaseChannel(channel) == "beta" ? 1 : 0;
+  }
+
+  static string NormalizeReleaseChannel(string? channel)
+  {
+    var value = (channel ?? "").Trim().ToLowerInvariant();
+    return value is "beta" or "prerelease" or "pre-release" or "preview" ? "beta" : "prod";
+  }
+
+  static string InstalledReleaseChannel()
+  {
+    return NormalizeReleaseChannel(ReadInstalledMarkerString("channel"));
+  }
+
+  static string? InstalledReleaseVersion()
+  {
+    return ReadInstalledMarkerString("version");
+  }
+
+  static string? ReadInstalledMarkerString(string property)
+  {
+    try
+    {
+      var markerPath = RootMarkerPath();
+      if (!File.Exists(markerPath)) return null;
+      using var marker = System.Text.Json.JsonDocument.Parse(File.ReadAllText(markerPath));
+      if (!marker.RootElement.TryGetProperty("compiledInstall", out var compiled)) return null;
+      if (!compiled.TryGetProperty(property, out var value)) return null;
+      return value.GetString();
+    }
+    catch
+    {
+      return null;
+    }
   }
 
   sealed record InstallHealth(bool Ready, bool InPath, IReadOnlyList<string> Missing);
@@ -797,54 +871,35 @@ public sealed class InstallerWindow : Window
   {
     try
     {
-      var markerPath = RootMarkerPath();
-      if (!File.Exists(markerPath))
-      {
-        Append("[update] No install marker found, skipping update check.");
-        return;
-      }
-
-      var marker = System.Text.Json.JsonDocument.Parse(File.ReadAllText(markerPath));
-      var currentVer = marker.RootElement.GetProperty("compiledInstall").GetProperty("version").GetString();
+      var currentVer = InstalledReleaseVersion();
       if (string.IsNullOrEmpty(currentVer))
       {
         Append("[update] Could not read installed version from marker.");
         return;
       }
+      var channel = InstalledReleaseChannel();
 
       using var http = new System.Net.Http.HttpClient();
       http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
       http.Timeout = TimeSpan.FromSeconds(10);
-      var resp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases/latest");
-      if (!resp.IsSuccessStatusCode)
-      {
-        Append($"[update] GitHub API returned {resp.StatusCode}, skipping check.");
-        return;
-      }
-      var json = await resp.Content.ReadAsStringAsync();
-      var release = System.Text.Json.JsonDocument.Parse(json);
-      var latestVer = release.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v');
+      var latestInfo = await GetLatestReleaseForChannelAsync(http, channel);
+      var latestVer = latestInfo.Tag?.TrimStart('v');
       if (string.IsNullOrEmpty(latestVer))
       {
         Append("[update] Could not parse latest version from GitHub response.");
         return;
       }
 
-      var current = Version.TryParse(currentVer, out var cv) ? cv : null;
-      var latest = Version.TryParse(latestVer, out var lv) ? lv : null;
-      if (current is null || latest is null)
+      var shouldOffer = CompareReleaseVersions(latestVer, currentVer) > 0;
+      if (channel == "beta" && latestInfo.StableFallback && currentVer.Contains('-')) shouldOffer = true;
+      if (!shouldOffer)
       {
-        Append($"[update] Could not compare versions: installed={currentVer}, latest=v{latestVer}");
+        Append($"[update] Already up-to-date ({ChannelLabel(channel)}, v{currentVer}).");
         return;
       }
 
-      if (latest <= current)
-      {
-        Append($"[update] Already up-to-date (v{currentVer}).");
-        return;
-      }
-
-      Append($"[update] New version available: v{currentVer} → v{latestVer}");
+      var fallbackText = latestInfo.StableFallback ? " stable fallback" : "";
+      Append($"[update] New{fallbackText} version available: v{currentVer} → v{latestVer}");
       await Dispatcher.InvokeAsync(() =>
       {
         primary.Content = $"Update to v{latestVer}";
@@ -856,6 +911,90 @@ public sealed class InstallerWindow : Window
     {
       Append($"[update] Check failed: {ex.Message}");
     }
+  }
+
+  static string ChannelLabel(string channel)
+  {
+    return NormalizeReleaseChannel(channel) == "beta" ? "beta/pre-release" : "stable";
+  }
+
+  async Task<(string? Tag, bool StableFallback)> GetLatestReleaseForChannelAsync(System.Net.Http.HttpClient http, string channel)
+  {
+    if (NormalizeReleaseChannel(channel) == "beta")
+    {
+      var prereleaseResp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases?per_page=20");
+      if (prereleaseResp.IsSuccessStatusCode)
+      {
+        using var releases = System.Text.Json.JsonDocument.Parse(await prereleaseResp.Content.ReadAsStringAsync());
+        foreach (var release in releases.RootElement.EnumerateArray())
+        {
+          var draft = release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean();
+          var prerelease = release.TryGetProperty("prerelease", out var prereleaseProp) && prereleaseProp.GetBoolean();
+          if (draft || !prerelease) continue;
+          return (release.GetProperty("tag_name").GetString(), false);
+        }
+      }
+      else
+      {
+        return (null, false);
+      }
+    }
+
+    var stableResp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases/latest");
+    if (!stableResp.IsSuccessStatusCode)
+    {
+      Append($"[update] GitHub API returned {stableResp.StatusCode}, skipping check.");
+      return (null, NormalizeReleaseChannel(channel) == "beta");
+    }
+    using var stableRelease = System.Text.Json.JsonDocument.Parse(await stableResp.Content.ReadAsStringAsync());
+    return (stableRelease.RootElement.GetProperty("tag_name").GetString(), NormalizeReleaseChannel(channel) == "beta");
+  }
+
+  static int CompareReleaseVersions(string left, string right)
+  {
+    var a = ParseReleaseVersion(left);
+    var b = ParseReleaseVersion(right);
+    for (var i = 0; i < 3; i++)
+    {
+      var diff = a.Base[i].CompareTo(b.Base[i]);
+      if (diff != 0) return diff;
+    }
+    if (a.Pre.Length == 0 && b.Pre.Length == 0) return 0;
+    if (a.Pre.Length == 0) return 1;
+    if (b.Pre.Length == 0) return -1;
+    var count = Math.Max(a.Pre.Length, b.Pre.Length);
+    for (var i = 0; i < count; i++)
+    {
+      if (i >= a.Pre.Length) return -1;
+      if (i >= b.Pre.Length) return 1;
+      var leftPart = a.Pre[i];
+      var rightPart = b.Pre[i];
+      var leftNum = int.TryParse(leftPart, out var ln);
+      var rightNum = int.TryParse(rightPart, out var rn);
+      if (leftNum && rightNum)
+      {
+        var diff = ln.CompareTo(rn);
+        if (diff != 0) return diff;
+        continue;
+      }
+      var textDiff = string.Compare(leftPart, rightPart, StringComparison.OrdinalIgnoreCase);
+      if (textDiff != 0) return textDiff;
+    }
+    return 0;
+  }
+
+  static (int[] Base, string[] Pre) ParseReleaseVersion(string version)
+  {
+    var normalized = version.Trim().TrimStart('v', 'V');
+    var pieces = normalized.Split('-', 2, StringSplitOptions.RemoveEmptyEntries);
+    var baseParts = pieces[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
+    var parsed = new[] { 0, 0, 0 };
+    for (var i = 0; i < Math.Min(3, baseParts.Length); i++)
+    {
+      _ = int.TryParse(baseParts[i], out parsed[i]);
+    }
+    var pre = pieces.Length > 1 ? pieces[1].Split('.', StringSplitOptions.RemoveEmptyEntries) : [];
+    return (parsed, pre);
   }
 
   static void AddIfFileMissingRequiredText(string path, string label, IEnumerable<string> requiredText, List<string> missing)
@@ -891,7 +1030,8 @@ public sealed class InstallerWindow : Window
   async Task<bool> RunEmbeddedInstallPreflightAsync()
   {
     scriptPath = ExtractScripts();
-    var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -Quiet -NoLaunch";
+    var channel = InstalledReleaseChannel();
+    var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -Quiet -NoLaunch -Channel {channel}";
     var localManifest = LocalManifestPath();
     if (localManifest is not null)
     {

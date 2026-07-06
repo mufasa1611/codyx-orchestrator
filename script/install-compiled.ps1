@@ -179,13 +179,37 @@ function Invoke-JsonRequest($Url) {
   return Invoke-RestMethod -Uri $Url -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
 }
 
-function Get-NewestPublishedRelease {
+function Normalize-ReleaseChannel($Value) {
+  $channelValue = ([string]$Value).Trim().ToLowerInvariant()
+  if ($channelValue -in @("beta", "prerelease", "pre-release", "preview")) { return "beta" }
+  return "prod"
+}
+
+function Get-NewestPublishedRelease([switch]$PrereleaseOnly, [switch]$StableOnly) {
   $releases = Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases"
-  $release = @($releases | Where-Object { -not $_.draft } | Select-Object -First 1)[0]
+  $release = @(
+    $releases |
+      Where-Object {
+        (-not $_.draft) -and
+        ((-not $PrereleaseOnly) -or $_.prerelease) -and
+        ((-not $StableOnly) -or (-not $_.prerelease))
+      } |
+      Select-Object -First 1
+  )[0]
+  if ($PrereleaseOnly -and -not $release) { return $null }
   if (-not $release) {
     throw "No published GitHub Release was found for $Repo. Draft releases cannot be used by normal users. Publish a release that includes codyx-release-manifest.json and the compiled CLI assets, then run this installer again."
   }
   return $release
+}
+
+function Get-StableLatestRelease {
+  try {
+    return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/latest"
+  } catch {
+    Write-Warn "No stable latest release was found through GitHub latest. Trying newest published stable release..."
+    return Get-NewestPublishedRelease -StableOnly
+  }
 }
 
 function Get-ReleaseInfo {
@@ -198,16 +222,14 @@ function Get-ReleaseInfo {
     }
   }
 
-  if ($Channel -eq "beta") {
-    return Get-NewestPublishedRelease
+  if ((Normalize-ReleaseChannel $Channel) -eq "beta") {
+    $prerelease = Get-NewestPublishedRelease -PrereleaseOnly
+    if ($prerelease) { return $prerelease }
+    Write-Warn "No beta/pre-release was found. Falling back to latest stable release."
+    return Get-StableLatestRelease
   }
 
-  try {
-    return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/latest"
-  } catch {
-    Write-Warn "No stable latest release was found. Trying the newest published prerelease or release..."
-    return Get-NewestPublishedRelease
-  }
+  return Get-StableLatestRelease
 }
 
 function Save-Download($Url, $Path) {
@@ -499,6 +521,7 @@ function Write-Marker($Root, $VersionValue, $Asset, $Installed, $PathAdds, $Shim
 function Install-CodyxCompiled {
   Confirm-License
 
+  $script:Channel = Normalize-ReleaseChannel $Channel
   if (-not $InstallRoot) { $InstallRoot = Get-DefaultInstallRoot }
   $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
   $currentDir = Join-Path $InstallRoot "current"
