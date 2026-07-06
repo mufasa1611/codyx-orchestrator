@@ -2,9 +2,7 @@
 
 ## IMPORTANT
 
-We do not accept AI generated security reports. We receive a large number of
-these and we absolutely do not have the resources to review them all. If you
-submit one that will be an automatic ban from the project.
+We do not accept AI generated feedback or security reports.
 
 ## Threat Model
 
