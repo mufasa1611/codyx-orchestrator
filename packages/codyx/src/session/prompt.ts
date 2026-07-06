@@ -142,7 +142,10 @@ export function shouldAutoCompactForMessages(input: { messages: MessageV2.WithPa
 
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
-  readonly prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
+  readonly prompt: (
+    input: PromptInput,
+    options?: { skipPolicy?: boolean },
+  ) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
   readonly loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts>
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts>
   readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts, PolicyBanError>
@@ -1771,7 +1774,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return yield* loop({ sessionID: input.sessionID })
     })
 
-    const prompt: Interface["prompt"] = (input) => promptImpl(input)
+    const prompt: Interface["prompt"] = (input, options) => promptImpl(input, options)
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
       const match = yield* sessions.findMessage(sessionID, (m) => m.info.role !== "user")

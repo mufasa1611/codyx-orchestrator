@@ -1,5 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import { resolveServerList, ServerConnection } from "./server"
+import { isLocalServerUrl, resolveServerList, ServerConnection } from "./server"
+
+describe("isLocalServerUrl", () => {
+  test("recognizes localhost, IPv4, and IPv6 loopback server URLs", () => {
+    expect(isLocalServerUrl("http://localhost:4096")).toBe(true)
+    expect(isLocalServerUrl("http://127.0.0.1:4096")).toBe(true)
+    expect(isLocalServerUrl("http://[::1]:4096")).toBe(true)
+  })
+
+  test("does not treat network hosts as local", () => {
+    expect(isLocalServerUrl("http://192.168.1.30:4096")).toBe(false)
+    expect(isLocalServerUrl("https://example.com")).toBe(false)
+  })
+})
 
 describe("resolveServerList", () => {
   test("lets startup auth_token credentials override a persisted same-url server", () => {

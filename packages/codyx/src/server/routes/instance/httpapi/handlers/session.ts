@@ -317,7 +317,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     }) {
       const userID = yield* requestUserID
 
-      // Synchronously check if the session is banned before processing
+      // Synchronously accept or reject the prompt before the Web UI starts
+      // tracking an optimistic message. The background prompt skips the same
+      // policy check so violations are not counted twice.
       const visibleText = ctx.payload.parts
         .flatMap((part) => {
           if (part.type === "text" && !part.synthetic) return [part.text]
@@ -331,7 +333,6 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         promptSvc.assertPromptPolicy({
           sessionID: ctx.params.sessionID,
           text: visibleText,
-          countViolation: false,
         }),
       ).pipe(
         Effect.mapError((err) => {
@@ -339,7 +340,10 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         }),
       )
 
-      yield* withUserID(userID, promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID })).pipe(
+      yield* withUserID(
+        userID,
+        promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID }, { skipPolicy: true }),
+      ).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
             yield* Effect.logError("prompt_async failed", { sessionID: ctx.params.sessionID, cause })
