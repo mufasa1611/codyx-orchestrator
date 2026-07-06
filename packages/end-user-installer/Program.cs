@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using IOPath = System.IO.Path;
 
 namespace Codyx.EndUserInstaller;
@@ -79,6 +80,7 @@ public sealed class InstallerWindow : Window
   readonly Button promptCancel = new() { Content = "Cancel", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false };
   readonly Button promptChangeEmail = new() { Content = "Change email", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false, Visibility = Visibility.Collapsed };
   readonly Button promptResend = new() { Content = "Resend", Padding = new Thickness(14, 7, 14, 7), IsEnabled = false, Visibility = Visibility.Collapsed };
+  readonly DispatcherTimer installHealthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
   string scriptPath = "";
   Process? activeInstallerProcess;
@@ -86,6 +88,8 @@ public sealed class InstallerWindow : Window
   bool promptIsCode;
   bool uninstallInProgress;
   bool installed;
+  DateTime lastUpdateCheckUtc = DateTime.MinValue;
+  bool updateCheckRunning;
 
   public InstallerWindow()
   {
@@ -256,6 +260,8 @@ public sealed class InstallerWindow : Window
     };
     RefreshInstalledActions();
     Activated += (_, _) => RefreshInstalledActions();
+    installHealthTimer.Tick += (_, _) => RefreshInstalledActions();
+    installHealthTimer.Start();
     Loaded += async (_, _) =>
     {
       if (GetInstallHealth().Ready)
@@ -675,6 +681,7 @@ public sealed class InstallerWindow : Window
 
   void RefreshInstalledActions()
   {
+    if (activeInstallerProcess is { HasExited: false }) return;
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
     installed = health.Ready;
@@ -683,6 +690,11 @@ public sealed class InstallerWindow : Window
     primary.IsEnabled = true;
     primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
     SetInstalledActions(health.Ready && !uninstallInProgress);
+    if (!ready)
+    {
+      status.Text = "Codyx-Orchestrator is not installed. Accept the license and install to continue.";
+      return;
+    }
     if (ready && uninstallInProgress)
     {
       status.Text = "Uninstall is open. Finish or close the uninstall terminal before launching again.";
@@ -698,12 +710,20 @@ public sealed class InstallerWindow : Window
       };
       if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
       status.Text = string.Join(" ", parts);
-      _ = CheckForUpdateAsync(); // fire-and-forget background update check
+      QueueUpdateCheck();
     }
-    else if (health.Missing.Count > 0)
+  }
+
+  void QueueUpdateCheck()
+  {
+    if (updateCheckRunning) return;
+    if ((DateTime.UtcNow - lastUpdateCheckUtc) < TimeSpan.FromMinutes(5)) return;
+    updateCheckRunning = true;
+    lastUpdateCheckUtc = DateTime.UtcNow;
+    _ = CheckForUpdateAsync().ContinueWith((_) =>
     {
-      status.Text = "Install/update is needed before CLI, Web UI, or Uninstall can run.";
-    }
+      if (!Dispatcher.HasShutdownStarted) Dispatcher.Invoke(() => updateCheckRunning = false);
+    });
   }
 
   void SetInstalledActions(bool enabled)

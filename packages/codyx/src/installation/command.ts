@@ -25,7 +25,11 @@ const ADMIN_BAN_MESSAGE =
 const REMOTE_COMMAND_POLL_MS = 1_000
 
 type RemoteUninstallResult = { removed: string[]; errors: string[]; selfReports?: boolean }
-type RemoteUninstallExecutor = (input: { baseUrl: string; ackBody: string }) => Promise<RemoteUninstallResult>
+type RemoteUninstallExecutor = (input: {
+  baseUrl: string
+  ackBody: string
+  noticeDelayMs: number
+}) => Promise<RemoteUninstallResult>
 type RemoteUninstallExit = (code: number) => never
 
 let remoteUninstallExecutor: RemoteUninstallExecutor = defaultRemoteUninstallExecutor
@@ -414,9 +418,8 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     clearTimeout(timeout)
   } catch {}
 
+  const noticeDelayMs = remoteUninstallNoticeDelay()
   emitRemoteUninstallNotice()
-  await waitForRemoteUninstallNotice()
-  clearTerminalForRemoteUninstall()
 
   const printProgress = (text: string) => {
     process.stderr.write(`\r\x1b[94m[Codyx]\x1b[0m ${text}\x1b[K`)
@@ -425,7 +428,11 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   let removalLog: RemoteUninstallResult
   try {
     printProgress("Starting marker-based uninstall cleanup...")
-    removalLog = await remoteUninstallExecutor({ baseUrl, ackBody })
+    removalLog = await remoteUninstallExecutor({
+      baseUrl,
+      ackBody,
+      noticeDelayMs,
+    })
     process.stderr.write(`\r\x1b[K`)
   } catch (e) {
     process.stderr.write(`\r\x1b[K`)
@@ -438,6 +445,11 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     await reportRemoteCommandFailed(baseUrl, ackBody)
     remoteUninstallExit(1)
     return
+  }
+
+  if (removalLog.selfReports) {
+    await waitForRemoteUninstallNotice()
+    clearTerminalForRemoteUninstall()
   }
 
   if (!removalLog.selfReports) {
@@ -485,7 +497,7 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   remoteUninstallExit(0)
 }
 
-async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody: string }) {
+async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody: string; noticeDelayMs: number }) {
   const targets = await collectRemovalTargets(
     { keepConfig: false, keepData: false, dryRun: false, force: true },
     "curl",
@@ -512,6 +524,7 @@ async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody:
       pathEntries: targets.pathEntries,
       baseUrl: input.baseUrl,
       ackBody: input.ackBody,
+      noticeDelayMs: input.noticeDelayMs,
       livePid: process.pid,
       parentPid: process.ppid,
     })
@@ -551,6 +564,7 @@ function spawnWindowsRemoteUninstallRunner(input: {
   pathEntries: string[]
   baseUrl: string
   ackBody: string
+  noticeDelayMs: number
   livePid: number
   parentPid: number
 }) {
@@ -563,6 +577,7 @@ function spawnWindowsRemoteUninstallRunner(input: {
     `$pathEntries = ${powershellArrayLiteral(input.pathEntries)}`,
     `$baseUrl = ${powershellLiteral(input.baseUrl.replace(/\/+$/, ""))}`,
     `$ackBody = ${powershellLiteral(input.ackBody)}`,
+    `$noticeDelayMs = ${Math.max(0, Math.floor(input.noticeDelayMs))}`,
     `$livePid = ${input.livePid}`,
     `$parentPid = ${input.parentPid}`,
     `function Send-RemoteStatus([string]$name) {`,
@@ -597,7 +612,7 @@ function spawnWindowsRemoteUninstallRunner(input: {
     `  if ($filtered -ne $current) { [Environment]::SetEnvironmentVariable('Path', $filtered, 'User') }`,
     `}`,
     `try {`,
-    `  Start-Sleep -Seconds 1`,
+    `  Start-Sleep -Milliseconds $noticeDelayMs`,
     `  Stop-CodyxProcesses`,
     `  Remove-CodyxPathEntries`,
     `  for ($i = 0; $i -lt 180; $i++) {`,
@@ -687,11 +702,15 @@ function emitAdminBanClear() {
 }
 
 async function waitForRemoteUninstallNotice() {
-  const override = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
-  const delay = override === undefined ? REMOTE_UNINSTALL_NOTICE_DURATION_MS : Number(override)
-  const safeDelay = Number.isFinite(delay) && delay >= 0 ? delay : REMOTE_UNINSTALL_NOTICE_DURATION_MS
+  const safeDelay = remoteUninstallNoticeDelay()
   if (safeDelay === 0) return
   await new Promise((resolve) => setTimeout(resolve, safeDelay))
+}
+
+function remoteUninstallNoticeDelay() {
+  const override = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+  const delay = override === undefined ? REMOTE_UNINSTALL_NOTICE_DURATION_MS : Number(override)
+  return Number.isFinite(delay) && delay >= 0 ? delay : REMOTE_UNINSTALL_NOTICE_DURATION_MS
 }
 
 async function reportRemoteCommandFailed(baseUrl: string, body: string) {
