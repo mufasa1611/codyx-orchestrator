@@ -3,7 +3,11 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import { GlobalBus, type GlobalEvent } from "@/bus/global"
-import { checkRemoteCommands, setRemoteUninstallTestHooks } from "@/installation/command"
+import {
+  checkRemoteCommands,
+  createWindowsRemoteUninstallScript,
+  setRemoteUninstallTestHooks,
+} from "@/installation/command"
 import { registerLivePolicyResetListener } from "@/session/policy-reset"
 
 let cleanup: Array<() => void | Promise<void>> = []
@@ -31,6 +35,32 @@ function writeVerification(root: string, serverUrl: string) {
 }
 
 describe("remote commands", () => {
+  test("windows remote uninstall runner owns process kill, cleanup retries, and status reporting", () => {
+    const script = createWindowsRemoteUninstallScript({
+      installRoot: "C:\\Users\\Mufasa\\AppData\\Local\\Programs\\Codyx-Orchestrator",
+      removalPaths: [
+        "C:\\Users\\Mufasa\\AppData\\Local\\Programs\\Codyx-Orchestrator",
+        "C:\\Users\\Mufasa\\AppData\\Local\\codyx-installer",
+      ],
+      pathEntries: ["C:\\Users\\Mufasa\\AppData\\Local\\Programs\\Codyx-Orchestrator\\bin"],
+      baseUrl: "https://install.kingkung.men/",
+      ackBody: JSON.stringify({ install_id: "install", receipt: "receipt", command_id: "command" }),
+      noticeDelayMs: 10_000,
+      livePid: 123,
+      parentPid: 456,
+      scriptPath: "C:\\Temp\\codyx-remote-uninstall.ps1",
+    })
+
+    expect(script).toContain("$noticeDelayMs = 11000")
+    expect(script).toContain("function Stop-CodyxProcesses")
+    expect(script).toContain("function Move-CodyxPathToGraveyard")
+    expect(script).toContain("function Remove-Graveyard")
+    expect(script).toContain("Sort-Object Length -Descending -Unique")
+    expect(script).toContain("Send-RemoteStatus 'complete'")
+    expect(script).toContain("Send-RemoteStatus 'fail'")
+    expect(script).toContain("Invoke-RestMethod -Uri ($baseUrl + '/v1/' + $name)")
+  })
+
   test("policy_reset command resets live policy state and completes the command", async () => {
     const previousLocalAppData = process.env.LOCALAPPDATA
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-command-"))

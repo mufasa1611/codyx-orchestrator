@@ -92,6 +92,7 @@ public sealed class InstallerWindow : Window
   bool updateCheckRunning;
   bool releaseChannelTouched;
   bool settingReleaseChannel;
+  bool launcherActionInProgress;
 
   public InstallerWindow()
   {
@@ -470,8 +471,7 @@ public sealed class InstallerWindow : Window
 
   async Task InstallAsync()
   {
-    primary.IsEnabled = false;
-    SetInstalledActions(false);
+    BeginLauncherAction(primary, "Installing...", "Installing Codyx-Orchestrator...");
     status.Text = "Complete identity and email verification, then install compiled release assets.";
     log.Clear();
     scriptPath = ExtractScripts();
@@ -489,6 +489,7 @@ public sealed class InstallerWindow : Window
     if (code == 0)
     {
       installed = true;
+      launcherActionInProgress = false;
       status.Text = "Codyx-Orchestrator is installed. Choose how to start.";
       primary.Content = "Reinstall / update";
       primary.IsEnabled = true;
@@ -497,6 +498,7 @@ public sealed class InstallerWindow : Window
     }
     else
     {
+      launcherActionInProgress = false;
       status.Text = $"Install failed with exit code {code}.";
       primary.Content = "Retry install";
       primary.IsEnabled = true;
@@ -514,16 +516,18 @@ public sealed class InstallerWindow : Window
     }
 
     var isUninstall = command.Equals("uninstall", StringComparison.OrdinalIgnoreCase);
+    var button = CommandButton(command);
+    var action = CommandActionName(command);
+    BeginLauncherAction(button, $"{action}...", $"{action} is starting. Checking updates and launch readiness...");
+    Append($"[launch] {action} selected.");
     if (!isUninstall)
     {
-      primary.IsEnabled = false;
-      SetInstalledActions(false);
-      status.Text = "Checking installed Codyx-Orchestrator before launch...";
+      status.Text = $"{action} is checking installed Codyx-Orchestrator before launch...";
       var ready = await RunEmbeddedInstallPreflightAsync();
-      primary.IsEnabled = true;
-      RefreshInstalledActions();
       if (!ready)
       {
+        launcherActionInProgress = false;
+        RefreshInstalledActions();
         status.Text = "Installed app is not launch-ready. Run install/update again.";
         return;
       }
@@ -531,8 +535,6 @@ public sealed class InstallerWindow : Window
     else
     {
       uninstallInProgress = true;
-      SetInstalledActions(false);
-      primary.IsEnabled = true;
       status.Text = "Uninstall started. Install/update is needed before CLI, Web UI, or Uninstall can run again.";
     }
 
@@ -540,7 +542,8 @@ public sealed class InstallerWindow : Window
     if (!File.Exists(shim))
     {
       Append($"Cannot find installed command: {shim}");
-      SetInstalledActions(false);
+      launcherActionInProgress = false;
+      RefreshInstalledActions();
       return;
     }
 
@@ -552,12 +555,24 @@ public sealed class InstallerWindow : Window
       : isUninstall
         ? $"/k \"cd /d \"\"%TEMP%\"\" && \"\"{shim}\"\" {command}\""
         : $"/k \"{shim}\" {command}";
-    Process.Start(new ProcessStartInfo("cmd.exe", args)
+    try
     {
-      WorkingDirectory = workingDirectory,
-      UseShellExecute = true,
-    });
-    if (!isUninstall) RefreshInstalledActions();
+      Process.Start(new ProcessStartInfo("cmd.exe", args)
+      {
+        WorkingDirectory = workingDirectory,
+        UseShellExecute = true,
+      });
+    }
+    catch (Exception ex)
+    {
+      Append($"[launch] {action} failed: {ex.Message}");
+      launcherActionInProgress = false;
+      RefreshInstalledActions();
+      return;
+    }
+    Append($"[launch] {action} opened in a new terminal.");
+    launcherActionInProgress = false;
+    RefreshInstalledActions();
   }
 
   async Task<int> RunProcessAsync(string fileName, string arguments)
@@ -690,7 +705,9 @@ public sealed class InstallerWindow : Window
 
   void RefreshInstalledActions()
   {
+    if (launcherActionInProgress) return;
     if (activeInstallerProcess is { HasExited: false }) return;
+    ResetActionLabels();
     var health = GetInstallHealth();
     if (!health.Ready) uninstallInProgress = false;
     installed = health.Ready;
@@ -727,6 +744,8 @@ public sealed class InstallerWindow : Window
 
   void QueueUpdateCheck()
   {
+    if (launcherActionInProgress) return;
+    if (activeInstallerProcess is { HasExited: false }) return;
     if (updateCheckRunning) return;
     if ((DateTime.UtcNow - lastUpdateCheckUtc) < TimeSpan.FromMinutes(5)) return;
     updateCheckRunning = true;
@@ -742,6 +761,37 @@ public sealed class InstallerWindow : Window
     cli.IsEnabled = enabled;
     web.IsEnabled = enabled;
     uninstall.IsEnabled = enabled;
+  }
+
+  void BeginLauncherAction(Button button, string buttonText, string statusText)
+  {
+    launcherActionInProgress = true;
+    primary.IsEnabled = false;
+    SetInstalledActions(false);
+    button.Content = buttonText;
+    button.IsEnabled = false;
+    status.Text = statusText;
+  }
+
+  void ResetActionLabels()
+  {
+    cli.Content = "Open CLI";
+    web.Content = "Open Web UI";
+    uninstall.Content = "Uninstall";
+  }
+
+  Button CommandButton(string command)
+  {
+    if (command.Equals("web", StringComparison.OrdinalIgnoreCase)) return web;
+    if (command.Equals("uninstall", StringComparison.OrdinalIgnoreCase)) return uninstall;
+    return cli;
+  }
+
+  static string CommandActionName(string command)
+  {
+    if (command.Equals("web", StringComparison.OrdinalIgnoreCase)) return "Web UI";
+    if (command.Equals("uninstall", StringComparison.OrdinalIgnoreCase)) return "Uninstall";
+    return "CLI";
   }
 
   static string InstalledShimPath()
