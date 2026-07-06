@@ -1021,34 +1021,35 @@ public sealed class InstallerWindow : Window
 
   async Task<(string? Tag, bool StableFallback)> GetLatestReleaseForChannelAsync(System.Net.Http.HttpClient http, string channel)
   {
-    if (NormalizeReleaseChannel(channel) == "beta")
+    async Task<(string? Tag, bool StableFallback)> newestPublishedRelease(bool prerelease)
     {
-      var prereleaseResp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases?per_page=20");
-      if (prereleaseResp.IsSuccessStatusCode)
+      var response = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases?per_page=20");
+      if (!response.IsSuccessStatusCode) return (null, prerelease);
+      using var releases = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+      foreach (var release in releases.RootElement.EnumerateArray())
       {
-        using var releases = System.Text.Json.JsonDocument.Parse(await prereleaseResp.Content.ReadAsStringAsync());
-        foreach (var release in releases.RootElement.EnumerateArray())
-        {
-          var draft = release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean();
-          var prerelease = release.TryGetProperty("prerelease", out var prereleaseProp) && prereleaseProp.GetBoolean();
-          if (draft || !prerelease) continue;
-          return (release.GetProperty("tag_name").GetString(), false);
-        }
+        var draft = release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean();
+        var isPrerelease = release.TryGetProperty("prerelease", out var prereleaseProp) && prereleaseProp.GetBoolean();
+        if (draft || isPrerelease != prerelease) continue;
+        return (release.GetProperty("tag_name").GetString(), !prerelease);
       }
-      else
-      {
-        return (null, false);
-      }
+      return (null, !prerelease);
     }
 
-    var stableResp = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases/latest");
-    if (!stableResp.IsSuccessStatusCode)
+    if (NormalizeReleaseChannel(channel) == "beta")
     {
-      Append($"[update] GitHub API returned {stableResp.StatusCode}, skipping check.");
-      return (null, NormalizeReleaseChannel(channel) == "beta");
+      var latestPrerelease = await newestPublishedRelease(true);
+      if (!string.IsNullOrEmpty(latestPrerelease.Tag)) return latestPrerelease;
+      return await newestPublishedRelease(false);
     }
-    using var stableRelease = System.Text.Json.JsonDocument.Parse(await stableResp.Content.ReadAsStringAsync());
-    return (stableRelease.RootElement.GetProperty("tag_name").GetString(), NormalizeReleaseChannel(channel) == "beta");
+
+    var latestStable = await newestPublishedRelease(false);
+    if (string.IsNullOrEmpty(latestStable.Tag))
+    {
+      Append("[update] No published stable release was found, skipping check.");
+      return (null, false);
+    }
+    return latestStable;
   }
 
   static int CompareReleaseVersions(string left, string right)
@@ -1193,6 +1194,9 @@ public sealed class InstallerWindow : Window
 
   static string? LocalManifestPath()
   {
+    var explicitManifest = Environment.GetEnvironmentVariable("CODY_RELEASE_MANIFEST_URL");
+    if (!string.IsNullOrWhiteSpace(explicitManifest)) return explicitManifest;
+    if (Environment.GetEnvironmentVariable("CODY_LAUNCHER_USE_LOCAL_MANIFEST") != "1") return null;
     var exePath = Environment.ProcessPath;
     var exeDir = string.IsNullOrWhiteSpace(exePath) ? AppContext.BaseDirectory : IOPath.GetDirectoryName(exePath);
     if (string.IsNullOrWhiteSpace(exeDir)) return null;
