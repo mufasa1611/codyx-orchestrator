@@ -197,7 +197,7 @@ public sealed class InstallerWindow : Window
     };
     channelRow.Children.Add(new TextBlock
     {
-      Text = "Release channel",
+      Text = "Update channel",
       Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
       FontSize = 14,
       FontWeight = FontWeights.SemiBold,
@@ -868,9 +868,16 @@ public sealed class InstallerWindow : Window
     return value is "beta" or "prerelease" or "pre-release" or "preview" ? "beta" : "prod";
   }
 
+  static bool IsPrereleaseVersion(string? version)
+  {
+    return !string.IsNullOrWhiteSpace(version) && version.Contains('-');
+  }
+
   static string InstalledReleaseChannel()
   {
-    return NormalizeReleaseChannel(ReadInstalledMarkerString("channel"));
+    var channel = ReadInstalledMarkerString("channel");
+    if (!string.IsNullOrWhiteSpace(channel)) return NormalizeReleaseChannel(channel);
+    return IsPrereleaseVersion(InstalledReleaseVersion()) ? "beta" : "prod";
   }
 
   static string? InstalledReleaseVersion()
