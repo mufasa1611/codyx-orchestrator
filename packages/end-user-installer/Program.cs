@@ -989,8 +989,9 @@ public sealed class InstallerWindow : Window
         return false;
       }
 
-      var shouldOffer = CompareReleaseVersions(latestVer, currentVer) > 0;
-      if (channel == "beta" && latestInfo.StableFallback && currentVer.Contains('-')) shouldOffer = true;
+      var versionComparison = CompareReleaseVersions(latestVer, currentVer);
+      var shouldOffer = versionComparison > 0;
+      if (channel == "beta" && latestInfo.StableFallback && currentVer.Contains('-')) shouldOffer = versionComparison != 0;
       if (!shouldOffer)
       {
         Append($"[update] Already up-to-date ({ChannelLabel(channel)}, v{currentVer}).");
@@ -1029,9 +1030,10 @@ public sealed class InstallerWindow : Window
       foreach (var release in releases.RootElement.EnumerateArray())
       {
         var draft = release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean();
-        var isPrerelease = release.TryGetProperty("prerelease", out var prereleaseProp) && prereleaseProp.GetBoolean();
+        var tag = release.GetProperty("tag_name").GetString();
+        var isPrerelease = (release.TryGetProperty("prerelease", out var prereleaseProp) && prereleaseProp.GetBoolean()) || IsPrereleaseTag(tag);
         if (draft || isPrerelease != prerelease) continue;
-        return (release.GetProperty("tag_name").GetString(), !prerelease);
+        return (tag, !prerelease);
       }
       return (null, !prerelease);
     }
@@ -1083,6 +1085,11 @@ public sealed class InstallerWindow : Window
       if (textDiff != 0) return textDiff;
     }
     return 0;
+  }
+
+  static bool IsPrereleaseTag(string? tag)
+  {
+    return !string.IsNullOrWhiteSpace(tag) && ParseReleaseVersion(tag).Pre.Length > 0;
   }
 
   static (int[] Base, string[] Pre) ParseReleaseVersion(string version)

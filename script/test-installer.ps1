@@ -110,6 +110,8 @@ Assert-Contains "packages/end-user-installer/Program.cs" 'if \(ready && !release
 Assert-Contains "packages/end-user-installer/Program.cs" 'CheckForUpdateAsync[\s\S]*SelectedReleaseChannel\(\)' "Compiled installer update check uses the selected release channel"
 Assert-Contains "packages/end-user-installer/Program.cs" 'RunEmbeddedInstallPreflightAsync[\s\S]*SelectedReleaseChannel\(\)[\s\S]*-Channel \{channel\}' "Compiled installer launch preflight uses the selected release channel"
 Assert-Contains "packages/end-user-installer/Program.cs" 'CompareReleaseVersions[\s\S]*ParseReleaseVersion' "Compiled installer UI compares prerelease versions without System.Version"
+Assert-Contains "packages/end-user-installer/Program.cs" 'IsPrereleaseTag[\s\S]*ParseReleaseVersion\(tag\)\.Pre\.Length > 0' "Compiled installer UI treats semver prerelease tags as beta even if GitHub prerelease is not checked"
+Assert-Contains "packages/end-user-installer/Program.cs" 'StableFallback[\s\S]*versionComparison != 0' "Compiled installer UI never offers a fallback update to the same installed version"
 Assert-Contains "packages/end-user-installer/Program.cs" 'primary\.Content = health\.Ready \? "Check / repair update" : "Agree and install"' "Compiled installer UI shows repair/update instead of fresh install when already healthy"
 Assert-Contains "packages/codyx/src/server/agent/rest.ts" 'x-cody-cli-local[\s\S]*LOCAL_CLI_USER_ID' "Hono agent routes accept trusted local CLI requests"
 Assert-Contains "packages/codyx/src/server/routes/instance/httpapi/handlers/agent.ts" 'x-cody-cli-local[\s\S]*LOCAL_CLI_USER_ID' "Effect HTTP API agent routes accept trusted local CLI requests"
