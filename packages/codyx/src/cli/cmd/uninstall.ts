@@ -505,10 +505,18 @@ export async function executeUninstall(
   // Remove memo.md inside install root
   if (targets.installRoot) {
     const memoPath = path.join(targets.installRoot, "memo.md")
-    try {
-      await fs.unlink(memoPath)
-      removed.push(`user memo: ${memoPath}`)
-    } catch {}
+    const exists = await fs
+      .access(memoPath)
+      .then(() => true)
+      .catch(() => false)
+    if (exists) {
+      const err = await removePathWithRenameFallback(memoPath)
+      if (err) {
+        errors.push(`user memo ${memoPath}: ${err.message}`)
+      } else {
+        removed.push(`user memo: ${memoPath}`)
+      }
+    }
   }
 
   if (targets.installRoot) {

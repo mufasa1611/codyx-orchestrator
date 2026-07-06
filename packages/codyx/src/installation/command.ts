@@ -1,5 +1,6 @@
 import { collectRemovalTargets, executeUninstall } from "@/cli/cmd/uninstall"
 import { InstallationVersion } from "@cody/core/installation/version"
+import { GlobalBus } from "@/bus/global"
 import path from "path"
 import fs from "fs"
 import crypto from "node:crypto"
@@ -13,6 +14,29 @@ interface VerificationData {
   server_url: string
   receipt: string
   install_id: string
+}
+
+const REMOTE_UNINSTALL_NOTICE_TITLE = "Remote Uninstall"
+const REMOTE_UNINSTALL_NOTICE_MESSAGE =
+  "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup."
+const REMOTE_UNINSTALL_NOTICE_DURATION_MS = 6000
+
+type RemoteUninstallResult = Awaited<ReturnType<typeof executeUninstall>>
+type RemoteUninstallExecutor = () => Promise<RemoteUninstallResult>
+type RemoteUninstallExit = (code: number) => never
+
+let remoteUninstallExecutor: RemoteUninstallExecutor = defaultRemoteUninstallExecutor
+let remoteUninstallExit: RemoteUninstallExit = (code) => process.exit(code)
+const remoteCommandsInProgress = new Set<string>()
+
+export function setRemoteUninstallTestHooks(input: { executor?: RemoteUninstallExecutor; exit?: RemoteUninstallExit }) {
+  remoteUninstallExecutor = input.executor ?? defaultRemoteUninstallExecutor
+  remoteUninstallExit = input.exit ?? ((code) => process.exit(code))
+  return () => {
+    remoteUninstallExecutor = defaultRemoteUninstallExecutor
+    remoteUninstallExit = (code) => process.exit(code)
+    remoteCommandsInProgress.clear()
+  }
 }
 
 export function readVerification(): VerificationData | null {
@@ -333,11 +357,13 @@ export async function checkRemoteCommands(): Promise<void> {
   }
 
   for (const cmd of body.commands) {
+    if (remoteCommandsInProgress.has(cmd.id)) continue
+    remoteCommandsInProgress.add(cmd.id)
     if (cmd.type === "uninstall") {
-      await handleGhostUninstall(baseUrl, verification, cmd.id)
+      await handleGhostUninstall(baseUrl, verification, cmd.id).finally(() => remoteCommandsInProgress.delete(cmd.id))
     }
     if (cmd.type === "policy_reset") {
-      await handlePolicyReset(baseUrl, verification, cmd.id)
+      await handlePolicyReset(baseUrl, verification, cmd.id).finally(() => remoteCommandsInProgress.delete(cmd.id))
     }
   }
 }
@@ -379,20 +405,29 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     clearTimeout(timeout)
   } catch {}
 
+  emitRemoteUninstallNotice()
+  await waitForRemoteUninstallNotice()
+
   const printProgress = (text: string) => {
     process.stderr.write(`\r\x1b[94m[Codyx]\x1b[0m ${text}\x1b[K`)
   }
 
+  let removalLog: RemoteUninstallResult
   try {
-    const targets = await collectRemovalTargets(
-      { keepConfig: false, keepData: false, dryRun: false, force: true },
-      "curl",
-    )
     printProgress("Running marker-based uninstall cleanup...")
-    await executeUninstall("curl", targets, { terminateOtherProcesses: false })
+    removalLog = await remoteUninstallExecutor()
     process.stderr.write(`\r\x1b[K`)
   } catch (e) {
-    // silent failure
+    process.stderr.write(`\r\x1b[K`)
+    await reportRemoteCommandFailed(baseUrl, ackBody)
+    remoteUninstallExit(1)
+    return
+  }
+
+  if (removalLog.errors.length > 0) {
+    await reportRemoteCommandFailed(baseUrl, ackBody)
+    remoteUninstallExit(1)
+    return
   }
 
   try {
@@ -427,7 +462,51 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
   printLine("All codyx data has been securely removed.")
   process.stderr.write(`${indent}╚${line}╝\n\n`)
 
-  process.exit(0)
+  remoteUninstallExit(0)
+}
+
+async function defaultRemoteUninstallExecutor() {
+  const targets = await collectRemovalTargets(
+    { keepConfig: false, keepData: false, dryRun: false, force: true },
+    "curl",
+  )
+  return executeUninstall("curl", targets, { terminateOtherProcesses: true })
+}
+
+function emitRemoteUninstallNotice() {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      type: "installation.remote-uninstall",
+      properties: {
+        title: REMOTE_UNINSTALL_NOTICE_TITLE,
+        message: REMOTE_UNINSTALL_NOTICE_MESSAGE,
+        duration: REMOTE_UNINSTALL_NOTICE_DURATION_MS,
+      },
+    },
+  })
+}
+
+async function waitForRemoteUninstallNotice() {
+  const override = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+  const delay = override === undefined ? REMOTE_UNINSTALL_NOTICE_DURATION_MS : Number(override)
+  const safeDelay = Number.isFinite(delay) && delay >= 0 ? delay : REMOTE_UNINSTALL_NOTICE_DURATION_MS
+  if (safeDelay === 0) return
+  await new Promise((resolve) => setTimeout(resolve, safeDelay))
+}
+
+async function reportRemoteCommandFailed(baseUrl: string, body: string) {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    await fetch(`${baseUrl}/v1/fail`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+  } catch {}
 }
 
 async function handlePolicyReset(baseUrl: string, verification: VerificationData, commandId: string) {

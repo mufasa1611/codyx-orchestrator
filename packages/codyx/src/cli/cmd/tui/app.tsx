@@ -858,6 +858,22 @@ function App(props: { onSnapshot?: () => Promise<string[]>; onGitUpgrade?: () =>
     })
   })
 
+  event.subscribe((evt) => {
+    const remoteUninstall = evt as unknown as {
+      type?: string
+      properties?: { title?: string; message?: string; duration?: number }
+    }
+    if (remoteUninstall.type !== "installation.remote-uninstall") return
+    toast.show({
+      title: remoteUninstall.properties?.title ?? "Remote Uninstall",
+      message:
+        remoteUninstall.properties?.message ??
+        "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup.",
+      variant: "warning",
+      duration: remoteUninstall.properties?.duration ?? 6000,
+    })
+  })
+
   event.on("session.deleted", (evt) => {
     if (route.data.type === "session" && route.data.sessionID === evt.properties.info.id) {
       route.navigate({ type: "home" })

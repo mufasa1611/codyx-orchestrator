@@ -638,6 +638,35 @@ describe("installer verification service", () => {
     expect(body.commands).toHaveLength(0)
   })
 
+  test("client can mark a remote command as failed", async () => {
+    const created = await createChallenge()
+    const verified = await verifyChallenge(created.response.challenge_id)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    const { command_id } = (await uninstall.json()) as { command_id: string }
+
+    await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+
+    const failed = await request("/v1/fail", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt, command_id }),
+    })
+    expect(failed.status).toBe(200)
+    expect((await failed.json()) as { status: string }).toMatchObject({ status: "failed" })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const command = await db
+      .prepare("SELECT status, completed_at FROM remote_command WHERE id = ?")
+      .bind(command_id)
+      .first()
+    expect((command as any).status).toBe("failed")
+    expect((command as any).completed_at).not.toBeNull()
+  })
+
   test("unauthenticated requests for remote commands are rejected", async () => {
     const installId = crypto.randomUUID()
     const receipt = "invalid.receipt.token"
@@ -657,6 +686,12 @@ describe("installer verification service", () => {
       body: JSON.stringify({ install_id: installId, receipt, command_id: commandId }),
     })
     expect(complete.status).toBe(401)
+
+    const fail = await request("/v1/fail", {
+      method: "POST",
+      body: JSON.stringify({ install_id: installId, receipt, command_id: commandId }),
+    })
+    expect(fail.status).toBe(401)
 
     const unauthenticated = await request(`/v1/admin/installations/${installId}/uninstall`, { method: "POST" })
     expect(unauthenticated.status).toBe(401)

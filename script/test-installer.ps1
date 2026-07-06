@@ -316,7 +316,7 @@ Assert-Contains "packages/codyx/src/cli/cmd/uninstall.ts" 'jsInstall[\s\S]*packa
 Assert-Contains "packages/codyx/src/cli/cmd/uninstall.ts" 'scheduleWindowsPathRemoval[\s\S]*renameErr[\s\S]*scheduleWindowsPathRemoval\(targetPath, \{ stopCodyx: true \}\)' "Uninstall schedules original locked Windows paths when rename fallback is blocked"
 Assert-Contains "packages/codyx/src/cli/cmd/uninstall.ts" 'Scheduling install root removal[\s\S]*Get-Process.*codyx[\s\S]*Stop-Process -Force' "Uninstall root cleanup stops remaining Codyx processes before retrying removal"
 Assert-Contains "packages/codyx/src/cli/cmd/uninstall.ts" 'were not marked as installed by codyx, so they were left installed' "Uninstall preserves shared system tools"
-Assert-Contains "packages/codyx/src/installation/command.ts" 'executeUninstall\("curl", targets, \{ terminateOtherProcesses: false \}\)' "Admin-triggered remote uninstall does not kill itself before reporting completion"
+Assert-Contains "packages/codyx/src/installation/command.ts" 'executeUninstall\("curl", targets, \{ terminateOtherProcesses: true \}\)' "Admin-triggered remote uninstall stops other Codyx processes before cleanup"
 Assert-NotContains "packages/codyx/src/cli/cmd/uninstall.ts" 'taskkill\.exe' "Uninstall does not kill the current compiled codyx.exe by image name"
 Assert-Contains "packages/codyx/src/installation/index.ts" 'CODY_INSTALL_ROOT' "Installation method detection uses the install root"
 Assert-Contains "packages/codyx/src/cli/upgrade.ts" 'CODY_INSTALL_ROOT' "Auto-update uses the install root"

@@ -3,7 +3,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import { GlobalBus, type GlobalEvent } from "@/bus/global"
-import { checkRemoteCommands } from "@/installation/command"
+import { checkRemoteCommands, setRemoteUninstallTestHooks } from "@/installation/command"
 import { registerLivePolicyResetListener } from "@/session/policy-reset"
 
 let cleanup: Array<() => void | Promise<void>> = []
@@ -85,5 +85,209 @@ describe("remote commands", () => {
     expect(event.directory).toBe("global")
     expect(event.payload.properties).toEqual({ sessionID: "ses_remote_reset", bannedUntil: 0, count: 0 })
     expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "POST /v1/complete"])
+  })
+
+  test("uninstall command shows live notice, runs cleanup, and completes", async () => {
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const previousNoticeMs = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-uninstall-"))
+    process.env.LOCALAPPDATA = tmp
+    process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = "0"
+    cleanup.push(() => {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
+      if (previousNoticeMs === undefined) {
+        delete process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+      } else {
+        process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = previousNoticeMs
+      }
+      fs.rmSync(tmp, { recursive: true, force: true })
+    })
+
+    const calls: string[] = []
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        calls.push(`${request.method} ${url.pathname}`)
+        if (request.method === "GET" && url.pathname === "/v1/commands") {
+          return Response.json({
+            commands: [{ id: "cmd_remote_uninstall", type: "uninstall", created_at: Date.now() }],
+          })
+        }
+        if (request.method === "POST" && url.pathname === "/v1/acknowledge") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/complete") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/fail") return Response.json({ ok: true })
+        return new Response("not found", { status: 404 })
+      },
+    })
+    cleanup.push(() => server.stop(true))
+
+    writeVerification(tmp, `http://127.0.0.1:${server.port}`)
+
+    const exits: number[] = []
+    const restoreHooks = setRemoteUninstallTestHooks({
+      executor: async () => ({ removed: ["fake"], errors: [] }),
+      exit: ((code: number) => {
+        exits.push(code)
+        throw new Error(`exit:${code}`)
+      }) as never,
+    })
+    cleanup.push(restoreHooks)
+
+    const noticePromise = new Promise<GlobalEvent>((resolve) => {
+      const handler = (event: GlobalEvent) => {
+        if (event.payload?.type !== "installation.remote-uninstall") return
+        GlobalBus.off("event", handler)
+        resolve(event)
+      }
+      GlobalBus.on("event", handler)
+    })
+
+    await expect(checkRemoteCommands()).rejects.toThrow("exit:0")
+    const notice = await noticePromise
+
+    expect(notice.directory).toBe("global")
+    expect(notice.payload.properties).toMatchObject({
+      title: "Remote Uninstall",
+      message:
+        "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup.",
+      duration: 6000,
+    })
+    expect(exits).toEqual([0])
+    expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "POST /v1/complete"])
+  })
+
+  test("uninstall command reports failed when cleanup returns errors", async () => {
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const previousNoticeMs = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-uninstall-fail-"))
+    process.env.LOCALAPPDATA = tmp
+    process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = "0"
+    cleanup.push(() => {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
+      if (previousNoticeMs === undefined) {
+        delete process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+      } else {
+        process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = previousNoticeMs
+      }
+      fs.rmSync(tmp, { recursive: true, force: true })
+    })
+
+    const calls: string[] = []
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        calls.push(`${request.method} ${url.pathname}`)
+        if (request.method === "GET" && url.pathname === "/v1/commands") {
+          return Response.json({
+            commands: [{ id: "cmd_remote_uninstall_fail", type: "uninstall", created_at: Date.now() }],
+          })
+        }
+        if (request.method === "POST" && url.pathname === "/v1/acknowledge") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/complete") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/fail") return Response.json({ ok: true })
+        return new Response("not found", { status: 404 })
+      },
+    })
+    cleanup.push(() => server.stop(true))
+
+    writeVerification(tmp, `http://127.0.0.1:${server.port}`)
+
+    const exits: number[] = []
+    const restoreHooks = setRemoteUninstallTestHooks({
+      executor: async () => ({ removed: [], errors: ["fake cleanup failure"] }),
+      exit: ((code: number) => {
+        exits.push(code)
+        throw new Error(`exit:${code}`)
+      }) as never,
+    })
+    cleanup.push(restoreHooks)
+
+    await expect(checkRemoteCommands()).rejects.toThrow("exit:1")
+
+    expect(exits).toEqual([1])
+    expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "POST /v1/fail"])
+  })
+
+  test("uninstall command is not executed twice while a previous poll is still cleaning", async () => {
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const previousNoticeMs = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-uninstall-dedupe-"))
+    process.env.LOCALAPPDATA = tmp
+    process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = "0"
+    cleanup.push(() => {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
+      if (previousNoticeMs === undefined) {
+        delete process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+      } else {
+        process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = previousNoticeMs
+      }
+      fs.rmSync(tmp, { recursive: true, force: true })
+    })
+
+    const calls: string[] = []
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        calls.push(`${request.method} ${url.pathname}`)
+        if (request.method === "GET" && url.pathname === "/v1/commands") {
+          return Response.json({
+            commands: [{ id: "cmd_remote_uninstall_dedupe", type: "uninstall", created_at: Date.now() }],
+          })
+        }
+        if (request.method === "POST" && url.pathname === "/v1/acknowledge") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/complete") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/fail") return Response.json({ ok: true })
+        return new Response("not found", { status: 404 })
+      },
+    })
+    cleanup.push(() => server.stop(true))
+
+    writeVerification(tmp, `http://127.0.0.1:${server.port}`)
+
+    let cleanupStarted!: () => void
+    let finishCleanup!: () => void
+    const cleanupStartedPromise = new Promise<void>((resolve) => {
+      cleanupStarted = resolve
+    })
+    const finishCleanupPromise = new Promise<void>((resolve) => {
+      finishCleanup = resolve
+    })
+    let cleanupRuns = 0
+    const restoreHooks = setRemoteUninstallTestHooks({
+      executor: async () => {
+        cleanupRuns++
+        cleanupStarted()
+        await finishCleanupPromise
+        return { removed: ["fake"], errors: [] }
+      },
+      exit: ((code: number) => {
+        throw new Error(`exit:${code}`)
+      }) as never,
+    })
+    cleanup.push(restoreHooks)
+
+    const first = checkRemoteCommands()
+    await cleanupStartedPromise
+    await checkRemoteCommands()
+    finishCleanup()
+
+    await expect(first).rejects.toThrow("exit:0")
+    expect(cleanupRuns).toBe(1)
+    expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "GET /v1/commands", "POST /v1/complete"])
   })
 })

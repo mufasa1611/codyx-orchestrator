@@ -34,6 +34,7 @@ header span{color:#8b949e;font-size:14px}
 .badge.pending{background:#d2992222;color:#d29922;border:1px solid #d2992244}
 .badge.acknowledged{background:#1f6feb22;color:#58a6ff;border:1px solid #1f6feb44}
 .badge.completed{background:#23863622;color:#3fb950;border:1px solid #23863644}
+.badge.failed{background:#f8514922;color:#ff7b72;border:1px solid #f8514944}
 table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
 th{text-align:left;padding:10px 12px;font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;background:#0d1117;border-bottom:1px solid #30363d}
 td{padding:10px 12px;font-size:13px;border-bottom:1px solid #21262d;vertical-align:middle}
@@ -267,6 +268,7 @@ function statusBadge(status) {
   if (status === "pending") return '<span class="badge pending">Pending</span>'
   if (status === "acknowledged") return '<span class="badge acknowledged">Processing</span>'
   if (status === "completed") return '<span class="badge completed">Done</span>'
+  if (status === "failed") return '<span class="badge failed">Failed</span>'
   return '<span class="badge">' + esc(status) + "</span>"
 }
 

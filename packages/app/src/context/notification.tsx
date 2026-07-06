@@ -441,6 +441,23 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const unsub = globalSDK.event.listen((e) => {
       const event = e.details
+      const eventType = (event as { type?: string }).type
+      if (eventType === "installation.remote-uninstall") {
+        const properties = (
+          event as {
+            properties?: { title?: string; message?: string; duration?: number }
+          }
+        ).properties
+        showToast({
+          title: properties?.title ?? "Remote Uninstall",
+          description:
+            properties?.message ??
+            "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup.",
+          icon: "warning",
+          duration: properties?.duration ?? 6000,
+        })
+        return
+      }
       if (event.type !== "session.idle" && event.type !== "session.error" && event.type !== "session.policy-ban") return
 
       const directory = e.name

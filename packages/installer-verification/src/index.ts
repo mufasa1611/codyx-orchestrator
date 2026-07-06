@@ -890,6 +890,20 @@ app.post("/v1/complete", async (context) => {
   return context.json({ status: "completed" })
 })
 
+app.post("/v1/fail", async (context) => {
+  const input = parse(commandActionSchema, await jsonBody(context.req.raw))
+  const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
+  const db = context.env.InstallerVerificationDatabase
+  const now = Date.now()
+  await db
+    .prepare(
+      "UPDATE remote_command SET status = 'failed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
+    )
+    .bind(now, now + 30 * 24 * 60 * 60 * 1000, input.command_id, payload.install_id)
+    .run()
+  return context.json({ status: "failed" })
+})
+
 app.post("/internal/cleanup", async (context) => {
   await requireAdmin(context.env, context.req.raw)
   await cleanup(context.env.InstallerVerificationDatabase)
