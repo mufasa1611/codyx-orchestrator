@@ -175,6 +175,7 @@ describe("remote commands", () => {
     })
 
     const calls: string[] = []
+    let banned = true
     const message =
       "This installation has been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback."
     const server = Bun.serve({
@@ -183,6 +184,7 @@ describe("remote commands", () => {
         const url = new URL(request.url)
         calls.push(`${request.method} ${url.pathname}`)
         if (request.method === "GET" && url.pathname === "/v1/commands") {
+          if (!banned) return Response.json({ commands: [] })
           return Response.json({ error: "machine_banned", message }, { status: 403 })
         }
         return new Response("not found", { status: 404 })
@@ -209,7 +211,25 @@ describe("remote commands", () => {
     expect(event.payload.properties?.count).toBe(1)
     expect(event.payload.properties?.message).toBe(message)
     expect(Number(event.payload.properties?.bannedUntil)).toBeGreaterThan(Date.now())
-    expect(calls).toEqual(["GET /v1/commands"])
+
+    banned = false
+    const clearPromise = new Promise<GlobalEvent>((resolve) => {
+      const handler = (event: GlobalEvent) => {
+        if (event.payload?.type !== "session.policy-ban") return
+        if (event.payload.properties?.bannedUntil !== 0) return
+        GlobalBus.off("event", handler)
+        resolve(event)
+      }
+      GlobalBus.on("event", handler)
+    })
+
+    await checkRemoteCommands()
+    const clearEvent = await clearPromise
+
+    expect(clearEvent.directory).toBe("global")
+    expect(clearEvent.payload.properties?.sessionID).toBeUndefined()
+    expect(clearEvent.payload.properties?.bannedUntil).toBe(0)
+    expect(calls).toEqual(["GET /v1/commands", "GET /v1/commands"])
   })
 
   test("uninstall command reports failed when cleanup returns errors", async () => {

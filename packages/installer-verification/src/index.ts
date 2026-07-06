@@ -665,28 +665,32 @@ app.post("/v1/admin/installations/:installID/uninstall", async (context) => {
     .first()
   if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
   const commandId = crypto.randomUUID()
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO remote_command (id, install_id, type, status, created_at, retain_until)
-         VALUES (?, ?, 'uninstall', 'pending', ?, ?)`,
-      )
-      .bind(commandId, installId, now, now + 30 * 24 * 60 * 60 * 1000),
-    ...(
-      await db
-        .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
-        .bind(installId)
-        .all<{ id: string; expires_at: number }>()
-    ).results.map((receipt) =>
-      db
-        .prepare(
-          "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
-        )
-        .bind(receipt.id, installId, now, receipt.expires_at),
-    ),
-    db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
-  ])
+  await db
+    .prepare(
+      `INSERT INTO remote_command (id, install_id, type, status, created_at, retain_until)
+       VALUES (?, ?, 'uninstall', 'pending', ?, ?)`,
+    )
+    .bind(commandId, installId, now, now + 30 * 24 * 60 * 60 * 1000)
+    .run()
   return context.json({ command_id: commandId }, 201)
+})
+
+app.delete("/v1/admin/installations/:installID/uninstall", async (context) => {
+  await requireAdmin(context.env, context.req.raw)
+  const db = context.env.InstallerVerificationDatabase
+  const installId = parse(z.string().uuid(), context.req.param("installID"))
+  const registration = await db
+    .prepare("SELECT install_id FROM registration WHERE install_id = ?")
+    .bind(installId)
+    .first()
+  if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
+
+  const result = await db
+    .prepare("DELETE FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status = 'pending'")
+    .bind(installId)
+    .run()
+
+  return context.json({ cancelled: result.meta.changes > 0 })
 })
 
 app.post("/v1/admin/installations/:installID/ban", async (context) => {
@@ -864,12 +868,30 @@ app.post("/v1/complete", async (context) => {
     .prepare("SELECT type FROM remote_command WHERE id = ? AND install_id = ?")
     .bind(input.command_id, payload.install_id)
     .first<{ type: string }>()
-  await db
-    .prepare(
-      "UPDATE remote_command SET status = 'completed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
-    )
-    .bind(now, now + 2 * 60 * 1000, input.command_id, payload.install_id)
-    .run()
+  const receipts =
+    command?.type === "uninstall"
+      ? await db
+          .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
+          .bind(payload.install_id)
+          .all<{ id: string; expires_at: number }>()
+      : { results: [] }
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE remote_command SET status = 'completed', completed_at = ?, retain_until = ? WHERE id = ? AND install_id = ? AND status IN ('acknowledged', 'pending')",
+      )
+      .bind(now, now + 2 * 60 * 1000, input.command_id, payload.install_id),
+    ...receipts.results.map((receipt) =>
+      db
+        .prepare(
+          "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
+        )
+        .bind(receipt.id, payload.install_id, now, receipt.expires_at),
+    ),
+    ...(command?.type === "uninstall"
+      ? [db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(payload.install_id)]
+      : []),
+  ])
   if (command?.type === "uninstall") {
     context.executionCtx.waitUntil(notifyAdminUninstallComplete(context.env, payload.install_id, input.command_id))
   }

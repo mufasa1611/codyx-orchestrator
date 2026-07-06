@@ -22,6 +22,7 @@ const REMOTE_UNINSTALL_NOTICE_MESSAGE =
 const REMOTE_UNINSTALL_NOTICE_DURATION_MS = 10_000
 const ADMIN_BAN_MESSAGE =
   "You have been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback."
+const REMOTE_COMMAND_POLL_MS = 1_000
 
 type RemoteUninstallResult = { removed: string[]; errors: string[]; selfReports?: boolean }
 type RemoteUninstallExecutor = (input: { baseUrl: string; ackBody: string }) => Promise<RemoteUninstallResult>
@@ -29,6 +30,7 @@ type RemoteUninstallExit = (code: number) => never
 
 let remoteUninstallExecutor: RemoteUninstallExecutor = defaultRemoteUninstallExecutor
 let remoteUninstallExit: RemoteUninstallExit = (code) => process.exit(code)
+let adminBanActive = false
 const remoteCommandsInProgress = new Set<string>()
 
 export function setRemoteUninstallTestHooks(input: { executor?: RemoteUninstallExecutor; exit?: RemoteUninstallExit }) {
@@ -358,6 +360,7 @@ export async function checkRemoteCommands(): Promise<void> {
   }
 
   const body = (await response.json()) as { commands: Array<{ id: string; type: string; created_at: number }> }
+  if (adminBanActive) emitAdminBanClear()
   if (!body.commands || body.commands.length === 0) {
     return
   }
@@ -383,7 +386,7 @@ export function startRemoteCommandPolling() {
   void checkRemoteCommands().catch(() => {})
   remoteCommandPollingInterval = setInterval(() => {
     void checkRemoteCommands().catch(() => {})
-  }, 5000)
+  }, REMOTE_COMMAND_POLL_MS)
 
   return () => {
     if (!remoteCommandPollingInterval) return
@@ -499,6 +502,8 @@ async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody:
       installRoot,
       baseUrl: input.baseUrl,
       ackBody: input.ackBody,
+      livePid: process.pid,
+      parentPid: process.ppid,
     })
     return { removed: [`scheduled remote uninstall: ${installRoot}`], errors: [], selfReports: true }
   }
@@ -529,6 +534,8 @@ function spawnWindowsRemoteUninstallRunner(input: {
   installRoot: string
   baseUrl: string
   ackBody: string
+  livePid: number
+  parentPid: number
 }) {
   const scriptPath = path.join(os.tmpdir(), `codyx-remote-uninstall-${crypto.randomUUID()}.ps1`)
   const cleanupCommand = `Start-Sleep -Seconds 2; Remove-Item -LiteralPath ${powershellLiteral(scriptPath)} -Force -ErrorAction SilentlyContinue`
@@ -538,6 +545,8 @@ function spawnWindowsRemoteUninstallRunner(input: {
     `$root = ${powershellLiteral(input.installRoot)}`,
     `$baseUrl = ${powershellLiteral(input.baseUrl.replace(/\/+$/, ""))}`,
     `$ackBody = ${powershellLiteral(input.ackBody)}`,
+    `$livePid = ${input.livePid}`,
+    `$parentPid = ${input.parentPid}`,
     `function Send-RemoteStatus([string]$name) {`,
     `  for ($i = 0; $i -lt 12; $i++) {`,
     `    try {`,
@@ -556,8 +565,19 @@ function spawnWindowsRemoteUninstallRunner(input: {
     `  $env:CODYX_INSTALL_ROOT = $root`,
     `  $env:CODY_COMPILED_INSTALL_ROOT = $root`,
     `  $temp = [System.IO.Path]::GetTempPath()`,
-    `  $proc = Start-Process -FilePath $exe -ArgumentList @('uninstall','--force') -WorkingDirectory $temp -WindowStyle Hidden -Wait -PassThru`,
-    `  if ($proc.ExitCode -eq 0) { Send-RemoteStatus 'complete' } else { Send-RemoteStatus 'fail' }`,
+    `  $proc = Start-Process -FilePath $exe -ArgumentList @('uninstall','--force') -WorkingDirectory $temp -WindowStyle Hidden -PassThru`,
+    `  Start-Sleep -Milliseconds 500`,
+    `  Get-Process -Name codyx,cody,codyx-launcher,codyx-orchestrator,cody-x -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $proc.Id } | Stop-Process -Force -ErrorAction SilentlyContinue`,
+    `  if ($livePid -gt 0) { Stop-Process -Id $livePid -Force -ErrorAction SilentlyContinue }`,
+    `  if ($parentPid -gt 0) { Stop-Process -Id $parentPid -Force -ErrorAction SilentlyContinue }`,
+    `  $exited = $proc.WaitForExit(120000)`,
+    `  if (-not $exited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }`,
+    `  for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $root); $i++) {`,
+    `    Start-Sleep -Milliseconds 500`,
+    `    Get-Process -Name codyx,cody,codyx-launcher,codyx-orchestrator,cody-x -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
+    `    try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch {}`,
+    `  }`,
+    `  if ((Test-Path -LiteralPath $root) -or -not $exited -or $proc.ExitCode -ne 0) { Send-RemoteStatus 'fail' } else { Send-RemoteStatus 'complete' }`,
     `} catch {`,
     `  Send-RemoteStatus 'fail'`,
     `} finally {`,
@@ -589,6 +609,8 @@ function emitRemoteUninstallNotice() {
 }
 
 function emitAdminBanNotice(message: string) {
+  if (adminBanActive) return
+  adminBanActive = true
   GlobalBus.emit("event", {
     directory: "global",
     payload: {
@@ -608,6 +630,21 @@ function emitAdminBanNotice(message: string) {
         title: "Admin Ban",
         message,
         duration: 10_000,
+      },
+    },
+  })
+}
+
+function emitAdminBanClear() {
+  adminBanActive = false
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      type: "session.policy-ban",
+      properties: {
+        bannedUntil: 0,
+        count: 0,
+        message: "",
       },
     },
   })

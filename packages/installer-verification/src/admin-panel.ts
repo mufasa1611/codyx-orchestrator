@@ -213,6 +213,18 @@ function confirmUninstall(id, name) {
   openConfirm("uninstall", id, name)
 }
 
+async function cancelUninstall(id) {
+  const res = await apiFetch("/v1/admin/installations/" + id + "/uninstall", { method: "DELETE" })
+  if (res && res.ok) {
+    const data = await res.json()
+    showToast(data.cancelled ? "Pending uninstall cancelled for " + id : "No pending uninstall found for " + id, "success")
+    loadDashboard()
+  } else {
+    const err = await res?.json().catch(() => ({}))
+    showToast(err?.message || "Failed to cancel uninstall", "error")
+  }
+}
+
 function confirmRemove(id, name) {
   openConfirm("remove", id, name)
 }
@@ -351,7 +363,7 @@ async function loadDashboard() {
   document.getElementById("dash-env").textContent = document.getElementById("env-label").textContent || "production"
   renderRows(installations)
 
-  // Auto-refresh every 5s so remote policy/uninstall status is visible quickly.
+  // Auto-refresh every 1s so remote policy/uninstall status is visible quickly.
   if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
   dashboardRefreshTimer = setInterval(async () => {
     const r2 = await apiFetch("/v1/admin/installations")
@@ -360,7 +372,7 @@ async function loadDashboard() {
     const rows2 = d2.installations || []
     document.getElementById("count").textContent = rows2.length
     renderRows(rows2)
-  }, 5000)
+  }, 1000)
 }
 
 function renderRows(installations) {
@@ -370,8 +382,12 @@ function renderRows(installations) {
     return
   }
   tbody.innerHTML = installations.map((r) => {
-    const disabled = r.command_status === "acknowledged" || r.command_status === "completed"
-    const btnLabel = r.command_status === "completed" ? "Uninstalled" : "Uninstall"
+    const uninstallPending = r.command_status === "pending"
+    const uninstallDisabled = r.command_status === "acknowledged" || r.command_status === "completed"
+    const btnLabel = uninstallPending ? "Cancel uninstall" : r.command_status === "completed" ? "Uninstalled" : "Uninstall"
+    const uninstallAction = uninstallPending
+      ? "cancelUninstall('" + esc(r.install_id) + "')"
+      : "confirmUninstall('" + esc(r.install_id) + "','" + esc(r.display_name) + "')"
     let rowClass = ""
     if (r.is_banned) rowClass = " class=\\"row-banned\\""
     else if (r.machine_id) rowClass = " class=\\"row-active\\""
@@ -426,7 +442,7 @@ function renderRows(installations) {
       "<td>" + statusBadge(r.command_status) + "</td>" +
       policyCell +
       banCell +
-      '<td><button class="btn-uninstall' + (disabled ? " disabled" : "") + '" onclick="confirmUninstall(' + "'" + esc(r.install_id) + "','" + esc(r.display_name) + "'" + ')"' + (disabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + resetPolicyBtn + removeBtn + "</td>" +
+      '<td><button class="btn-uninstall' + (uninstallDisabled ? " disabled" : "") + '" onclick="' + uninstallAction + '"' + (uninstallDisabled ? " disabled" : "") + ">" + btnLabel + "</button>" + banBtn + resetPolicyBtn + removeBtn + "</td>" +
     "</tr>"
   }).join("")
 }

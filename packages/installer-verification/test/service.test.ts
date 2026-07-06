@@ -402,6 +402,21 @@ describe("installer verification service", () => {
     expect(command).not.toBeNull()
     expect((command as any).type).toBe("uninstall")
     expect((command as any).status).toBe("pending")
+
+    const cancel = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, {
+      method: "DELETE",
+    })
+    expect(cancel.status).toBe(200)
+    expect((await cancel.json()) as { cancelled: boolean }).toMatchObject({ cancelled: true })
+
+    const cancelled = await db.prepare("SELECT id FROM remote_command WHERE id = ?").bind(body.command_id).first()
+    expect(cancelled).toBeNull()
+
+    const validation = await request("/v1/receipts/validate", {
+      method: "POST",
+      body: JSON.stringify({ install_id: created.body.install_id, receipt }),
+    })
+    expect(await validation.json()).toMatchObject({ valid: true })
   })
 
   test("admin resets policy counters and creates a policy reset command", async () => {
