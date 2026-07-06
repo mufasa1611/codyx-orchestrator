@@ -155,10 +155,61 @@ describe("remote commands", () => {
       title: "Remote Uninstall",
       message:
         "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup.",
-      duration: 6000,
+      duration: 10000,
     })
     expect(exits).toEqual([0])
     expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "POST /v1/complete"])
+  })
+
+  test("machine_banned command poll locks chat without uninstalling", async () => {
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-ban-"))
+    process.env.LOCALAPPDATA = tmp
+    cleanup.push(() => {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
+      fs.rmSync(tmp, { recursive: true, force: true })
+    })
+
+    const calls: string[] = []
+    const message =
+      "This installation has been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback."
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        calls.push(`${request.method} ${url.pathname}`)
+        if (request.method === "GET" && url.pathname === "/v1/commands") {
+          return Response.json({ error: "machine_banned", message }, { status: 403 })
+        }
+        return new Response("not found", { status: 404 })
+      },
+    })
+    cleanup.push(() => server.stop(true))
+
+    writeVerification(tmp, `http://127.0.0.1:${server.port}`)
+
+    const banPromise = new Promise<GlobalEvent>((resolve) => {
+      const handler = (event: GlobalEvent) => {
+        if (event.payload?.type !== "session.policy-ban") return
+        GlobalBus.off("event", handler)
+        resolve(event)
+      }
+      GlobalBus.on("event", handler)
+    })
+
+    await checkRemoteCommands()
+    const event = await banPromise
+
+    expect(event.directory).toBe("global")
+    expect(event.payload.properties?.sessionID).toBeUndefined()
+    expect(event.payload.properties?.count).toBe(1)
+    expect(event.payload.properties?.message).toBe(message)
+    expect(Number(event.payload.properties?.bannedUntil)).toBeGreaterThan(Date.now())
+    expect(calls).toEqual(["GET /v1/commands"])
   })
 
   test("uninstall command reports failed when cleanup returns errors", async () => {
@@ -216,6 +267,59 @@ describe("remote commands", () => {
 
     expect(exits).toEqual([1])
     expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge", "POST /v1/fail"])
+  })
+
+  test("uninstall command lets detached cleanup report completion", async () => {
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const previousNoticeMs = process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codyx-remote-uninstall-detached-"))
+    process.env.LOCALAPPDATA = tmp
+    process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = "0"
+    cleanup.push(() => {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
+      if (previousNoticeMs === undefined) {
+        delete process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS
+      } else {
+        process.env.CODY_REMOTE_UNINSTALL_NOTICE_MS = previousNoticeMs
+      }
+      fs.rmSync(tmp, { recursive: true, force: true })
+    })
+
+    const calls: string[] = []
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        calls.push(`${request.method} ${url.pathname}`)
+        if (request.method === "GET" && url.pathname === "/v1/commands") {
+          return Response.json({
+            commands: [{ id: "cmd_remote_uninstall_detached", type: "uninstall", created_at: Date.now() }],
+          })
+        }
+        if (request.method === "POST" && url.pathname === "/v1/acknowledge") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/complete") return Response.json({ ok: true })
+        if (request.method === "POST" && url.pathname === "/v1/fail") return Response.json({ ok: true })
+        return new Response("not found", { status: 404 })
+      },
+    })
+    cleanup.push(() => server.stop(true))
+
+    writeVerification(tmp, `http://127.0.0.1:${server.port}`)
+
+    const restoreHooks = setRemoteUninstallTestHooks({
+      executor: async () => ({ removed: ["scheduled"], errors: [], selfReports: true }),
+      exit: ((code: number) => {
+        throw new Error(`exit:${code}`)
+      }) as never,
+    })
+    cleanup.push(restoreHooks)
+
+    await expect(checkRemoteCommands()).rejects.toThrow("exit:0")
+    expect(calls).toEqual(["GET /v1/commands", "POST /v1/acknowledge"])
   })
 
   test("uninstall command is not executed twice while a previous poll is still cleaning", async () => {

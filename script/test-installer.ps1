@@ -56,6 +56,7 @@ Assert-Contains "script/install-compiled.ps1" "NoPathUpdate" "Compiled installer
 Assert-Contains "script/install-compiled.ps1" "NoShortcuts" "Compiled installer has a no-shortcuts mode for smoke tests"
 Assert-Contains "script/install-compiled.ps1" "CODYX_SKIP_UPDATE" "Compiled shims support skipping update checks for diagnostics"
 Assert-Contains "script/install-compiled.ps1" "CODY_DISABLE_AUTOUPDATE" "Compiled shims disable unsafe in-process binary self-update"
+Assert-Contains "script/install-compiled.ps1" "CODY_INSTALL_ROOT" "Compiled shims expose the install root to runtime uninstall cleanup"
 Assert-Contains "script/install-compiled.ps1" 'if /I "%~1"=="uninstall" goto codyx_run' "Compiled CMD shim skips update preflight for uninstall"
 Assert-Contains "script/install-compiled.ps1" 'if defined TEMP cd /d "%TEMP%"' "Compiled CMD shim leaves the install bin directory before uninstall"
 Assert-Contains "script/install-compiled.ps1" 'Set-Location -LiteralPath \(\[System\.IO\.Path\]::GetTempPath\(\)\)' "Compiled PowerShell shim leaves the install bin directory before uninstall"

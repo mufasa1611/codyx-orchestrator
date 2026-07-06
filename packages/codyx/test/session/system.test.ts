@@ -1,11 +1,14 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
+import path from "path"
 import type { Agent } from "../../src/agent/agent"
+import type { Provider } from "../../src/provider/provider"
 import { NamedError } from "@cody/core/util/error"
 import { Skill } from "../../src/skill"
 import { Permission } from "../../src/permission"
 import { SystemPrompt } from "../../src/session/system"
 import { testEffect } from "../lib/effect"
+import { TestInstance } from "../fixture/fixture"
 
 const skills: Skill.Info[] = [
   {
@@ -56,6 +59,11 @@ const it = testEffect(
   ),
 )
 
+const model = {
+  providerID: "test",
+  api: { id: "test-model" },
+} as Provider.Model
+
 describe("session.system", () => {
   it.effect("skills output is sorted by name and stable across calls", () =>
     Effect.gen(function* () {
@@ -74,6 +82,25 @@ describe("session.system", () => {
       expect(middle).toBeGreaterThan(alpha)
       expect(zeta).toBeGreaterThan(middle)
       expect(output).not.toContain("manual-skill")
+    }),
+  )
+
+  it.instance("environment includes installer memo username", () =>
+    Effect.gen(function* () {
+      const testInstance = yield* TestInstance
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(testInstance.directory, "memo.md"),
+          "# Private Workspace Memo\n\n## User\n- username: Sandra\n",
+        ),
+      )
+
+      const prompt = yield* SystemPrompt.Service
+      const environment = yield* prompt.environment(model)
+      const output = environment.join("\n")
+
+      expect(output).toContain("User preferred name from memo.md: Sandra")
+      expect(output).toContain("Use the user's preferred name naturally")
     }),
   )
 })

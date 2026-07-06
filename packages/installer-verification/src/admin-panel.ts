@@ -121,14 +121,14 @@ tr:hover td{background:#1c2128}
 <th>Platform</th>
 <th>Version</th>
 <th>Verified</th>
-<th>Status</th>
+<th>Uninstall Status</th>
 <th>Policy Violations</th>
 <th>Banned</th>
 <th></th>
 </tr>
 </thead>
 <tbody id="table-body">
-<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>
+<tr><td colspan="11" class="empty"><span class="spinner"></span> Loading...</td></tr>
 </tbody>
 </table>
 </div>
@@ -340,7 +340,7 @@ async function loadDashboard() {
     document.getElementById("ban-duration-input").value = settings.ban_duration_minutes
   }
 
-  document.getElementById("table-body").innerHTML = '<tr><td colspan="10" class="empty"><span class="spinner"></span> Loading...</td></tr>'
+  document.getElementById("table-body").innerHTML = '<tr><td colspan="11" class="empty"><span class="spinner"></span> Loading...</td></tr>'
 
   const res = await apiFetch("/v1/admin/installations")
   if (!res) return
@@ -366,7 +366,7 @@ async function loadDashboard() {
 function renderRows(installations) {
   const tbody = document.getElementById("table-body")
   if (installations.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">No registrations found.</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">No registrations found.</td></tr>'
     return
   }
   tbody.innerHTML = installations.map((r) => {

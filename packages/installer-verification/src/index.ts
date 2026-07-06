@@ -717,39 +717,7 @@ app.post("/v1/admin/installations/:installID/ban", async (context) => {
     )
   }
 
-  const existingCommand = await db
-    .prepare(
-      "SELECT 1 FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status IN ('pending', 'acknowledged') LIMIT 1",
-    )
-    .bind(installId)
-    .first()
-
-  let uninstallTriggered = false
-  if (!existingCommand) {
-    const commandId = crypto.randomUUID()
-    const receipts = await db
-      .prepare("SELECT id, expires_at FROM receipt WHERE install_id = ?")
-      .bind(installId)
-      .all<{ id: string; expires_at: number }>()
-    await db.batch([
-      db
-        .prepare(
-          "INSERT INTO remote_command (id, install_id, type, status, created_at, retain_until) VALUES (?, ?, 'uninstall', 'pending', ?, ?)",
-        )
-        .bind(commandId, installId, now, now + 30 * 24 * 60 * 60 * 1000),
-      ...receipts.results.map((receipt) =>
-        db
-          .prepare(
-            "INSERT OR REPLACE INTO revocation (receipt_id, install_id, revoked_at, retain_until) VALUES (?, ?, ?, ?)",
-          )
-          .bind(receipt.id, installId, now, receipt.expires_at),
-      ),
-      db.prepare("DELETE FROM receipt WHERE install_id = ?").bind(installId),
-    ])
-    uninstallTriggered = true
-  }
-
-  return context.json({ banned: machineBanned, uninstall_triggered: uninstallTriggered })
+  return context.json({ banned: machineBanned })
 })
 
 app.post("/v1/admin/installations/:installID/unban", async (context) => {
@@ -840,6 +808,24 @@ app.get("/v1/commands", async (context) => {
   const installId = context.req.query("install_id")
   const receipt = context.req.query("receipt")
   const input = parse(commandActionSchema.omit({ command_id: true }), { install_id: installId, receipt })
+  const receiptPayload = await verifyReceipt(secrets(context.env).receipt, input.receipt)
+  if (receiptPayload?.install_id === input.install_id) {
+    const banned = await context.env.InstallerVerificationDatabase.prepare(
+      `SELECT 1
+       FROM registration
+       INNER JOIN banned_machine ON banned_machine.machine_id = registration.machine_id
+       WHERE registration.install_id = ?
+       LIMIT 1`,
+    )
+      .bind(input.install_id)
+      .first()
+    if (banned)
+      throw new ApiError(
+        403,
+        "machine_banned",
+        "This installation has been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback.",
+      )
+  }
   const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
   const db = context.env.InstallerVerificationDatabase
   const now = Date.now()

@@ -496,14 +496,23 @@ describe("installer verification service", () => {
 
     const ban = await admin(`/v1/admin/installations/${created.body.install_id}/ban`, { method: "POST" })
     expect(ban.status).toBe(200)
-    expect((await ban.json()) as { uninstall_triggered: boolean }).toMatchObject({ uninstall_triggered: true })
+    expect((await ban.json()) as { banned: boolean }).toMatchObject({ banned: true })
 
     const db = await worker.getD1Database("InstallerVerificationDatabase")
     const commands = await db
       .prepare("SELECT type FROM remote_command WHERE install_id = ? ORDER BY created_at ASC")
       .bind(created.body.install_id)
       .all<{ type: string }>()
-    expect(commands.results.map((command) => command.type)).toEqual(["policy_reset", "uninstall"])
+    expect(commands.results.map((command) => command.type)).toEqual(["policy_reset"])
+
+    const uninstall = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, { method: "POST" })
+    expect(uninstall.status).toBe(201)
+
+    const commandsAfterUninstall = await db
+      .prepare("SELECT type FROM remote_command WHERE install_id = ? ORDER BY created_at ASC")
+      .bind(created.body.install_id)
+      .all<{ type: string }>()
+    expect(commandsAfterUninstall.results.map((command) => command.type)).toEqual(["policy_reset", "uninstall"])
   })
 
   test("admin bans and unbans a verified machine", async () => {
@@ -511,12 +520,12 @@ describe("installer verification service", () => {
     const created = await createChallenge(Object.assign(challengeBody(), { machine_id: machineId }))
     const verified = await verifyChallenge(created.response.challenge_id)
     expect(verified.status).toBe(200)
+    const receipt = ((await verified.json()) as { receipt: string }).receipt
 
     const ban = await admin(`/v1/admin/installations/${created.body.install_id}/ban`, { method: "POST" })
     expect(ban.status).toBe(200)
-    expect((await ban.json()) as { banned: boolean; uninstall_triggered: boolean }).toMatchObject({
+    expect((await ban.json()) as { banned: boolean; uninstall_triggered?: boolean }).toMatchObject({
       banned: true,
-      uninstall_triggered: true,
     })
 
     const exported = await admin("/v1/admin/installations?format=json")
@@ -533,9 +542,28 @@ describe("installer verification service", () => {
       message: "You are banned as a result of your bad behaviors which violate the license rules you have accepted.",
     })
 
+    const poll = await request(
+      `/v1/commands?install_id=${created.body.install_id}&receipt=${encodeURIComponent(receipt)}`,
+    )
+    expect(poll.status).toBe(403)
+    expect((await poll.json()) as { error: string; message: string }).toMatchObject({
+      error: "machine_banned",
+      message:
+        "This installation has been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback.",
+    })
+
     const unban = await admin(`/v1/admin/installations/${created.body.install_id}/unban`, { method: "POST" })
     expect(unban.status).toBe(200)
     expect((await unban.json()) as { unbanned: boolean }).toMatchObject({ unbanned: true })
+
+    const db = await worker.getD1Database("InstallerVerificationDatabase")
+    const command = await db
+      .prepare(
+        "SELECT status FROM remote_command WHERE install_id = ? AND type = 'uninstall' ORDER BY created_at DESC LIMIT 1",
+      )
+      .bind(created.body.install_id)
+      .first<{ status: string }>()
+    expect(command).toBeNull()
 
     const allowed = await request("/v1/challenges", {
       method: "POST",

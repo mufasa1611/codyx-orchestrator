@@ -16,6 +16,7 @@ import { playSoundById } from "@/utils/sound"
 import { showToast, toaster } from "@cody/ui/toast"
 
 const POLICY_VIOLATION_NOTICE_PREFIX = "Codyx policy notice:"
+const GLOBAL_POLICY_BAN_KEY = "__global__"
 
 function policyViolationToastMessageFromText(message: string) {
   const idx = message.indexOf(POLICY_VIOLATION_NOTICE_PREFIX)
@@ -164,9 +165,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const isBanned = (sessionID?: string) => {
       tick()
-      if (!sessionID) return false
       const bans = policyBans()
-      const until = bans[sessionID]
+      const until = sessionID ? (bans[sessionID] ?? bans[GLOBAL_POLICY_BAN_KEY]) : bans[GLOBAL_POLICY_BAN_KEY]
       if (!until) return false
       return Date.now() < until
     }
@@ -175,9 +175,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const banSecondsLeft = (sessionID?: string) => {
       tick()
-      if (!sessionID) return 0
       const bans = policyBans()
-      const until = bans[sessionID]
+      const until = sessionID ? (bans[sessionID] ?? bans[GLOBAL_POLICY_BAN_KEY]) : bans[GLOBAL_POLICY_BAN_KEY]
       if (!until) return 0
       return Math.max(0, Math.ceil((until - Date.now()) / 1000))
     }
@@ -240,9 +239,9 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
                   const sec = banSecondsLeft(sessionForToast)
                   const m = Math.floor(sec / 60)
                   const s = sec % 60
-                  const count = banCounts()[sessionForToast]
-                  const maxWarnings = banMaxWarnings()[sessionForToast]
-                  const customReason = banReasons()[sessionForToast]
+                  const count = banCounts()[sessionForToast] ?? banCounts()[GLOBAL_POLICY_BAN_KEY]
+                  const maxWarnings = banMaxWarnings()[sessionForToast] ?? banMaxWarnings()[GLOBAL_POLICY_BAN_KEY]
+                  const customReason = banReasons()[sessionForToast] ?? banReasons()[GLOBAL_POLICY_BAN_KEY]
                   const reason = customReason ? `${customReason} ` : ""
                   const warning =
                     !customReason && count ? `Warning ${count}${maxWarnings ? ` of ${maxWarnings}` : ""}. ` : ""
@@ -481,6 +480,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
             : undefined
         if (sessionID) {
           setSessionBan(sessionID, bannedUntil, message, count, maxWarnings)
+        } else if (Date.now() < bannedUntil) {
+          setSessionBan(GLOBAL_POLICY_BAN_KEY, bannedUntil, message, count, maxWarnings)
         } else if (Date.now() >= bannedUntil) {
           setPolicyBans({})
           setBanCounts({})

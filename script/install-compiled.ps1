@@ -408,6 +408,7 @@ function New-Shims($BinDir, $CurrentDir, $Root, $UpdaterScript) {
 setlocal
 set "CODY_COMPILED_INSTALL_ROOT=$Root"
 set "CODYX_INSTALL_ROOT=$Root"
+set "CODY_INSTALL_ROOT=$Root"
 set "CODY_RELEASE_REPO=$Repo"
 set "CODY_RELEASE_CHANNEL=$Channel"
 if /I "%~1"=="uninstall" goto codyx_run
@@ -431,6 +432,7 @@ exit /b %errorlevel%
   $ps1Content = @"
 `$env:CODY_COMPILED_INSTALL_ROOT = $rootLiteral
 `$env:CODYX_INSTALL_ROOT = $rootLiteral
+`$env:CODY_INSTALL_ROOT = $rootLiteral
 `$env:CODY_RELEASE_REPO = $repoLiteral
 `$env:CODY_RELEASE_CHANNEL = $channelLiteral
 `$skipUpdate = `$env:CODYX_SKIP_UPDATE -eq "1" -or (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall")

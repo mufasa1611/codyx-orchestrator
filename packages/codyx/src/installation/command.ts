@@ -1,10 +1,10 @@
-import { collectRemovalTargets, executeUninstall } from "@/cli/cmd/uninstall"
+import { collectRemovalTargets } from "@/cli/cmd/uninstall"
 import { InstallationVersion } from "@cody/core/installation/version"
 import { GlobalBus } from "@/bus/global"
 import path from "path"
 import fs from "fs"
 import crypto from "node:crypto"
-import { execSync } from "child_process"
+import { execSync, spawn } from "child_process"
 import os from "os"
 import * as prompts from "@clack/prompts"
 
@@ -19,10 +19,12 @@ interface VerificationData {
 const REMOTE_UNINSTALL_NOTICE_TITLE = "Remote Uninstall"
 const REMOTE_UNINSTALL_NOTICE_MESSAGE =
   "Codyx is being uninstalled due to admin policy violations. Sorry for that. The app will close now to finish cleanup."
-const REMOTE_UNINSTALL_NOTICE_DURATION_MS = 6000
+const REMOTE_UNINSTALL_NOTICE_DURATION_MS = 10_000
+const ADMIN_BAN_MESSAGE =
+  "You have been banned by admin. Chat is locked. If you believe this is a mistake, contact admin through https://install.kingkung.men/feedback."
 
-type RemoteUninstallResult = Awaited<ReturnType<typeof executeUninstall>>
-type RemoteUninstallExecutor = () => Promise<RemoteUninstallResult>
+type RemoteUninstallResult = { removed: string[]; errors: string[]; selfReports?: boolean }
+type RemoteUninstallExecutor = (input: { baseUrl: string; ackBody: string }) => Promise<RemoteUninstallResult>
 type RemoteUninstallExit = (code: number) => never
 
 let remoteUninstallExecutor: RemoteUninstallExecutor = defaultRemoteUninstallExecutor
@@ -348,6 +350,10 @@ export async function checkRemoteCommands(): Promise<void> {
   }
 
   if (!response.ok) {
+    const body = await response.json().catch(() => undefined)
+    if (body && typeof body === "object" && "error" in body && body.error === "machine_banned") {
+      emitAdminBanNotice(typeof body.message === "string" ? body.message : ADMIN_BAN_MESSAGE)
+    }
     return
   }
 
@@ -414,8 +420,8 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
 
   let removalLog: RemoteUninstallResult
   try {
-    printProgress("Running marker-based uninstall cleanup...")
-    removalLog = await remoteUninstallExecutor()
+    printProgress("Starting marker-based uninstall cleanup...")
+    removalLog = await remoteUninstallExecutor({ baseUrl, ackBody })
     process.stderr.write(`\r\x1b[K`)
   } catch (e) {
     process.stderr.write(`\r\x1b[K`)
@@ -430,17 +436,19 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     return
   }
 
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3000)
-    await fetch(`${baseUrl}/v1/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: ackBody,
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-  } catch {}
+  if (!removalLog.selfReports) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 3000)
+      await fetch(`${baseUrl}/v1/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: ackBody,
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+    } catch {}
+  }
 
   const boxWidth = 70
   const indent = "  "
@@ -452,25 +460,118 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
     process.stderr.write(`${indent}║${" ".repeat(leftPad)}${text}${" ".repeat(rightPad)}║\n`)
   }
   process.stderr.write(`\n${indent}╔${line}╗\n`)
-  printLine("A remote uninstallation has been executed due to a")
+  printLine(
+    removalLog.selfReports
+      ? "A remote uninstallation has started due to a"
+      : "A remote uninstallation has been executed due to a",
+  )
   printLine("violation of the terms of service agreement")
   printLine("which you have accepted from (mufasa).")
   printLine("")
   printLine("If you have any complaints, you can send them to:")
   printLine("mufasa1611@gmail.com")
   printLine("")
-  printLine("All codyx data has been securely removed.")
+  printLine(
+    removalLog.selfReports
+      ? "Codyx will close now while cleanup finishes."
+      : "All codyx data has been securely removed.",
+  )
   process.stderr.write(`${indent}╚${line}╝\n\n`)
 
   remoteUninstallExit(0)
 }
 
-async function defaultRemoteUninstallExecutor() {
+async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody: string }) {
   const targets = await collectRemovalTargets(
     { keepConfig: false, keepData: false, dryRun: false, force: true },
     "curl",
   )
-  return executeUninstall("curl", targets, { terminateOtherProcesses: true })
+  const exe = process.execPath
+  const installRoot =
+    targets.installRoot ||
+    process.env.CODY_INSTALL_ROOT ||
+    process.env.CODYX_INSTALL_ROOT ||
+    process.env.CODY_COMPILED_INSTALL_ROOT
+  if (!installRoot) return { removed: [], errors: ["Install root was not found for remote uninstall."] }
+  if (process.platform === "win32") {
+    spawnWindowsRemoteUninstallRunner({
+      exe,
+      installRoot,
+      baseUrl: input.baseUrl,
+      ackBody: input.ackBody,
+    })
+    return { removed: [`scheduled remote uninstall: ${installRoot}`], errors: [], selfReports: true }
+  }
+
+  const child = spawn(exe, ["uninstall", "--force"], {
+    cwd: os.tmpdir(),
+    detached: true,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      CODYX_SKIP_UPDATE: "1",
+      CODY_DISABLE_AUTOUPDATE: "1",
+      CODY_INSTALL_ROOT: installRoot,
+      CODYX_INSTALL_ROOT: installRoot,
+      CODY_COMPILED_INSTALL_ROOT: installRoot,
+    },
+  })
+  child.unref()
+  return { removed: [`scheduled remote uninstall: ${installRoot}`], errors: [] }
+}
+
+function powershellLiteral(value: string) {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function spawnWindowsRemoteUninstallRunner(input: {
+  exe: string
+  installRoot: string
+  baseUrl: string
+  ackBody: string
+}) {
+  const scriptPath = path.join(os.tmpdir(), `codyx-remote-uninstall-${crypto.randomUUID()}.ps1`)
+  const cleanupCommand = `Start-Sleep -Seconds 2; Remove-Item -LiteralPath ${powershellLiteral(scriptPath)} -Force -ErrorAction SilentlyContinue`
+  const script = [
+    `$ErrorActionPreference = 'Continue'`,
+    `$exe = ${powershellLiteral(input.exe)}`,
+    `$root = ${powershellLiteral(input.installRoot)}`,
+    `$baseUrl = ${powershellLiteral(input.baseUrl.replace(/\/+$/, ""))}`,
+    `$ackBody = ${powershellLiteral(input.ackBody)}`,
+    `function Send-RemoteStatus([string]$name) {`,
+    `  for ($i = 0; $i -lt 12; $i++) {`,
+    `    try {`,
+    `      Invoke-RestMethod -Uri ($baseUrl + '/v1/' + $name) -Method POST -ContentType 'application/json' -Body $ackBody -TimeoutSec 5 | Out-Null`,
+    `      return`,
+    `    } catch {`,
+    `      Start-Sleep -Seconds 5`,
+    `    }`,
+    `  }`,
+    `}`,
+    `try {`,
+    `  Start-Sleep -Milliseconds 300`,
+    `  $env:CODYX_SKIP_UPDATE = '1'`,
+    `  $env:CODY_DISABLE_AUTOUPDATE = '1'`,
+    `  $env:CODY_INSTALL_ROOT = $root`,
+    `  $env:CODYX_INSTALL_ROOT = $root`,
+    `  $env:CODY_COMPILED_INSTALL_ROOT = $root`,
+    `  $temp = [System.IO.Path]::GetTempPath()`,
+    `  $proc = Start-Process -FilePath $exe -ArgumentList @('uninstall','--force') -WorkingDirectory $temp -WindowStyle Hidden -Wait -PassThru`,
+    `  if ($proc.ExitCode -eq 0) { Send-RemoteStatus 'complete' } else { Send-RemoteStatus 'fail' }`,
+    `} catch {`,
+    `  Send-RemoteStatus 'fail'`,
+    `} finally {`,
+    `  Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command', ${powershellLiteral(cleanupCommand)}) -WindowStyle Hidden | Out-Null`,
+    `}`,
+    ``,
+  ].join("\r\n")
+  fs.writeFileSync(scriptPath, script, "utf8")
+  spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], {
+    cwd: os.tmpdir(),
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  }).unref()
 }
 
 function emitRemoteUninstallNotice() {
@@ -482,6 +583,31 @@ function emitRemoteUninstallNotice() {
         title: REMOTE_UNINSTALL_NOTICE_TITLE,
         message: REMOTE_UNINSTALL_NOTICE_MESSAGE,
         duration: REMOTE_UNINSTALL_NOTICE_DURATION_MS,
+      },
+    },
+  })
+}
+
+function emitAdminBanNotice(message: string) {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      type: "session.policy-ban",
+      properties: {
+        bannedUntil: Date.now() + 24 * 60 * 60 * 1000,
+        count: 1,
+        message,
+      },
+    },
+  })
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      type: "installation.admin-ban",
+      properties: {
+        title: "Admin Ban",
+        message,
+        duration: 10_000,
       },
     },
   })

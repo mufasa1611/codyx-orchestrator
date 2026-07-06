@@ -189,7 +189,12 @@ export async function collectRemovalTargets(args: UninstallArgs, method: Install
 
   // Find .env.proxy
   const envProxy = await findEnvProxy(marker)
-  const installRoot = marker?.root ?? process.env.CODY_INSTALL_ROOT ?? (await findDefaultInstallRoot())
+  const installRoot =
+    marker?.root ??
+    process.env.CODY_INSTALL_ROOT ??
+    process.env.CODYX_INSTALL_ROOT ??
+    process.env.CODY_COMPILED_INSTALL_ROOT ??
+    (await findDefaultInstallRoot())
   const installMarkers = uniqueStrings(
     [...(marker?.markerPaths ?? []), ...(installRoot ? [path.join(installRoot, ".codyx-install-marker")] : [])].filter(
       (entry) => path.basename(entry) === ".codyx-install-marker" || entry.endsWith("install-marker.json"),
@@ -717,8 +722,13 @@ function uniqueManagedTools(tools: ManagedTool[]) {
 async function readInstallMarker(): Promise<InstallMarker | null> {
   const localAppData = process.env.LOCALAPPDATA
   const defaultRoot = localAppData ? path.join(localAppData, "codyx") : ""
+  const envRoots = uniqueStrings(
+    [process.env.CODY_INSTALL_ROOT, process.env.CODYX_INSTALL_ROOT, process.env.CODY_COMPILED_INSTALL_ROOT].filter(
+      (item): item is string => Boolean(item),
+    ),
+  )
   const initialPaths = [
-    ...(process.env.CODY_INSTALL_ROOT ? [path.join(process.env.CODY_INSTALL_ROOT, ".codyx-install-marker")] : []),
+    ...envRoots.map((root) => path.join(root, ".codyx-install-marker")),
     ...(defaultRoot ? [path.join(defaultRoot, "source", ".codyx-install-marker")] : []),
     ...(defaultRoot ? [path.join(defaultRoot, ".codyx-install-marker")] : []),
     ...(localAppData ? [path.join(localAppData, "codyx-installer", "install-marker.json")] : []),
@@ -855,7 +865,12 @@ async function findGlobalShims(marker: InstallMarker | null): Promise<string[]> 
 
 async function findEnvProxy(marker: InstallMarker | null): Promise<string | null> {
   try {
-    const root = marker?.root || process.env.CODY_INSTALL_ROOT || ""
+    const root =
+      marker?.root ||
+      process.env.CODY_INSTALL_ROOT ||
+      process.env.CODYX_INSTALL_ROOT ||
+      process.env.CODY_COMPILED_INSTALL_ROOT ||
+      ""
     if (!root) return null
     const envProxy = path.join(root, ".env.proxy")
     const exists = await fs
