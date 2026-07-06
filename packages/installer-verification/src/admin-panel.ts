@@ -382,10 +382,10 @@ function renderRows(installations) {
     return
   }
   tbody.innerHTML = installations.map((r) => {
-    const uninstallPending = r.command_status === "pending"
-    const uninstallDisabled = r.command_status === "acknowledged" || r.command_status === "completed"
-    const btnLabel = uninstallPending ? "Cancel uninstall" : r.command_status === "completed" ? "Uninstalled" : "Uninstall"
-    const uninstallAction = uninstallPending
+    const uninstallCancellable = r.command_status === "pending" || r.command_status === "acknowledged"
+    const uninstallDisabled = r.command_status === "completed"
+    const btnLabel = uninstallCancellable ? "Cancel uninstall" : r.command_status === "completed" ? "Uninstalled" : "Uninstall"
+    const uninstallAction = uninstallCancellable
       ? "cancelUninstall('" + esc(r.install_id) + "')"
       : "confirmUninstall('" + esc(r.install_id) + "','" + esc(r.display_name) + "')"
     let rowClass = ""

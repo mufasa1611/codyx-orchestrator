@@ -416,6 +416,7 @@ async function handleGhostUninstall(baseUrl: string, verification: VerificationD
 
   emitRemoteUninstallNotice()
   await waitForRemoteUninstallNotice()
+  clearTerminalForRemoteUninstall()
 
   const printProgress = (text: string) => {
     process.stderr.write(`\r\x1b[94m[Codyx]\x1b[0m ${text}\x1b[K`)
@@ -489,7 +490,6 @@ async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody:
     { keepConfig: false, keepData: false, dryRun: false, force: true },
     "curl",
   )
-  const exe = process.execPath
   const installRoot =
     targets.installRoot ||
     process.env.CODY_INSTALL_ROOT ||
@@ -497,9 +497,19 @@ async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody:
     process.env.CODY_COMPILED_INSTALL_ROOT
   if (!installRoot) return { removed: [], errors: ["Install root was not found for remote uninstall."] }
   if (process.platform === "win32") {
-    spawnWindowsRemoteUninstallRunner({
-      exe,
+    const removalPaths = [
+      ...targets.directories.filter((entry) => !entry.keep).map((entry) => entry.path),
+      ...targets.markedPaths.map((entry) => entry.path),
+      ...targets.startMenu,
+      ...targets.globalShims,
+      ...(targets.envProxy ? [targets.envProxy] : []),
+      ...targets.installMarkers,
       installRoot,
+    ].filter((entry, index, all): entry is string => Boolean(entry) && all.indexOf(entry) === index)
+    spawnWindowsRemoteUninstallRunner({
+      installRoot,
+      removalPaths,
+      pathEntries: targets.pathEntries,
       baseUrl: input.baseUrl,
       ackBody: input.ackBody,
       livePid: process.pid,
@@ -508,6 +518,7 @@ async function defaultRemoteUninstallExecutor(input: { baseUrl: string; ackBody:
     return { removed: [`scheduled remote uninstall: ${installRoot}`], errors: [], selfReports: true }
   }
 
+  const exe = process.execPath
   const child = spawn(exe, ["uninstall", "--force"], {
     cwd: os.tmpdir(),
     detached: true,
@@ -529,9 +540,15 @@ function powershellLiteral(value: string) {
   return `'${value.replace(/'/g, "''")}'`
 }
 
+function powershellArrayLiteral(values: string[]) {
+  if (values.length === 0) return "@()"
+  return `@(${values.map(powershellLiteral).join(",")})`
+}
+
 function spawnWindowsRemoteUninstallRunner(input: {
-  exe: string
   installRoot: string
+  removalPaths: string[]
+  pathEntries: string[]
   baseUrl: string
   ackBody: string
   livePid: number
@@ -541,8 +558,9 @@ function spawnWindowsRemoteUninstallRunner(input: {
   const cleanupCommand = `Start-Sleep -Seconds 2; Remove-Item -LiteralPath ${powershellLiteral(scriptPath)} -Force -ErrorAction SilentlyContinue`
   const script = [
     `$ErrorActionPreference = 'Continue'`,
-    `$exe = ${powershellLiteral(input.exe)}`,
     `$root = ${powershellLiteral(input.installRoot)}`,
+    `$paths = ${powershellArrayLiteral(input.removalPaths)}`,
+    `$pathEntries = ${powershellArrayLiteral(input.pathEntries)}`,
     `$baseUrl = ${powershellLiteral(input.baseUrl.replace(/\/+$/, ""))}`,
     `$ackBody = ${powershellLiteral(input.ackBody)}`,
     `$livePid = ${input.livePid}`,
@@ -551,35 +569,48 @@ function spawnWindowsRemoteUninstallRunner(input: {
     `  for ($i = 0; $i -lt 12; $i++) {`,
     `    try {`,
     `      Invoke-RestMethod -Uri ($baseUrl + '/v1/' + $name) -Method POST -ContentType 'application/json' -Body $ackBody -TimeoutSec 5 | Out-Null`,
-    `      return`,
+    `      return $true`,
     `    } catch {`,
-    `      Start-Sleep -Seconds 5`,
+    `      Start-Sleep -Seconds 2`,
     `    }`,
     `  }`,
+    `  return $false`,
     `}`,
-    `try {`,
-    `  Start-Sleep -Milliseconds 300`,
-    `  $env:CODYX_SKIP_UPDATE = '1'`,
-    `  $env:CODY_DISABLE_AUTOUPDATE = '1'`,
-    `  $env:CODY_INSTALL_ROOT = $root`,
-    `  $env:CODYX_INSTALL_ROOT = $root`,
-    `  $env:CODY_COMPILED_INSTALL_ROOT = $root`,
-    `  $temp = [System.IO.Path]::GetTempPath()`,
-    `  $proc = Start-Process -FilePath $exe -ArgumentList @('uninstall','--force') -WorkingDirectory $temp -WindowStyle Hidden -PassThru`,
-    `  Start-Sleep -Milliseconds 500`,
-    `  Get-Process -Name codyx,cody,codyx-launcher,codyx-orchestrator,cody-x -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $proc.Id } | Stop-Process -Force -ErrorAction SilentlyContinue`,
+    `function Stop-CodyxProcesses {`,
+    `  Get-Process -Name codyx,cody,codyx-launcher,codyx-orchestrator,cody-x,Codyx.EndUserInstaller -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
     `  if ($livePid -gt 0) { Stop-Process -Id $livePid -Force -ErrorAction SilentlyContinue }`,
     `  if ($parentPid -gt 0) { Stop-Process -Id $parentPid -Force -ErrorAction SilentlyContinue }`,
-    `  $exited = $proc.WaitForExit(120000)`,
-    `  if (-not $exited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }`,
-    `  for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $root); $i++) {`,
+    `}`,
+    `function Remove-CodyxPath([string]$target) {`,
+    `  if ([string]::IsNullOrWhiteSpace($target)) { return }`,
+    `  if (-not (Test-Path -LiteralPath $target)) { return }`,
+    `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
+    `}`,
+    `function Remove-CodyxPathEntries {`,
+    `  if ($pathEntries.Count -eq 0) { return }`,
+    `  $current = [Environment]::GetEnvironmentVariable('Path', 'User')`,
+    `  if ([string]::IsNullOrEmpty($current)) { return }`,
+    `  $filtered = ($current -split ';' | Where-Object {`,
+    `    $entry = $_.TrimEnd('\\')`,
+    `    -not ($pathEntries | Where-Object { $entry -ieq $_.TrimEnd('\\') })`,
+    `  }) -join ';'`,
+    `  if ($filtered -ne $current) { [Environment]::SetEnvironmentVariable('Path', $filtered, 'User') }`,
+    `}`,
+    `try {`,
+    `  Start-Sleep -Seconds 1`,
+    `  Stop-CodyxProcesses`,
+    `  Remove-CodyxPathEntries`,
+    `  for ($i = 0; $i -lt 180; $i++) {`,
+    `    foreach ($target in $paths) { Remove-CodyxPath $target }`,
+    `    $remaining = @($paths | Where-Object { Test-Path -LiteralPath $_ })`,
+    `    if ($remaining.Count -eq 0) { break }`,
+    `    Stop-CodyxProcesses`,
     `    Start-Sleep -Milliseconds 500`,
-    `    Get-Process -Name codyx,cody,codyx-launcher,codyx-orchestrator,cody-x -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
-    `    try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch {}`,
     `  }`,
-    `  if ((Test-Path -LiteralPath $root) -or -not $exited -or $proc.ExitCode -ne 0) { Send-RemoteStatus 'fail' } else { Send-RemoteStatus 'complete' }`,
+    `  $remaining = @($paths | Where-Object { Test-Path -LiteralPath $_ })`,
+    `  if ($remaining.Count -eq 0) { Send-RemoteStatus 'complete' | Out-Null } else { Send-RemoteStatus 'fail' | Out-Null }`,
     `} catch {`,
-    `  Send-RemoteStatus 'fail'`,
+    `  Send-RemoteStatus 'fail' | Out-Null`,
     `} finally {`,
     `  Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command', ${powershellLiteral(cleanupCommand)}) -WindowStyle Hidden | Out-Null`,
     `}`,
@@ -592,6 +623,11 @@ function spawnWindowsRemoteUninstallRunner(input: {
     stdio: "ignore",
     windowsHide: true,
   }).unref()
+}
+
+function clearTerminalForRemoteUninstall() {
+  if (!process.stdout.isTTY) return
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
 }
 
 function emitRemoteUninstallNotice() {

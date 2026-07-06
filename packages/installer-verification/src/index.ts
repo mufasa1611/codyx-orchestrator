@@ -687,7 +687,9 @@ app.delete("/v1/admin/installations/:installID/uninstall", async (context) => {
 
   const result = await db.batch([
     db
-      .prepare("DELETE FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status = 'pending'")
+      .prepare(
+        "DELETE FROM remote_command WHERE install_id = ? AND type = 'uninstall' AND status IN ('pending', 'acknowledged')",
+      )
       .bind(installId),
     db.prepare("DELETE FROM revocation WHERE install_id = ?").bind(installId),
   ])

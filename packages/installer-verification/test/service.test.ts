@@ -403,6 +403,16 @@ describe("installer verification service", () => {
     expect((command as any).type).toBe("uninstall")
     expect((command as any).status).toBe("pending")
 
+    const acknowledged = await request("/v1/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({
+        install_id: created.body.install_id,
+        receipt,
+        command_id: body.command_id,
+      }),
+    })
+    expect(acknowledged.status).toBe(200)
+
     const cancel = await admin(`/v1/admin/installations/${created.body.install_id}/uninstall`, {
       method: "DELETE",
     })
