@@ -193,7 +193,7 @@ public sealed class InstallerWindow : Window
     {
       Orientation = Orientation.Horizontal,
       HorizontalAlignment = HorizontalAlignment.Center,
-      Margin = new Thickness(0, 12, 0, 0),
+      Margin = new Thickness(0, 0, 16, 0),
     };
     channelRow.Children.Add(new TextBlock
     {
@@ -204,16 +204,20 @@ public sealed class InstallerWindow : Window
       VerticalAlignment = VerticalAlignment.Center,
     });
     channelRow.Children.Add(releaseChannel);
-    header.Children.Add(channelRow);
+
+    var actionRow = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
+    DockPanel.SetDock(actionRow, Dock.Bottom);
+    root.Children.Add(actionRow);
+
+    DockPanel.SetDock(channelRow, Dock.Left);
+    actionRow.Children.Add(channelRow);
 
     var buttons = new StackPanel
     {
       Orientation = Orientation.Horizontal,
       HorizontalAlignment = HorizontalAlignment.Right,
-      Margin = new Thickness(0, 0, 0, 14),
     };
-    DockPanel.SetDock(buttons, Dock.Bottom);
-    root.Children.Add(buttons);
+    actionRow.Children.Add(buttons);
 
     foreach (var button in new[] { close, uninstall, cli, web, primary })
     {
@@ -268,7 +272,7 @@ public sealed class InstallerWindow : Window
         e.Handled = true;
       }
     };
-    RefreshInstalledActions();
+    RefreshInstalledActions(false);
     Activated += (_, _) => RefreshInstalledActions();
     installHealthTimer.Tick += (_, _) => RefreshInstalledActions();
     installHealthTimer.Start();
@@ -280,9 +284,13 @@ public sealed class InstallerWindow : Window
         SetInstalledActions(false);
         status.Text = "Auto-checking for updates...";
         log.Clear();
+        Append("[update] Auto-checking installed Codyx-Orchestrator on startup.");
         await RunEmbeddedInstallPreflightAsync();
+        lastUpdateCheckUtc = DateTime.UtcNow;
+        var updateOffered = await CheckForUpdateAsync();
         primary.IsEnabled = true;
-        RefreshInstalledActions();
+        if (updateOffered) SetInstalledActions(true);
+        else RefreshInstalledActions();
       }
     };
   }
@@ -703,7 +711,7 @@ public sealed class InstallerWindow : Window
     log.ScrollToEnd();
   }
 
-  void RefreshInstalledActions()
+  void RefreshInstalledActions(bool allowUpdateCheck = true)
   {
     if (launcherActionInProgress) return;
     if (activeInstallerProcess is { HasExited: false }) return;
@@ -738,7 +746,7 @@ public sealed class InstallerWindow : Window
       if (selectedChannel != channel) parts.Add($"Selected channel: {ChannelLabel(selectedChannel)}.");
       if (!health.InPath) parts.Add("The 'codyx' command is not in your PATH. You can still launch from here.");
       status.Text = string.Join(" ", parts);
-      QueueUpdateCheck();
+      if (allowUpdateCheck) QueueUpdateCheck();
     }
   }
 
@@ -950,7 +958,7 @@ public sealed class InstallerWindow : Window
     }
   }
 
-  async Task CheckForUpdateAsync()
+  async Task<bool> CheckForUpdateAsync()
   {
     try
     {
@@ -958,7 +966,7 @@ public sealed class InstallerWindow : Window
       if (string.IsNullOrEmpty(currentVer))
       {
         Append("[update] Could not read installed version from marker.");
-        return;
+        return false;
       }
       var channel = SelectedReleaseChannel();
       Append($"[update] Checking {ChannelLabel(channel)} channel against installed v{currentVer}.");
@@ -971,7 +979,7 @@ public sealed class InstallerWindow : Window
       if (string.IsNullOrEmpty(latestVer))
       {
         Append("[update] Could not parse latest version from GitHub response.");
-        return;
+        return false;
       }
 
       var shouldOffer = CompareReleaseVersions(latestVer, currentVer) > 0;
@@ -979,7 +987,7 @@ public sealed class InstallerWindow : Window
       if (!shouldOffer)
       {
         Append($"[update] Already up-to-date ({ChannelLabel(channel)}, v{currentVer}).");
-        return;
+        return false;
       }
 
       var fallbackText = latestInfo.StableFallback ? " stable fallback" : "";
@@ -990,10 +998,12 @@ public sealed class InstallerWindow : Window
         primary.IsEnabled = true;
         status.Text = $"A newer version (v{latestVer}) is available";
       });
+      return true;
     }
     catch (Exception ex)
     {
       Append($"[update] Check failed: {ex.Message}");
+      return false;
     }
   }
 
