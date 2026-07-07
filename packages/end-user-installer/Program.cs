@@ -96,6 +96,7 @@ public sealed class InstallerWindow : Window
 
   public InstallerWindow()
   {
+    SelfUpdater.CleanupOldFiles();
     Title = "Codyx-Orchestrator Installer";
     Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png"));
     Width = 980;
@@ -278,6 +279,13 @@ public sealed class InstallerWindow : Window
     installHealthTimer.Start();
     Loaded += async (_, _) =>
     {
+      status.Text = "Checking for installer updates...";
+      var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
+        "installer.windows-x64",
+        (statText) => Dispatcher.Invoke(() => { status.Text = statText; }),
+        (logText) => Dispatcher.Invoke(() => { Append(logText); }));
+      if (updated) return;
+
       if (GetInstallHealth().Ready)
       {
         primary.IsEnabled = false;
@@ -291,6 +299,10 @@ public sealed class InstallerWindow : Window
         primary.IsEnabled = true;
         if (updateOffered) SetInstalledActions(true);
         else RefreshInstalledActions();
+      }
+      else
+      {
+        status.Text = "Ready to install compiled release assets.";
       }
     };
   }

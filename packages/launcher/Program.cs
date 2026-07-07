@@ -66,6 +66,7 @@ public sealed class LauncherWindow : Window
 
   public LauncherWindow()
   {
+    SelfUpdater.CleanupOldFiles();
     installRoot = ResolveInstallRoot();
     ConfigureWindow();
     Content = BuildLayout();
@@ -693,6 +694,13 @@ public sealed class LauncherWindow : Window
 
   async Task StartAsync()
   {
+    statusText.Text = "Checking for launcher updates...";
+    var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
+      "installer.windows-x64.source",
+      (status) => Dispatcher.Invoke(() => { statusText.Text = status; }),
+      (log) => Dispatcher.Invoke(() => { AppendLog(log); }));
+    if (updated) return;
+
     launcherScript = ExtractLauncherScript();
     SetStep(0, StepState.Active);
     await Task.Delay(350);
