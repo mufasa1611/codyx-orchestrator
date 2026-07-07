@@ -192,6 +192,30 @@ function Normalize-ReleaseChannel($Value) {
 }
 
 function Get-NewestPublishedRelease([switch]$PrereleaseOnly, [switch]$StableOnly) {
+  try {
+    $feedUrl = "https://github.com/$Repo/releases.atom"
+    $xmlText = (Invoke-WebRequest -Uri $feedUrl -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing -TimeoutSec 10).Content
+    if ($xmlText) {
+      $xml = [xml]$xmlText
+      $entries = $xml.feed.entry
+      if ($entries) {
+        foreach ($entry in $entries) {
+          $tag = $entry.title.Trim()
+          $isPrerelease = $tag.Contains("-")
+          if ($PrereleaseOnly -and -not $isPrerelease) { continue }
+          if ($StableOnly -and $isPrerelease) { continue }
+          return [PSCustomObject]@{
+            tag_name = $tag
+            prerelease = $isPrerelease
+            draft = $false
+          }
+        }
+      }
+    }
+  } catch {
+    Write-Warning "Failed to fetch releases from Atom feed, falling back to REST API..."
+  }
+
   $releases = Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases"
   $release = @(
     $releases |
@@ -210,6 +234,27 @@ function Get-NewestPublishedRelease([switch]$PrereleaseOnly, [switch]$StableOnly
 }
 
 function Get-StableLatestRelease {
+  try {
+    $feedUrl = "https://github.com/$Repo/releases.atom"
+    $xmlText = (Invoke-WebRequest -Uri $feedUrl -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing -TimeoutSec 10).Content
+    if ($xmlText) {
+      $xml = [xml]$xmlText
+      $entries = $xml.feed.entry
+      if ($entries) {
+        foreach ($entry in $entries) {
+          $tag = $entry.title.Trim()
+          if (-not $tag.Contains("-")) {
+            return [PSCustomObject]@{
+              tag_name = $tag
+              prerelease = $false
+              draft = $false
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+
   try {
     return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/latest"
   } catch {

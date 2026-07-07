@@ -67,50 +67,65 @@ public static class SelfUpdater
             http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Self-Updater");
             http.Timeout = TimeSpan.FromSeconds(10);
 
-            // Fetch releases from GitHub
-            var response = await http.GetAsync($"https://api.github.com/repos/{Repo}/releases?per_page=10");
-            if (!response.IsSuccessStatusCode)
+            string? latestTag = null;
+            try
             {
-                logCallback($"[self-update] Failed to check releases: {response.StatusCode}");
-                return false;
+                var feedResponse = await http.GetAsync($"https://github.com/{Repo}/releases.atom");
+                if (feedResponse.IsSuccessStatusCode)
+                {
+                    var xmlText = await feedResponse.Content.ReadAsStringAsync();
+                    var xmlDoc = new System.Xml.XmlDocument();
+                    xmlDoc.LoadXml(xmlText);
+                    var entries = xmlDoc.SelectNodes("//*[local-name()='entry']");
+                    if (entries != null)
+                    {
+                        foreach (System.Xml.XmlNode entry in entries)
+                        {
+                            var titleNode = entry.SelectSingleNode("*[local-name()='title']");
+                            if (titleNode != null)
+                            {
+                                var title = titleNode.InnerText.Trim();
+                                if (!title.Contains('-'))
+                                {
+                                    latestTag = title;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch {}
+
+            if (latestTag == null)
+            {
+                // Fallback to REST API
+                var response = await http.GetAsync($"https://api.github.com/repos/{Repo}/releases?per_page=10");
+                if (!response.IsSuccessStatusCode)
+                {
+                    logCallback($"[self-update] Failed to check releases: {response.StatusCode}");
+                    return false;
+                }
+
+                using var releases = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                foreach (var release in releases.RootElement.EnumerateArray())
+                {
+                    var draft = release.TryGetProperty("draft", out var d) && d.GetBoolean();
+                    var prerelease = release.TryGetProperty("prerelease", out var pr) && pr.GetBoolean();
+                    if (draft || prerelease) continue;
+                    latestTag = release.GetProperty("tag_name").GetString();
+                    break;
+                }
             }
 
-            using var releases = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            JsonElement? targetRelease = null;
-            
-            // Find latest non-draft, non-prerelease release
-            foreach (var release in releases.RootElement.EnumerateArray())
-            {
-                var draft = release.TryGetProperty("draft", out var d) && d.GetBoolean();
-                var prerelease = release.TryGetProperty("prerelease", out var pr) && pr.GetBoolean();
-                if (draft || prerelease) continue;
-                
-                targetRelease = release;
-                break;
-            }
-
-            if (targetRelease == null)
+            if (string.IsNullOrEmpty(latestTag))
             {
                 logCallback("[self-update] No valid release found on GitHub.");
                 return false;
             }
 
-            // Find release manifest asset
-            string? manifestUrl = null;
-            foreach (var asset in targetRelease.Value.GetProperty("assets").EnumerateArray())
-            {
-                if (asset.GetProperty("name").GetString() == "codyx-release-manifest.json")
-                {
-                    manifestUrl = asset.GetProperty("browser_download_url").GetString();
-                    break;
-                }
-            }
-
-            if (string.IsNullOrEmpty(manifestUrl))
-            {
-                logCallback("[self-update] No release manifest found in latest release.");
-                return false;
-            }
+            // Construct release manifest URL directly from the tag name
+            string manifestUrl = $"https://github.com/{Repo}/releases/download/{latestTag}/codyx-release-manifest.json";
 
             // Download manifest
             var manifestResponse = await http.GetAsync(manifestUrl);

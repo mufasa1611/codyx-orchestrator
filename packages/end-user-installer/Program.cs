@@ -1061,6 +1061,35 @@ public sealed class InstallerWindow : Window
   {
     async Task<(string? Tag, bool StableFallback)> newestPublishedRelease(bool prerelease)
     {
+      try
+      {
+        var feedResponse = await http.GetAsync("https://github.com/mufasa1611/codyx-orchestrator/releases.atom");
+        if (feedResponse.IsSuccessStatusCode)
+        {
+          var xmlText = await feedResponse.Content.ReadAsStringAsync();
+          var xmlDoc = new System.Xml.XmlDocument();
+          xmlDoc.LoadXml(xmlText);
+          var entries = xmlDoc.SelectNodes("//*[local-name()='entry']");
+          if (entries != null)
+          {
+            foreach (System.Xml.XmlNode entry in entries)
+            {
+              var titleNode = entry.SelectSingleNode("*[local-name()='title']");
+              if (titleNode != null)
+              {
+                var title = titleNode.InnerText.Trim();
+                var isPrerelease = title.Contains('-');
+                if (isPrerelease == prerelease)
+                {
+                  return (title, !prerelease);
+                }
+              }
+            }
+          }
+        }
+      }
+      catch {}
+
       var response = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases?per_page=20");
       if (!response.IsSuccessStatusCode) return (null, prerelease);
       using var releases = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
