@@ -345,10 +345,16 @@ function Get-ReleaseManifest($Release) {
   }
 
   if (-not $url) {
-    $asset = @($Release.assets | Where-Object { $_.name -eq "codyx-release-manifest.json" } | Select-Object -First 1)[0]
-    if ($asset) {
-      $url = $asset.browser_download_url
-    } else {
+    if ($Release.assets) {
+      $asset = @($Release.assets | Where-Object { $_.name -eq "codyx-release-manifest.json" } | Select-Object -First 1)[0]
+      if ($asset) {
+        $url = $asset.browser_download_url
+      }
+    }
+    if (-not $url -and $Release.tag_name) {
+      $url = "https://github.com/$Repo/releases/download/$($Release.tag_name)/codyx-release-manifest.json"
+    }
+    if (-not $url) {
       throw "Release $($Release.tag_name) does not contain codyx-release-manifest.json. Run the publish workflow for the compiled end-user installer and upload the manifest before distributing this installer."
     }
   }
