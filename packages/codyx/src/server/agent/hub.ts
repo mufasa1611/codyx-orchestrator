@@ -1,4 +1,4 @@
-﻿import { Context, Deferred, Duration, Effect, Layer } from "effect"
+import { Context, Deferred, Duration, Effect, Layer } from "effect"
 import { UserRef } from "@/effect/instance-ref"
 import * as Log from "@cody/core/util/log"
 import type { AgentMessage, HubMessage } from "./types"
@@ -72,6 +72,7 @@ export interface Interface {
   readonly readFile: (path: string) => Effect.Effect<unknown, Error>
   readonly writeFile: (path: string, content: string) => Effect.Effect<unknown, Error>
   readonly exec: (command: string) => Effect.Effect<unknown, Error>
+  readonly isUserOnline: (userID: string) => Effect.Effect<boolean>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@cody/AgentHub") {}
@@ -128,21 +129,25 @@ function invalidateUserReconnectTokens(userID: string): void {
   }
 }
 
-const cleanupInterval = setInterval(() => {
-  cleanupExpiredCodes()
-  cleanupExpiredAgents()
-}, Duration.toMillis(Duration.seconds(15)))
+const cleanupInterval = setInterval(
+  () => {
+    cleanupExpiredCodes()
+    cleanupExpiredAgents()
+  },
+  Duration.toMillis(Duration.seconds(15)),
+)
 if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
 
 // Keepalive: send ping to all connected agents every 30s to prevent
 // client lease expiry when there is no active LLM interaction.
-const keepaliveInterval = setInterval(() => {
-  for (const agent of agents.values()) {
-    Effect.runFork(
-      agent.write(JSON.stringify({ type: "ping" })).pipe(Effect.catch(() => Effect.void)),
-    )
-  }
-}, Duration.toMillis(Duration.seconds(30)))
+const keepaliveInterval = setInterval(
+  () => {
+    for (const agent of agents.values()) {
+      Effect.runFork(agent.write(JSON.stringify({ type: "ping" })).pipe(Effect.catch(() => Effect.void)))
+    }
+  },
+  Duration.toMillis(Duration.seconds(30)),
+)
 if (typeof keepaliveInterval.unref === "function") keepaliveInterval.unref()
 
 const createPairingCode = Effect.fn("AgentHub.createPairingCode")(function* () {
@@ -372,8 +377,12 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
   })
 
 const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
-  const userID = yield* UserRef;
-  log.info("status check", { userID, agentsCount: agents.size, activeAgents: Array.from(agents.values()).map(a => ({ code: a.code, user: a.userID })) });
+  const userID = yield* UserRef
+  log.info("status check", {
+    userID,
+    agentsCount: agents.size,
+    activeAgents: Array.from(agents.values()).map((a) => ({ code: a.code, user: a.userID })),
+  })
   yield* touchClient()
   const agent = yield* agentForCurrentUser().pipe(Effect.catch(() => Effect.succeed(undefined)))
   if (!agent) {
@@ -391,6 +400,17 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
   } as const
 })
 
+const isUserOnline = (userID: string) =>
+  Effect.sync(() => {
+    cleanupExpiredAgents()
+    for (const agent of agents.values()) {
+      if (agent.userID === userID && !shouldDisconnectAgent(agent)) {
+        return true
+      }
+    }
+    return false
+  })
+
 export const service: Interface = {
   createPairingCode: createPairingCode(),
   connectAgent: (code, write, close, metadata) => connectAgent(code, write, close, metadata),
@@ -404,6 +424,7 @@ export const service: Interface = {
   readFile: (path) => sendCommand("read-file", { path }),
   writeFile: (path, content) => sendCommand("write-file", { path, content }),
   exec: (command) => sendCommand("exec", { command }),
+  isUserOnline: (userID) => isUserOnline(userID),
 }
 
 export const layer: Layer.Layer<Service> = Layer.succeed(Service, Service.of(service))

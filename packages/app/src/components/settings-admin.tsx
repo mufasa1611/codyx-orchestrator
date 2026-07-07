@@ -26,7 +26,12 @@ export const SettingsAdmin: Component = () => {
 
   let timer: any = null
   onMount(() => {
-    timer = setInterval(() => setTick((t) => t + 1), 1000)
+    timer = setInterval(() => {
+      setTick((t) => t + 1)
+      if (tick() % 5 === 0) {
+        void refetch()
+      }
+    }, 1000)
   })
   onCleanup(() => {
     if (timer) clearInterval(timer)
@@ -43,6 +48,7 @@ export const SettingsAdmin: Component = () => {
         userID: matchedSession?.userID ?? "Guest User",
         count: Number((status as any).count),
         bannedUntil: (status as any).bannedUntil ? Number((status as any).bannedUntil) : 0,
+        online: !!(status as any).online,
       }
     })
   })
@@ -113,6 +119,21 @@ export const SettingsAdmin: Component = () => {
                 <div class="flex flex-wrap items-center gap-4 py-4 border-b border-border-weak-base last:border-none sm:flex-nowrap">
                   <div class="flex min-w-0 flex-1 flex-col gap-1">
                     <div class="flex items-center gap-2">
+                      <span
+                        class="relative flex h-2 w-2 rounded-full shrink-0"
+                        title={item.online ? "Online (active client connected)" : "Offline (no client connected)"}
+                      >
+                        <Show when={item.online}>
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-strong opacity-75" />
+                        </Show>
+                        <span
+                          class="relative inline-flex rounded-full h-2 w-2"
+                          classList={{
+                            "bg-success-strong": item.online,
+                            "bg-danger-strong": !item.online,
+                          }}
+                        />
+                      </span>
                       <span class="text-14-semibold text-text-strong truncate">{item.title}</span>
                       <span
                         classList={{

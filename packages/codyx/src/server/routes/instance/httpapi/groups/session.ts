@@ -130,6 +130,7 @@ export const SessionApi = HttpApi.make("session")
               Schema.Struct({
                 count: Schema.Number,
                 bannedUntil: Schema.optional(Schema.Number),
+                online: Schema.optional(Schema.Boolean),
               }),
             ),
             "Policy status map",
