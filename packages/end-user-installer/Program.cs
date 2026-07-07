@@ -992,6 +992,11 @@ public sealed class InstallerWindow : Window
 
       using var http = new System.Net.Http.HttpClient();
       http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
+      var token = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN");
+      if (!string.IsNullOrEmpty(token))
+      {
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+      }
       http.Timeout = TimeSpan.FromSeconds(10);
       var latestInfo = await GetLatestReleaseForChannelAsync(http, channel);
       var latestVer = latestInfo.Tag?.TrimStart('v');

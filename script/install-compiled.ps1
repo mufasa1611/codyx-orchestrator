@@ -176,7 +176,13 @@ function Invoke-InstallerVerification {
 
 function Invoke-JsonRequest($Url) {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-  return Invoke-RestMethod -Uri $Url -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
+  $headers = @{ "User-Agent" = "codyx-compiled-installer" }
+  $token = $env:GITHUB_TOKEN
+  if (-not $token) { $token = $env:GH_TOKEN }
+  if ($token) {
+    $headers["Authorization"] = "Bearer $token"
+  }
+  return Invoke-RestMethod -Uri $Url -Headers $headers -UseBasicParsing
 }
 
 function Normalize-ReleaseChannel($Value) {
