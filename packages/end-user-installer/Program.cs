@@ -279,26 +279,46 @@ public sealed class InstallerWindow : Window
     installHealthTimer.Start();
     Loaded += async (_, _) =>
     {
-      status.Text = "Checking for installer updates...";
-      var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
-        "installer.windows-x64",
-        (statText) => Dispatcher.Invoke(() => { status.Text = statText; }),
-        (logText) => Dispatcher.Invoke(() => { Append(logText); }));
-      if (updated) return;
+      var shouldCheck = ShouldCheckUpdates();
+      if (!shouldCheck)
+      {
+        Environment.SetEnvironmentVariable("CODYX_SKIP_UPDATE", "1");
+        Append("[update] Skipping startup update checks (already checked within 12 hours).");
+      }
+
+      if (shouldCheck)
+      {
+        status.Text = "Checking for installer updates...";
+        var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
+          "installer.windows-x64",
+          (statText) => Dispatcher.Invoke(() => { status.Text = statText; }),
+          (logText) => Dispatcher.Invoke(() => { Append(logText); }));
+        if (updated) return;
+      }
 
       if (GetInstallHealth().Ready)
       {
         primary.IsEnabled = false;
         SetInstalledActions(false);
-        status.Text = "Auto-checking for updates...";
-        log.Clear();
-        Append("[update] Auto-checking installed Codyx-Orchestrator on startup.");
-        await RunEmbeddedInstallPreflightAsync();
-        lastUpdateCheckUtc = DateTime.UtcNow;
-        var updateOffered = await CheckForUpdateAsync();
-        primary.IsEnabled = true;
-        if (updateOffered) SetInstalledActions(true);
-        else RefreshInstalledActions();
+        if (shouldCheck)
+        {
+          status.Text = "Auto-checking for updates...";
+          log.Clear();
+          Append("[update] Auto-checking installed Codyx-Orchestrator on startup.");
+          await RunEmbeddedInstallPreflightAsync();
+          lastUpdateCheckUtc = DateTime.UtcNow;
+          var updateOffered = await CheckForUpdateAsync();
+          primary.IsEnabled = true;
+          if (updateOffered) SetInstalledActions(true);
+          else RefreshInstalledActions();
+        }
+        else
+        {
+          status.Text = "Auto-checking skipped.";
+          await RunEmbeddedInstallPreflightAsync();
+          primary.IsEnabled = true;
+          RefreshInstalledActions();
+        }
       }
       else
       {
@@ -1005,6 +1025,7 @@ public sealed class InstallerWindow : Window
         Append("[update] Could not parse latest version from GitHub response.");
         return false;
       }
+      SaveUpdateCache(latestVer);
 
       var shouldOffer = CompareReleaseVersions(latestVer, currentVer) > 0;
       if (channel == "beta" && latestInfo.StableFallback && currentVer.Contains('-')) shouldOffer = true;
@@ -1224,5 +1245,55 @@ public sealed class InstallerWindow : Window
     if (string.IsNullOrWhiteSpace(exeDir)) return null;
     var manifest = IOPath.Combine(exeDir, "codyx-release-manifest.json");
     return File.Exists(manifest) ? manifest : null;
+  }
+
+  class UpdateCheckCache
+  {
+    public DateTime LastCheckUtc { get; set; }
+    public string? LatestVersion { get; set; }
+  }
+
+  static string GetUpdateCachePath()
+  {
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    return IOPath.Combine(local, "codyx-installer", "update-check-cache.json");
+  }
+
+  static bool ShouldCheckUpdates()
+  {
+    try
+    {
+      var cachePath = GetUpdateCachePath();
+      if (File.Exists(cachePath))
+      {
+        var json = File.ReadAllText(cachePath);
+        var cache = System.Text.Json.JsonSerializer.Deserialize<UpdateCheckCache>(json);
+        if (cache != null && (DateTime.UtcNow - cache.LastCheckUtc) < TimeSpan.FromHours(12))
+        {
+          return false;
+        }
+      }
+    }
+    catch {}
+    return true;
+  }
+
+  static void SaveUpdateCache(string? latestVersion)
+  {
+    try
+    {
+      var cachePath = GetUpdateCachePath();
+      var cacheDir = IOPath.GetDirectoryName(cachePath);
+      if (!string.IsNullOrEmpty(cacheDir)) Directory.CreateDirectory(cacheDir);
+
+      var cache = new UpdateCheckCache
+      {
+        LastCheckUtc = DateTime.UtcNow,
+        LatestVersion = latestVersion
+      };
+      var json = System.Text.Json.JsonSerializer.Serialize(cache);
+      File.WriteAllText(cachePath, json);
+    }
+    catch {}
   }
 }
