@@ -841,7 +841,7 @@ app.get("/v1/commands", async (context) => {
     .prepare(
       `SELECT id, type, created_at
        FROM remote_command
-       WHERE install_id = ? AND status IN ('pending', 'acknowledged') AND retain_until > ?
+       WHERE install_id = ? AND status = 'pending' AND retain_until > ?
        ORDER BY created_at ASC`,
     )
     .bind(payload.install_id, now)
