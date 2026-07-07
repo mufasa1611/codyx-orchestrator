@@ -25,11 +25,16 @@ export const SettingsAdmin: Component = () => {
   })
 
   let timer: any = null
+  let refreshTimer: any = null
   onMount(() => {
     timer = setInterval(() => setTick((t) => t + 1), 1000)
+    refreshTimer = setInterval(() => {
+      void refetch()
+    }, 5000)
   })
   onCleanup(() => {
     if (timer) clearInterval(timer)
+    if (refreshTimer) clearInterval(refreshTimer)
   })
 
   // Format list of session policy states
@@ -126,22 +131,22 @@ export const SettingsAdmin: Component = () => {
                         {statusText()}
                       </span>
                     </div>
-                    <div class="flex items-center gap-3 text-11-regular text-text-weak">
-                      <span class="font-mono">ID: {item.sessionID.slice(0, 12)}...</span>
-                      <span>•</span>
+                    <div class="flex items-center gap-3 text-11-regular">
+                      <span class="font-mono text-text-weak">ID: {item.sessionID.slice(0, 12)}...</span>
+                      <span class="text-text-weak">•</span>
                       <span
-                        class="relative flex h-2 w-2 rounded-full shrink-0"
-                        title={item.online ? "Online (active client connected)" : "Offline (no client connected)"}
+                        class="text-11-semibold"
+                        classList={{ "text-success-strong": item.online, "text-text-weak": !item.online }}
                       >
-                        <Show when={item.online}>
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-strong opacity-75" />
-                        </Show>
-                        <span
-                          class="relative inline-flex rounded-full h-2 w-2"
-                          classList={{ "bg-success-strong": item.online, "bg-danger-strong": !item.online }}
-                        />
+                        {item.online ? "● Online" : "○ Offline"}
                       </span>
-                      <span>User: {item.userID}</span>
+                      <span>User: </span>
+                      <span
+                        class="text-11-semibold"
+                        classList={{ "text-success-strong": item.online, "text-text-weak": !item.online }}
+                      >
+                        {item.userID}
+                      </span>
                     </div>
                   </div>
                   <div class="flex w-full justify-end sm:w-auto sm:shrink-0">

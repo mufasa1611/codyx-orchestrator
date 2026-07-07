@@ -194,7 +194,8 @@ function Get-ReleaseInfo {
     try {
       return Invoke-JsonRequest "https://api.github.com/repos/$Repo/releases/tags/$tag"
     } catch {
-      throw "GitHub Release $tag was not found for $Repo, or it is still a draft. Publish that release first, then run this installer again."
+      Write-Warn "GitHub Release $tag was not found, it may have been deleted. Falling back to the newest available release."
+      return Get-NewestPublishedRelease
     }
   }
 
