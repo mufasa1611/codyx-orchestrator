@@ -951,14 +951,19 @@ export async function scheduleInstallRootRemoval(root: string) {
       `Set-Location -LiteralPath $env:TEMP -ErrorAction SilentlyContinue`,
       `$target = '${actualTarget.replace(/'/g, "''")}'`,
       `Start-Sleep -Seconds 3`,
-      `Get-Process -Name codyx, cody, codyx-launcher, codyx-orchestrator, cody-x -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
+      `Get-Process -Name codyx, cody, codyx-launcher, codyx-orchestrator, cody-x, Codyx.EndUserInstaller -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`,
+      `try { Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { ($_.CommandLine -like '*codyx*' -or $_.CommandLine -like '*cody *') -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } } catch {}`,
       `for ($i = 0; $i -lt 180 -and (Test-Path -LiteralPath $target); $i++) {`,
       `  Start-Sleep -Milliseconds 500`,
-      `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {}`,
+      `  try { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop } catch {`,
+      `    try { Get-ChildItem -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object Length -Descending | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } catch {}`,
+      `  }`,
       `}`,
       `# Also clean up any leftover .codyx-uninstall-* dirs`,
       `$parent = Split-Path -Parent $target`,
-      `if ($parent) { Get-ChildItem -LiteralPath $parent -Filter '*.codyx-uninstall-*' -Directory | ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {} } }`,
+      `if ($parent) { Get-ChildItem -LiteralPath $parent -Filter '*.codyx-uninstall-*' -Directory | ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {`,
+      `  try { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object Length -Descending | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } catch {}`,
+      `} } }`,
     ].join("; ")
     spawnDetachedPowershell(script)
     return
