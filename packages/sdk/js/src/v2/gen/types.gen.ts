@@ -5500,6 +5500,7 @@ export type SessionPolicyStatusResponses = {
     [key: string]: {
       count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       bannedUntil?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      online?: boolean
     }
   }
 }

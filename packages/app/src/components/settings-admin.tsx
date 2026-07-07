@@ -43,6 +43,7 @@ export const SettingsAdmin: Component = () => {
         userID: matchedSession?.userID ?? "Guest User",
         count: Number((status as any).count),
         bannedUntil: (status as any).bannedUntil ? Number((status as any).bannedUntil) : 0,
+        online: !!(status as any).online,
       }
     })
   })
@@ -128,6 +129,18 @@ export const SettingsAdmin: Component = () => {
                     <div class="flex items-center gap-3 text-11-regular text-text-weak">
                       <span class="font-mono">ID: {item.sessionID.slice(0, 12)}...</span>
                       <span>•</span>
+                      <span
+                        class="relative flex h-2 w-2 rounded-full shrink-0"
+                        title={item.online ? "Online (active client connected)" : "Offline (no client connected)"}
+                      >
+                        <Show when={item.online}>
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-strong opacity-75" />
+                        </Show>
+                        <span
+                          class="relative inline-flex rounded-full h-2 w-2"
+                          classList={{ "bg-success-strong": item.online, "bg-danger-strong": !item.online }}
+                        />
+                      </span>
                       <span>User: {item.userID}</span>
                     </div>
                   </div>

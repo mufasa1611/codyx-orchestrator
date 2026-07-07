@@ -1,6 +1,7 @@
 import * as InstanceState from "@/effect/instance-state"
 import { InstanceRef, WorkspaceRef, UserRef } from "@/effect/instance-ref"
 import { Agent } from "@/agent/agent"
+import * as AgentHub from "@/server/agent/hub"
 import { Bus } from "@/bus"
 import { Command } from "@/command"
 import { Permission } from "@/permission"
@@ -86,7 +87,35 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     const policyStatus = Effect.fn("SessionHttpApi.policyStatus")(function* () {
-      return yield* promptSvc.getPolicyStatus()
+      const rawStatus = yield* promptSvc.getPolicyStatus()
+      const hubSvc = yield* AgentHub.Service
+      const allSessions = yield* session.list().pipe(
+        Effect.provideService(UserRef, undefined as any),
+        Effect.catch(() => Effect.succeed([])),
+      )
+
+      const onlineUsers = new Set<string>()
+      for (const s of allSessions) {
+        if (s.userID) {
+          const online = yield* hubSvc.isUserOnline(s.userID)
+          if (online) onlineUsers.add(s.userID)
+        }
+      }
+
+      const result: Record<string, { count: number; bannedUntil?: number; online?: boolean }> = {}
+      for (const s of allSessions) {
+        result[s.id] = {
+          count: rawStatus[s.id]?.count ?? 0,
+          bannedUntil: rawStatus[s.id]?.bannedUntil ?? 0,
+          online: s.userID ? onlineUsers.has(s.userID) : false,
+        }
+      }
+      for (const [sessionID, info] of Object.entries(rawStatus)) {
+        if (!result[sessionID]) {
+          result[sessionID] = { ...info, online: false }
+        }
+      }
+      return result
     })
 
     const policyReset = Effect.fn("SessionHttpApi.policyReset")(function* (ctx: { params: { sessionID: SessionID } }) {

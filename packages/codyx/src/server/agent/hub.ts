@@ -72,6 +72,7 @@ export interface Interface {
   readonly readFile: (path: string) => Effect.Effect<unknown, Error>
   readonly writeFile: (path: string, content: string) => Effect.Effect<unknown, Error>
   readonly exec: (command: string) => Effect.Effect<unknown, Error>
+  readonly isUserOnline: (userID: string) => Effect.Effect<boolean>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@cody/AgentHub") {}
@@ -399,6 +400,17 @@ const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
   } as const
 })
 
+const isUserOnline = (userID: string) =>
+  Effect.sync(() => {
+    cleanupExpiredAgents()
+    for (const agent of agents.values()) {
+      if (agent.userID === userID && !shouldDisconnectAgent(agent)) {
+        return true
+      }
+    }
+    return false
+  })
+
 export const service: Interface = {
   createPairingCode: createPairingCode(),
   connectAgent: (code, write, close, metadata) => connectAgent(code, write, close, metadata),
@@ -412,6 +424,7 @@ export const service: Interface = {
   readFile: (path) => sendCommand("read-file", { path }),
   writeFile: (path, content) => sendCommand("write-file", { path, content }),
   exec: (command) => sendCommand("exec", { command }),
+  isUserOnline: (userID) => isUserOnline(userID),
 }
 
 export const layer: Layer.Layer<Service> = Layer.succeed(Service, Service.of(service))
