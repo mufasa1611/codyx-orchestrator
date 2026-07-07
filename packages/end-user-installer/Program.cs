@@ -1163,6 +1163,11 @@ public sealed class InstallerWindow : Window
     if (code != 0)
     {
       Append($"Launch preflight failed with exit code {code}.");
+      if (HasRunnableInstall())
+      {
+        Append("[update] Launch preflight failed (e.g. rate-limited/offline), but a runnable installation is present. Proceeding with launch.");
+        return true;
+      }
       return false;
     }
     return HasRunnableInstall();

@@ -551,8 +551,19 @@ function Install-CodyxCompiled {
 
   $release = $null
   if (-not $ManifestUrl) {
-    $release = Get-ReleaseInfo
-    Write-Info "Using release $($release.tag_name)."
+    try {
+      $release = Get-ReleaseInfo
+      Write-Info "Using release $($release.tag_name)."
+    } catch {
+      $marker = Read-InstallMarker $InstallRoot
+      $exe = Join-Path $currentDir "codyx.exe"
+      if ($marker -and (Test-Path -LiteralPath $exe)) {
+        Write-Warning "GitHub API connection failed or rate limited, but active installation exists. Skipping update check."
+        Write-Ok "Compiled CLI is up to date (offline)."
+        return
+      }
+      throw
+    }
   } else {
     Write-Info "Using explicit release manifest."
   }
