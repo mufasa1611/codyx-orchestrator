@@ -1072,18 +1072,29 @@ public sealed class InstallerWindow : Window
           var entries = xmlDoc.SelectNodes("//*[local-name()='entry']");
           if (entries != null)
           {
+            string? bestTag = null;
             foreach (System.Xml.XmlNode entry in entries)
             {
               var titleNode = entry.SelectSingleNode("*[local-name()='title']");
               if (titleNode != null)
               {
                 var title = titleNode.InnerText.Trim();
-                var isPrerelease = title.Contains('-');
-                if (isPrerelease == prerelease)
+                if (title.StartsWith("v") && title.Length >= 2 && char.IsDigit(title[1]))
                 {
-                  return (title, !prerelease);
+                  var isPrerelease = title.Contains('-');
+                  if (isPrerelease == prerelease)
+                  {
+                    if (bestTag == null || CompareReleaseVersions(title, bestTag) > 0)
+                    {
+                      bestTag = title;
+                    }
+                  }
                 }
               }
+            }
+            if (bestTag != null)
+            {
+              return (bestTag, !prerelease);
             }
           }
         }

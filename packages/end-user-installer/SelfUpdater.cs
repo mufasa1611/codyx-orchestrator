@@ -79,16 +79,25 @@ public static class SelfUpdater
                     var entries = xmlDoc.SelectNodes("//*[local-name()='entry']");
                     if (entries != null)
                     {
+                        Version? bestVer = null;
                         foreach (System.Xml.XmlNode entry in entries)
                         {
                             var titleNode = entry.SelectSingleNode("*[local-name()='title']");
                             if (titleNode != null)
                             {
                                 var title = titleNode.InnerText.Trim();
-                                if (!title.Contains('-'))
+                                if (title.StartsWith("v") && title.Length >= 2 && char.IsDigit(title[1]) && !title.Contains('-'))
                                 {
-                                    latestTag = title;
-                                    break;
+                                    try
+                                    {
+                                        var v = Version.Parse(title.TrimStart('v'));
+                                        if (bestVer == null || v > bestVer)
+                                        {
+                                            bestVer = v;
+                                            latestTag = title;
+                                        }
+                                    }
+                                    catch {}
                                 }
                             }
                         }

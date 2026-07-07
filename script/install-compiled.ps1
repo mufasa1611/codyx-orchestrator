@@ -191,6 +191,21 @@ function Normalize-ReleaseChannel($Value) {
   return "prod"
 }
 
+function Compare-Versions($v1, $v2) {
+  $v1 = $v1.TrimStart('v')
+  $v2 = $v2.TrimStart('v')
+  $p1 = $v1 -split '-'
+  $p2 = $v2 -split '-'
+  $base1 = [version]$p1[0]
+  $base2 = [version]$p2[0]
+  $cmp = $base1.CompareTo($base2)
+  if ($cmp -ne 0) { return $cmp }
+  if ($p1.Length -eq 1 -and $p2.Length -eq 1) { return 0 }
+  if ($p1.Length -eq 1) { return 1 }
+  if ($p2.Length -eq 1) { return -1 }
+  return [string]::Compare($p1[1], $p2[1], [StringComparison]::OrdinalIgnoreCase)
+}
+
 function Get-NewestPublishedRelease([switch]$PrereleaseOnly, [switch]$StableOnly) {
   try {
     $feedUrl = "https://github.com/$Repo/releases.atom"
@@ -199,17 +214,23 @@ function Get-NewestPublishedRelease([switch]$PrereleaseOnly, [switch]$StableOnly
       $xml = [xml]$xmlText
       $entries = $xml.feed.entry
       if ($entries) {
+        $bestRelease = $null
         foreach ($entry in $entries) {
           $tag = $entry.title.Trim()
+          if ($tag -notmatch '^v\d') { continue }
           $isPrerelease = $tag.Contains("-")
           if ($PrereleaseOnly -and -not $isPrerelease) { continue }
           if ($StableOnly -and $isPrerelease) { continue }
-          return [PSCustomObject]@{
-            tag_name = $tag
-            prerelease = $isPrerelease
-            draft = $false
+          
+          if (-not $bestRelease -or (Compare-Versions $tag $bestRelease.tag_name) -gt 0) {
+            $bestRelease = [PSCustomObject]@{
+              tag_name = $tag
+              prerelease = $isPrerelease
+              draft = $false
+            }
           }
         }
+        if ($bestRelease) { return $bestRelease }
       }
     }
   } catch {
@@ -241,16 +262,21 @@ function Get-StableLatestRelease {
       $xml = [xml]$xmlText
       $entries = $xml.feed.entry
       if ($entries) {
+        $bestRelease = $null
         foreach ($entry in $entries) {
           $tag = $entry.title.Trim()
+          if ($tag -notmatch '^v\d') { continue }
           if (-not $tag.Contains("-")) {
-            return [PSCustomObject]@{
-              tag_name = $tag
-              prerelease = $false
-              draft = $false
+            if (-not $bestRelease -or (Compare-Versions $tag $bestRelease.tag_name) -gt 0) {
+              $bestRelease = [PSCustomObject]@{
+                tag_name = $tag
+                prerelease = $false
+                draft = $false
+              }
             }
           }
         }
+        if ($bestRelease) { return $bestRelease }
       }
     }
   } catch {}
