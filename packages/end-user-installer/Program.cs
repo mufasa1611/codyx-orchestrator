@@ -11,6 +11,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using IOPath = System.IO.Path;
+using System.Xml;
 
 namespace Codyx.EndUserInstaller;
 
@@ -97,6 +98,7 @@ public sealed class InstallerWindow : Window
   public InstallerWindow()
   {
     Title = "Codyx-Orchestrator Installer";
+    SelfUpdater.CleanupOldFiles();
     Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/mufasa.png"));
     Width = 980;
     Height = 900;
@@ -278,19 +280,49 @@ public sealed class InstallerWindow : Window
     installHealthTimer.Start();
     Loaded += async (_, _) =>
     {
+      var shouldCheck = ShouldCheckUpdates();
+      if (!shouldCheck)
+      {
+        Append("[update] Skipping startup update checks (already checked within 12 hours).");
+      }
+
+      if (shouldCheck)
+      {
+        status.Text = "Checking for installer updates...";
+        var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
+          "installer.windows-x64",
+          (statText) => Dispatcher.Invoke(() => { status.Text = statText; }),
+          (logText) => Dispatcher.Invoke(() => { Append(logText); }));
+        if (updated) return;
+      }
+
       if (GetInstallHealth().Ready)
       {
         primary.IsEnabled = false;
         SetInstalledActions(false);
-        status.Text = "Auto-checking for updates...";
-        log.Clear();
-        Append("[update] Auto-checking installed Codyx-Orchestrator on startup.");
-        await RunEmbeddedInstallPreflightAsync();
-        lastUpdateCheckUtc = DateTime.UtcNow;
-        var updateOffered = await CheckForUpdateAsync();
-        primary.IsEnabled = true;
-        if (updateOffered) SetInstalledActions(true);
-        else RefreshInstalledActions();
+        if (shouldCheck)
+        {
+          status.Text = "Auto-checking for updates...";
+          log.Clear();
+          Append("[update] Auto-checking installed Codyx-Orchestrator on startup.");
+          await RunEmbeddedInstallPreflightAsync();
+          lastUpdateCheckUtc = DateTime.UtcNow;
+          var updateOffered = await CheckForUpdateAsync();
+          primary.IsEnabled = true;
+          if (updateOffered) SetInstalledActions(true);
+          else RefreshInstalledActions();
+        }
+        else
+        {
+          status.Text = "Auto-checking skipped.";
+          await RunEmbeddedInstallPreflightAsync();
+          primary.IsEnabled = true;
+          RefreshInstalledActions();
+        }
+      }
+      else
+      {
+        status.Text = "Ready to install compiled release assets.";
       }
     };
   }
@@ -980,8 +1012,14 @@ public sealed class InstallerWindow : Window
 
       using var http = new System.Net.Http.HttpClient();
       http.DefaultRequestHeaders.Add("User-Agent", "Codyx-Orchestrator-Installer");
+      var token = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN");
+      if (!string.IsNullOrEmpty(token))
+      {
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+      }
       http.Timeout = TimeSpan.FromSeconds(10);
       var latestInfo = await GetLatestReleaseForChannelAsync(http, channel);
+      SaveUpdateCache(latestInfo.Tag);
       var latestVer = latestInfo.Tag?.TrimStart('v');
       if (string.IsNullOrEmpty(latestVer))
       {
@@ -1023,6 +1061,47 @@ public sealed class InstallerWindow : Window
   {
     async Task<(string? Tag, bool StableFallback)> newestPublishedRelease(bool prerelease)
     {
+      // PRIMARY: Use Atom feed (no rate limiting)
+      try
+      {
+        var feedResponse = await http.GetAsync("https://github.com/mufasa1611/codyx-orchestrator/releases.atom");
+        if (feedResponse.IsSuccessStatusCode)
+        {
+          var xmlText = await feedResponse.Content.ReadAsStringAsync();
+          var xmlDoc = new System.Xml.XmlDocument();
+          xmlDoc.LoadXml(xmlText);
+          var entries = xmlDoc.SelectNodes("//*[local-name()='entry']");
+          if (entries != null)
+          {
+            string? bestTag = null;
+            foreach (System.Xml.XmlNode entry in entries)
+            {
+              var titleNode = entry.SelectSingleNode("*[local-name()='title']");
+              if (titleNode != null)
+              {
+                var title = titleNode.InnerText.Trim();
+                if (title.StartsWith("v") && title.Length >= 2 && char.IsDigit(title[1]))
+                {
+                  var isPrerelease = title.Contains('-');
+                  if (isPrerelease == prerelease)
+                  {
+                    if (bestTag == null || CompareReleaseVersions(title, bestTag) > 0)
+                    {
+                      bestTag = title;
+                    }
+                  }
+                }
+              }
+            }
+            if (bestTag != null)
+            {
+              return (bestTag, !prerelease);
+            }
+          }
+        }
+      }
+      catch {}
+      // FALLBACK: REST API
       var response = await http.GetAsync("https://api.github.com/repos/mufasa1611/codyx-orchestrator/releases?per_page=20");
       if (!response.IsSuccessStatusCode) return (null, prerelease);
       using var releases = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -1146,6 +1225,11 @@ public sealed class InstallerWindow : Window
     if (code != 0)
     {
       Append($"Launch preflight failed with exit code {code}.");
+      if (HasRunnableInstall())
+      {
+        Append("[update] Launch preflight failed (e.g. rate-limited/offline), but a runnable installation is present. Proceeding with launch.");
+        return true;
+      }
       return false;
     }
     return HasRunnableInstall();
@@ -1202,5 +1286,55 @@ public sealed class InstallerWindow : Window
     if (string.IsNullOrWhiteSpace(exeDir)) return null;
     var manifest = IOPath.Combine(exeDir, "codyx-release-manifest.json");
     return File.Exists(manifest) ? manifest : null;
+  }
+
+  class UpdateCheckCache
+  {
+    public DateTime LastCheckUtc { get; set; }
+    public string? LatestVersion { get; set; }
+  }
+
+  static string GetUpdateCachePath()
+  {
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    return IOPath.Combine(local, "codyx-installer", "update-check-cache.json");
+  }
+
+  static bool ShouldCheckUpdates()
+  {
+    try
+    {
+      var cachePath = GetUpdateCachePath();
+      if (File.Exists(cachePath))
+      {
+        var json = File.ReadAllText(cachePath);
+        var cache = System.Text.Json.JsonSerializer.Deserialize<UpdateCheckCache>(json);
+        if (cache != null && (DateTime.UtcNow - cache.LastCheckUtc) < TimeSpan.FromHours(12))
+        {
+          return false;
+        }
+      }
+    }
+    catch {}
+    return true;
+  }
+
+  static void SaveUpdateCache(string? latestVersion)
+  {
+    try
+    {
+      var cachePath = GetUpdateCachePath();
+      var cacheDir = IOPath.GetDirectoryName(cachePath);
+      if (!string.IsNullOrEmpty(cacheDir)) Directory.CreateDirectory(cacheDir);
+
+      var cache = new UpdateCheckCache
+      {
+        LastCheckUtc = DateTime.UtcNow,
+        LatestVersion = latestVersion
+      };
+      var json = System.Text.Json.JsonSerializer.Serialize(cache);
+      File.WriteAllText(cachePath, json);
+    }
+    catch {}
   }
 }

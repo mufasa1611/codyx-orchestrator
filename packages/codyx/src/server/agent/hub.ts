@@ -1,4 +1,4 @@
-﻿import { Context, Deferred, Duration, Effect, Layer } from "effect"
+import { Context, Deferred, Duration, Effect, Layer } from "effect"
 import { UserRef } from "@/effect/instance-ref"
 import * as Log from "@cody/core/util/log"
 import type { AgentMessage, HubMessage } from "./types"
@@ -7,7 +7,7 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
 const CODE_TTL_DURATION = Duration.minutes(5)
 const AGENT_MAX_CONNECTION_DURATION = Duration.hours(24)
-const CLIENT_LEASE_DURATION = Duration.seconds(60)
+const CLIENT_LEASE_DURATION = Duration.seconds(300)
 const COMMAND_TIMEOUT_DURATION = Duration.seconds(30)
 
 interface PendingCommand {
@@ -128,21 +128,25 @@ function invalidateUserReconnectTokens(userID: string): void {
   }
 }
 
-const cleanupInterval = setInterval(() => {
-  cleanupExpiredCodes()
-  cleanupExpiredAgents()
-}, Duration.toMillis(Duration.seconds(15)))
+const cleanupInterval = setInterval(
+  () => {
+    cleanupExpiredCodes()
+    cleanupExpiredAgents()
+  },
+  Duration.toMillis(Duration.seconds(15)),
+)
 if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
 
 // Keepalive: send ping to all connected agents every 30s to prevent
 // client lease expiry when there is no active LLM interaction.
-const keepaliveInterval = setInterval(() => {
-  for (const agent of agents.values()) {
-    Effect.runFork(
-      agent.write(JSON.stringify({ type: "ping" })).pipe(Effect.catch(() => Effect.void)),
-    )
-  }
-}, Duration.toMillis(Duration.seconds(30)))
+const keepaliveInterval = setInterval(
+  () => {
+    for (const agent of agents.values()) {
+      Effect.runFork(agent.write(JSON.stringify({ type: "ping" })).pipe(Effect.catch(() => Effect.void)))
+    }
+  },
+  Duration.toMillis(Duration.seconds(30)),
+)
 if (typeof keepaliveInterval.unref === "function") keepaliveInterval.unref()
 
 const createPairingCode = Effect.fn("AgentHub.createPairingCode")(function* () {
@@ -372,8 +376,12 @@ const sendCommand = (command: string, args: unknown): Effect.Effect<unknown, Err
   })
 
 const getStatus = Effect.fn("AgentHub.getStatus")(function* () {
-  const userID = yield* UserRef;
-  log.info("status check", { userID, agentsCount: agents.size, activeAgents: Array.from(agents.values()).map(a => ({ code: a.code, user: a.userID })) });
+  const userID = yield* UserRef
+  log.info("status check", {
+    userID,
+    agentsCount: agents.size,
+    activeAgents: Array.from(agents.values()).map((a) => ({ code: a.code, user: a.userID })),
+  })
   yield* touchClient()
   const agent = yield* agentForCurrentUser().pipe(Effect.catch(() => Effect.succeed(undefined)))
   if (!agent) {
