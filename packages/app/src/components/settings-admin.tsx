@@ -153,14 +153,16 @@ export const SettingsAdmin: Component = () => {
                     </div>
                   </div>
                   <div class="flex w-full justify-end sm:w-auto sm:shrink-0">
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleReset(item.sessionID)}
-                      class="flex items-center gap-1.5 text-12-medium"
-                    >
-                      <Icon name="arrow-undo-down" class="size-3.5" />
-                      Reset Policy
-                    </Button>
+                    <Show when={item.count > 0 || isBanned()}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleReset(item.sessionID)}
+                        class="flex items-center gap-1.5 text-12-medium"
+                      >
+                        <Icon name="arrow-undo-down" class="size-3.5" />
+                        Reset Policy
+                      </Button>
+                    </Show>
                   </div>
                 </div>
               )

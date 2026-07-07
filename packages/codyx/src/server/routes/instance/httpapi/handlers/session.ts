@@ -89,16 +89,34 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const policyStatus = Effect.fn("SessionHttpApi.policyStatus")(function* () {
       const rawStatus = yield* promptSvc.getPolicyStatus()
       const hubSvc = yield* AgentHub.Service
+      const allSessions = yield* session.list().pipe(
+        Effect.provideService(UserRef, undefined as any),
+        Effect.catch(() => Effect.succeed([])),
+      )
       const result: Record<string, { count: number; bannedUntil?: number; online?: boolean }> = {}
-      for (const [sessionID, info] of Object.entries(rawStatus)) {
-        const sInfo = yield* session.get(sessionID as SessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      for (const s of allSessions) {
         let online = false
-        if (sInfo?.userID) {
-          online = yield* hubSvc.isUserOnline(sInfo.userID)
+        if (s.userID) {
+          online = yield* hubSvc.isUserOnline(s.userID)
         }
-        result[sessionID] = {
-          ...info,
+        const raw = rawStatus[s.id]
+        result[s.id] = {
+          count: raw ? raw.count : 0,
+          bannedUntil: raw ? raw.bannedUntil : 0,
           online,
+        }
+      }
+      for (const [sessionID, info] of Object.entries(rawStatus)) {
+        if (!result[sessionID]) {
+          const sInfo = yield* session.get(sessionID as SessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          let online = false
+          if (sInfo?.userID) {
+            online = yield* hubSvc.isUserOnline(sInfo.userID)
+          }
+          result[sessionID] = {
+            ...info,
+            online,
+          }
         }
       }
       return result
