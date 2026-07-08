@@ -7,7 +7,7 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
 const CODE_TTL_DURATION = Duration.minutes(5)
 const AGENT_MAX_CONNECTION_DURATION = Duration.hours(24)
-const CLIENT_LEASE_DURATION = Duration.seconds(60)
+const CLIENT_LEASE_DURATION = Duration.seconds(300)
 const COMMAND_TIMEOUT_DURATION = Duration.seconds(30)
 
 interface PendingCommand {
