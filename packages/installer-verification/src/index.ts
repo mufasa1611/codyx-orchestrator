@@ -537,12 +537,16 @@ app.post("/v1/receipts/validate", async (context) => {
     db
       .prepare(
         `UPDATE registration SET installer_version = COALESCE(?, installer_version),
-         platform = COALESCE(?, platform), machine_id = COALESCE(?, machine_id), last_seen_at = ?, updated_at = ? WHERE install_id = ?`,
+         platform = COALESCE(?, platform), machine_id = COALESCE(?, machine_id), last_seen_at = ?,
+         session_started_at = CASE WHEN ? - last_seen_at > 15000 THEN ? ELSE session_started_at END,
+         updated_at = ? WHERE install_id = ?`,
       )
       .bind(
         input.installer_version ?? null,
         input.platform ?? null,
         input.machine_id ?? null,
+        now,
+        now,
         now,
         now,
         payload.install_id,
@@ -567,9 +571,9 @@ app.post("/v1/installations/:installID/policy", async (context) => {
 
   await db
     .prepare(
-      "UPDATE registration SET policy_violations_count = ?, policy_banned_until = ?, last_seen_at = ?, updated_at = ? WHERE install_id = ?",
+      "UPDATE registration SET policy_violations_count = ?, policy_banned_until = ?, last_seen_at = ?, session_started_at = CASE WHEN ? - last_seen_at > 15000 THEN ? ELSE session_started_at END, updated_at = ? WHERE install_id = ?",
     )
-    .bind(body.count, body.banned_until, Date.now(), Date.now(), installId)
+    .bind(body.count, body.banned_until, Date.now(), Date.now(), Date.now(), Date.now(), installId)
     .run()
 
   return context.json({ success: true })
@@ -591,7 +595,7 @@ app.get("/v1/admin/installations", async (context) => {
   const result = await db
     .prepare(
       `SELECT r.install_id, r.display_name, r.email, r.email_verified_at, r.installer_version, r.platform,
-      r.machine_id, r.policy_violations_count, r.policy_banned_until, r.created_at, r.updated_at, r.retain_until, r.last_seen_at,
+      r.machine_id, r.policy_violations_count, r.policy_banned_until, r.created_at, r.updated_at, r.retain_until, r.last_seen_at, r.session_started_at,
       (SELECT c.status FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_status,
       (SELECT c.id FROM remote_command c WHERE c.install_id = r.install_id AND c.type = 'uninstall' ORDER BY c.created_at DESC LIMIT 1) AS command_id,
       (SELECT 1 FROM banned_machine b WHERE b.machine_id = r.machine_id LIMIT 1) AS is_banned
@@ -763,7 +767,6 @@ app.post("/v1/admin/installations/:installID/policy-reset", async (context) => {
   const registration = await db.prepare("SELECT 1 FROM registration WHERE install_id = ?").bind(installId).first()
   if (!registration) throw new ApiError(404, "registration_not_found", "Installation not found.")
 
-  // 1. Reset values in registration table
   await db
     .prepare(
       "UPDATE registration SET policy_violations_count = 0, policy_banned_until = 0, updated_at = ? WHERE install_id = ?",
@@ -844,12 +847,17 @@ app.get("/v1/commands", async (context) => {
   const payload = await verifyReceiptPayload(context.env, input.install_id, input.receipt)
   const db = context.env.InstallerVerificationDatabase
   const now = Date.now()
-  await db.prepare("UPDATE registration SET last_seen_at = ? WHERE install_id = ?").bind(now, payload.install_id).run()
+  await db
+    .prepare(
+      "UPDATE registration SET last_seen_at = ?, session_started_at = CASE WHEN ? - last_seen_at > 15000 THEN ? ELSE session_started_at END WHERE install_id = ?",
+    )
+    .bind(now, now, now, payload.install_id)
+    .run()
   const rows = await db
     .prepare(
       `SELECT id, type, created_at
        FROM remote_command
-       WHERE install_id = ? AND status = 'pending' AND retain_until > ?
+       WHERE install_id = ? AND status IN ('pending', 'acknowledged') AND retain_until > ?
        ORDER BY created_at ASC`,
     )
     .bind(payload.install_id, now)

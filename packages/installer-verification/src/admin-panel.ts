@@ -166,6 +166,10 @@ async function apiFetch(path, opts = {}) {
 }
 
 function showLogin() {
+  if (dashboardRefreshTimer) {
+    clearInterval(dashboardRefreshTimer)
+    dashboardRefreshTimer = null
+  }
   document.getElementById("dashboard").style.display = "none"
   document.getElementById("login").style.display = "block"
   document.getElementById("login-error").style.display = "none"
@@ -355,17 +359,16 @@ function renderRows(installations) {
       ? "cancelUninstall('" + esc(r.install_id) + "')"
       : "confirmUninstall('" + esc(r.install_id) + "','" + esc(r.display_name) + "')"
     const lastSeen = r.last_seen_at ? Number(r.last_seen_at) : 0
-    const isOnline = lastSeen && (Date.now() - lastSeen) < 120000
+    const sessionStart = r.session_started_at ? Number(r.session_started_at) : 0
+    const isOnline = lastSeen && (Date.now() - lastSeen) < 15000
     let rowClass = ""
     if (r.is_banned) rowClass = " class=\\"row-banned\\""
     else if (isOnline) rowClass = " class=\\"row-active\\""
-    const nameClass = isOnline ? "name-online" : "name-offline"
-    const seenTitle = isOnline
-      ? "Online since " + fmtDate(lastSeen)
-      : lastSeen ? "Last seen " + fmtDate(lastSeen) : "Never seen"
-    const onlineBadge = isOnline
-      ? '<span class="badge online" title="' + esc(seenTitle) + '">● Online</span>'
-      : '<span class="badge offline" title="' + esc(seenTitle) + '">○ Offline</span>'
+    const onlineInfo = isOnline
+      ? '<span class="badge online">Online</span><br><span class="mono" style="font-size:11px">since ' + fmtDate(sessionStart || lastSeen) + "</span>"
+      : lastSeen
+        ? '<span class="badge offline">Offline</span><br><span class="mono" style="font-size:11px">since ' + fmtDate(sessionStart || lastSeen) + " until " + fmtDate(lastSeen) + "</span>"
+        : '<span class="badge offline">Offline</span>'
     let midCell
     if (r.machine_id) {
       midCell = "<td><span class=\\"mono\\">" + esc(r.machine_id).slice(0, 8) + "&hellip;</span>" +
@@ -406,8 +409,8 @@ function renderRows(installations) {
     const resetBtnDisabled = hasViolations ? "" : " disabled"
     const resetPolicyBtn = " <button class=\\"" + resetBtnClass + "\\" style=\\"" + resetBtnStyle + "\\" " + resetBtnDisabled + " onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
     return "<tr" + rowClass + ">" +
-      '<td><strong class="' + nameClass + '">' + esc(r.display_name) + "</strong></td>" +
-      "<td>" + onlineBadge + "</td>" +
+      "<td><strong>" + esc(r.display_name) + "</strong></td>" +
+      "<td>" + onlineInfo + "</td>" +
       "<td>" + esc(r.email) + "</td>" +
       "<td><span class=\\"mono\\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
       "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
