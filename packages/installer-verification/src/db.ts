@@ -161,6 +161,9 @@ export async function ensureSchema(db: D1Database) {
   try {
     await db.prepare("ALTER TABLE registration ADD COLUMN policy_banned_until INTEGER DEFAULT 0").run()
   } catch {}
+  try {
+    await db.prepare("ALTER TABLE registration ADD COLUMN last_seen_at INTEGER DEFAULT 0").run()
+  } catch {}
   await ensureRemoteCommandPolicyReset(db)
 }
 

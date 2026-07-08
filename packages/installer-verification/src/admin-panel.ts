@@ -71,6 +71,10 @@ tr:hover td{background:#1c2128}
 .btn-unban:hover{background:#2ea043}
 .badge.banned{background:#da363322;color:#f85149;border:1px solid #da363344}
 .badge.active{background:#23863622;color:#3fb950;border:1px solid #23863644}
+.badge.online{background:#23863622;color:#3fb950;border:1px solid #23863644}
+.badge.offline{background:#484f5822;color:#8b949e;border:1px solid #484f5844}
+.name-online{color:#3fb950}
+.name-offline{color:#e6edf3}
 </style>
 </head>
 <body>
@@ -91,20 +95,7 @@ tr:hover td{background:#1c2128}
 </div>
 
 <div id="dashboard">
-<div id="policy-settings-box" style="margin-bottom: 24px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px;">
-  <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #f0f6fc;">Global Policy Settings</h3>
-  <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-    <div style="display: flex; flex-direction: column; gap: 4px;">
-      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Max Warnings</label>
-      <input type="number" id="max-warnings-input" style="width: 120px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 4px;">
-      <label style="font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase;">Ban Duration (minutes)</label>
-      <input type="number" id="ban-duration-input" style="width: 160px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; outline: none;" min="1" value="5">
-    </div>
-    <button onclick="savePolicySettings()" style="padding: 8px 16px; background: #238636; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer;">Save Settings</button>
-  </div>
-</div>
+
 <div class="toolbar">
 <div class="stats">Registrations: <strong id="count">0</strong> &middot; Environment: <strong id="dash-env">-</strong></div>
 <div>
@@ -115,6 +106,7 @@ tr:hover td{background:#1c2128}
 <thead>
 <tr>
 <th>Display Name</th>
+<th>Online</th>
 <th>Email</th>
 <th>Install ID</th>
 <th>Machine ID</th>
@@ -319,23 +311,6 @@ async function resetPolicy(id) {
   }
 }
 
-async function savePolicySettings() {
-  const max_warnings = parseInt(document.getElementById("max-warnings-input").value, 10)
-  const ban_duration_minutes = parseInt(document.getElementById("ban-duration-input").value, 10)
-  if (isNaN(max_warnings) || isNaN(ban_duration_minutes)) return
-
-  const res = await apiFetch("/v1/admin/policy-settings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ max_warnings, ban_duration_minutes }),
-  })
-  if (res && res.ok) {
-    showToast("Global policy settings updated successfully", "success")
-  } else {
-    showToast("Failed to update policy settings", "error")
-  }
-}
-
 async function loadDashboard() {
   const token = getToken()
   if (!token) { showLogin(); return }
@@ -343,16 +318,7 @@ async function loadDashboard() {
   document.getElementById("login").style.display = "none"
   document.getElementById("dashboard").style.display = "block"
 
-  // Load global policy settings
-  const settingsRes = await apiFetch("/v1/policy-settings")
-  if (settingsRes && settingsRes.ok) {
-    const settings = await settingsRes.json()
-    currentMaxWarnings = settings.max_warnings || 5
-    document.getElementById("max-warnings-input").value = settings.max_warnings
-    document.getElementById("ban-duration-input").value = settings.ban_duration_minutes
-  }
-
-  document.getElementById("table-body").innerHTML = '<tr><td colspan="11" class="empty"><span class="spinner"></span> Loading...</td></tr>'
+  document.getElementById("table-body").innerHTML = '<tr><td colspan="12" class="empty"><span class="spinner"></span> Loading...</td></tr>'
 
   const res = await apiFetch("/v1/admin/installations")
   if (!res) return
@@ -378,7 +344,7 @@ async function loadDashboard() {
 function renderRows(installations) {
   const tbody = document.getElementById("table-body")
   if (installations.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">No registrations found.</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">No registrations found.</td></tr>'
     return
   }
   tbody.innerHTML = installations.map((r) => {
@@ -388,9 +354,18 @@ function renderRows(installations) {
     const uninstallAction = uninstallCancellable
       ? "cancelUninstall('" + esc(r.install_id) + "')"
       : "confirmUninstall('" + esc(r.install_id) + "','" + esc(r.display_name) + "')"
+    const lastSeen = r.last_seen_at ? Number(r.last_seen_at) : 0
+    const isOnline = lastSeen && (Date.now() - lastSeen) < 120000
     let rowClass = ""
     if (r.is_banned) rowClass = " class=\\"row-banned\\""
-    else if (r.machine_id) rowClass = " class=\\"row-active\\""
+    else if (isOnline) rowClass = " class=\\"row-active\\""
+    const nameClass = isOnline ? "name-online" : "name-offline"
+    const seenTitle = isOnline
+      ? "Online since " + fmtDate(lastSeen)
+      : lastSeen ? "Last seen " + fmtDate(lastSeen) : "Never seen"
+    const onlineBadge = isOnline
+      ? '<span class="badge online" title="' + esc(seenTitle) + '">● Online</span>'
+      : '<span class="badge offline" title="' + esc(seenTitle) + '">○ Offline</span>'
     let midCell
     if (r.machine_id) {
       midCell = "<td><span class=\\"mono\\">" + esc(r.machine_id).slice(0, 8) + "&hellip;</span>" +
@@ -431,7 +406,8 @@ function renderRows(installations) {
     const resetBtnDisabled = hasViolations ? "" : " disabled"
     const resetPolicyBtn = " <button class=\\"" + resetBtnClass + "\\" style=\\"" + resetBtnStyle + "\\" " + resetBtnDisabled + " onclick=\\"resetPolicy('" + esc(r.install_id) + "')\\">Reset Policy</button>"
     return "<tr" + rowClass + ">" +
-      "<td><strong>" + esc(r.display_name) + "</strong></td>" +
+      '<td><strong class="' + nameClass + '">' + esc(r.display_name) + "</strong></td>" +
+      "<td>" + onlineBadge + "</td>" +
       "<td>" + esc(r.email) + "</td>" +
       "<td><span class=\\"mono\\">" + esc(r.install_id).slice(0, 8) + "&hellip;</span>" +
       "<button class=\\"copy\\" onclick=\\"copyId('" + esc(r.install_id) + "')\\">copy</button></td>" +
