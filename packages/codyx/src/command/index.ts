@@ -12,6 +12,7 @@ import { MCP } from "../mcp"
 import { Skill } from "../skill"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
+import PROMPT_LEARN from "./template/learn.txt"
 
 type State = {
   commands: Record<string, Info>
@@ -59,6 +60,7 @@ export function hints(template: string) {
 export const Default = {
   INIT: "init",
   REVIEW: "review",
+  LEARN: "learn",
 } as const
 
 export interface Interface {
@@ -100,6 +102,15 @@ export const layer = Layer.effect(
         hints: hints(PROMPT_REVIEW),
       }
 
+      commands[Default.LEARN] = {
+        name: Default.LEARN,
+        description: "extract non-obvious session learnings into AGENTS.md files",
+        source: "command",
+        get template() {
+          return PROMPT_LEARN
+        },
+        hints: hints(PROMPT_LEARN),
+      }
       for (const [name, command] of Object.entries(cfg.command ?? {})) {
         commands[name] = {
           name,
