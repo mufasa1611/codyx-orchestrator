@@ -5,9 +5,9 @@
 Build a provider and model experience where an end user can choose between:
 
 - online providers with free or paid API keys,
-- official OpenCode Zen when the user's account is allowed to use it,
 - local Ollama models,
 - local GGUF models served by an installed local engine,
+- optional OpenCode Zen only when the user explicitly configures their own allowed account,
 - future engines through the same provider registry.
 
 The installer should guide non-technical users through engine installation, hardware detection, model recommendations, model download, and Codyx config generation.
@@ -20,6 +20,31 @@ The installer should guide non-technical users through engine installation, hard
 - Never wipe user-local provider/model choices during launcher updates.
 - Prefer existing Codyx primitives: `.cody/generated`, `script/discover-local-models.ps1`, provider config, and `providers login`.
 - Separate detection from installation from selection so each step can be retried safely.
+- Do not use OpenCode Zen as the v2 fallback while its free tier blocks non-OpenCode clients.
+
+## V2 Fallback Policy
+
+Version 2 must not fall back to `opencode/big-pickle` or any OpenCode Zen model by default.
+
+Fallback order:
+
+1. Local Ollama model when Ollama and a recommended model are available.
+   - Preferred default: the strongest installed/recommended Llama or coding model that fits the system.
+   - Current starter default on capable machines: `ollama/llama3.1:8b`.
+2. Local llama.cpp/GGUF provider when the user has a running `llama-server` endpoint and a selected GGUF model.
+3. Google Gemini when `GOOGLE_GENERATIVE_AI_API_KEY` is present.
+   - Preferred online free-key fallback because Google documents a Free usage tier with per-project rate limits.
+   - Starter models: Gemini Flash / Flash-Lite family.
+4. OpenRouter when `OPENROUTER_API_KEY` is present.
+   - Use only models explicitly marked `:free` in the preset.
+   - Treat availability as rotating and re-checkable, not guaranteed.
+5. Groq/Cerebras/other providers only when their user-owned API key is present.
+6. If no local engine/model and no supported provider key is available, do not silently choose a remote model.
+   - Show a setup-required message.
+   - Offer `codyx setup models --list`.
+   - Offer install/pull commands for Ollama and key links for Gemini/OpenRouter.
+
+OpenCode Zen remains an optional manually configured provider for users whose own OpenCode account is allowed to use it, but it is not a free fallback and must not be presented as the default path.
 
 ## Current Starting Point
 
@@ -91,7 +116,7 @@ Installer asks:
 
 ## Provider Registry Design
 
-Add a provider preset registry, separate from `models.dev` fallback, for end-user setup:
+Add a provider preset registry, separate from the upstream `models.dev` catalog, for end-user setup:
 
 `packages/codyx/src/provider/preset.ts`
 
