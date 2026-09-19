@@ -262,7 +262,7 @@ export const presets = {
         installHint: "ollama pull qwen2.5:32b",
         reasoning: false,
         temperature: true,
-        tool_call: false,
+        tool_call: true,
         limit: { context: 32_768, output: 8_192 },
       },
     },

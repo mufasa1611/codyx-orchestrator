@@ -36,6 +36,10 @@ type EngineStatus = {
 }
 
 type PresetRegistry = Record<string, ProviderPreset.PresetProvider>
+type InstalledOllamaModel = {
+  id: string
+  sizeGB?: number
+}
 
 function checkExecutable(name: string): CheckResult {
   const paths = process.env.PATH?.split(path.delimiter) ?? []
@@ -379,14 +383,173 @@ function fittingModelIDs(provider: ProviderPreset.PresetProvider, hardware = har
   return fitting.length > 0 ? fitting : ids
 }
 
+function parseSizeGB(value: string, unit: string) {
+  const amount = Number.parseFloat(value)
+  if (!Number.isFinite(amount)) return
+  switch (unit.toUpperCase()) {
+    case "TB":
+      return amount * 1024
+    case "GB":
+      return amount
+    case "MB":
+      return amount / 1024
+    case "KB":
+      return amount / 1024 / 1024
+    case "B":
+      return amount / 1024 / 1024 / 1024
+  }
+}
+
+function parseOllamaList(output: string): InstalledOllamaModel[] {
+  const models: InstalledOllamaModel[] = []
+  const seen = new Set<string>()
+
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || /^NAME\s+/i.test(trimmed)) continue
+    const parts = trimmed.split(/\s+/)
+    const id = parts[0]
+    if (!id || id.endsWith(":cloud") || seen.has(id)) continue
+
+    const sizeIndex = parts.findIndex(
+      (part, index) => index >= 2 && /^\d+(?:\.\d+)?$/.test(part) && /^(?:B|KB|MB|GB|TB)$/i.test(parts[index + 1] ?? ""),
+    )
+    const sizeGB = sizeIndex >= 0 ? parseSizeGB(parts[sizeIndex], parts[sizeIndex + 1]) : undefined
+    models.push({ id, sizeGB })
+    seen.add(id)
+  }
+
+  return models
+}
+
+function inferFamily(modelID: string) {
+  const normalized = modelID.toLowerCase()
+  if (normalized.includes("llama")) return "llama"
+  if (normalized.includes("qwen")) return "qwen"
+  if (normalized.includes("deepseek")) return "deepseek"
+  if (normalized.includes("gemma")) return "gemma"
+  if (normalized.includes("mistral") || normalized.includes("devstral")) return "mistral"
+  if (normalized.includes("phi")) return "phi"
+  if (normalized.includes("gpt-oss")) return "gpt-oss"
+  return "ollama"
+}
+
+function displayNameFromModelID(modelID: string) {
+  return modelID
+    .replace(/[:/_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function estimateMinMemoryGB(modelID: string, sizeGB?: number) {
+  if (sizeGB && Number.isFinite(sizeGB)) return Math.max(4, Math.ceil(sizeGB * 1.6))
+
+  const match = modelID.match(/(?:^|[^0-9])(\d{1,3})b(?:$|[^0-9])/i)
+  if (!match) return 8
+  const parameters = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(parameters)) return 8
+  if (parameters <= 3) return 8
+  if (parameters <= 8) return 16
+  if (parameters <= 14) return 24
+  if (parameters <= 32) return 48
+  if (parameters <= 70) return 96
+  return 128
+}
+
+function localAgentPreference(modelID: string, model: ProviderPreset.PresetModel) {
+  const normalized = modelID.toLowerCase()
+  if (normalized.startsWith("qwen3.5")) return 1060
+  if (normalized === "qwen2.5:32b") return 1000
+  if (normalized.includes("qwen") && normalized.includes("thinking")) return 940
+  if (normalized.includes("qwen")) return 900
+  if (normalized.includes("devstral")) return 820
+  if (normalized.includes("deepcoder")) return 780
+  if (normalized.includes("deepseek") && !model.reasoning) return 740
+  if (normalized.includes("gpt-oss:20b")) return 720
+  if (normalized.includes("mistral")) return 700
+  if (normalized.includes("llama3")) return 680
+  if (normalized.includes("gemma")) return 650
+  if (normalized.includes("phi")) return 620
+  return 500
+}
+
 function recommendedModel(provider: ProviderPreset.PresetProvider, hardware = hardwareProfile()) {
   if (provider.mode !== "local") return provider.defaultModel
 
   const fitting = fittingModelIDs(provider, hardware)
+  const maxComfortableMemory = Math.max(8, Math.floor(hardware.memoryGB * 0.8))
+  const comfortable = fitting.filter((id) => (provider.models[id].minMemoryGB ?? 0) <= maxComfortableMemory)
+  const candidates = comfortable.length > 0 ? comfortable : fitting
+  const ranked = candidates
     .map((id) => [id, provider.models[id]] as const)
-    .sort(([, a], [, b]) => (b.minMemoryGB ?? 0) - (a.minMemoryGB ?? 0))
+    .sort(([idA, a], [idB, b]) => {
+      const priority = localAgentPreference(idB, b) - localAgentPreference(idA, a)
+      if (priority !== 0) return priority
+      return (b.minMemoryGB ?? 0) - (a.minMemoryGB ?? 0)
+    })
 
-  return fitting[0]?.[0] ?? provider.defaultModel
+  return ranked[0]?.[0] ?? provider.defaultModel
+}
+
+function presetFromInstalledOllamaModel(model: InstalledOllamaModel): ProviderPreset.PresetModel {
+  const family = inferFamily(model.id)
+  return {
+    name: `${displayNameFromModelID(model.id)} (installed)`,
+    family,
+    minMemoryGB: estimateMinMemoryGB(model.id, model.sizeGB),
+    installHint: `ollama pull ${model.id}`,
+    reasoning:
+      family === "deepseek" ||
+      family === "gpt-oss" ||
+      model.id.toLowerCase().includes("reasoning") ||
+      model.id.toLowerCase().includes("thinking"),
+    temperature: true,
+    tool_call: true,
+    limit: { context: 32_768, output: 8_192 },
+  }
+}
+
+function discoverInstalledOllamaModels(provider: ProviderPreset.PresetProvider): InstalledOllamaModel[] {
+  if (provider.engine !== "ollama") return []
+  const status = localEngineStatus(provider)
+  if (!status?.command) return []
+
+  try {
+    const output = execFileSync(status.command, ["list"], {
+      encoding: "utf8",
+      timeout: 10000,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    return parseOllamaList(output)
+  } catch {
+    return []
+  }
+}
+
+function mergeInstalledLocalModels(presets: PresetRegistry): PresetRegistry {
+  const merged = Object.fromEntries(
+    Object.entries(presets).map(([id, provider]) => [
+      id,
+      {
+        ...provider,
+        models: { ...provider.models },
+      },
+    ]),
+  ) as PresetRegistry
+
+  const provider = merged.ollama
+  if (!provider) return merged
+
+  for (const model of discoverInstalledOllamaModels(provider)) {
+    provider.models[model.id] = {
+      ...presetFromInstalledOllamaModel(model),
+      ...provider.models[model.id],
+    }
+  }
+
+  return merged
 }
 
 function providerHint(provider: ProviderPreset.PresetProvider) {
@@ -530,6 +693,7 @@ async function setupModels(args: SetupArgs) {
   prompts.intro("codyx Model Setup")
 
   const catalog = await loadProviderPresetCatalog()
+  catalog.presets = mergeInstalledLocalModels(catalog.presets)
 
   if (args.list) {
     printProviderPresets(catalog.presets, catalog.source)

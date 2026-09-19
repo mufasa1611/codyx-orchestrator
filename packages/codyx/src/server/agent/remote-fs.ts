@@ -18,7 +18,7 @@ function fallbackIfNoAgent<A, E, R>(
   return (error) => (canUseLocalFallback(error) ? fallback() : Effect.die(error))
 }
 
-const remoteStat = (hub: AgentHub.Interface, path: string): Effect.Effect<FileSystem.File.Info> =>
+const remoteStat = (hub: AgentHub.Interface, path: string): Effect.Effect<FileSystem.File.Info, Error> =>
   Effect.gen(function* () {
     if (path === "/" || path === "\\") {
       return {
@@ -41,9 +41,7 @@ const remoteStat = (hub: AgentHub.Interface, path: string): Effect.Effect<FileSy
     const parent = dirname(path)
     if (parent === path) return yield* Effect.die(STAT_ERROR)
     const name = basename(path)
-    const result = yield* hub.listDir(parent).pipe(
-      Effect.catch((error) => (canUseLocalFallback(error) ? Effect.succeed(undefined) : Effect.die(error))),
-    )
+    const result = yield* hub.listDir(parent)
     if (!result) return yield* Effect.die(STAT_ERROR)
     const list = result as AgentListDirResponse
     const entry = list.files?.find((f) => f.name === name)
