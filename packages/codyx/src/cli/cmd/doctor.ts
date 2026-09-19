@@ -124,8 +124,8 @@ export const DoctorCommand = {
     // 4. Check config file
     const configPaths = [
       path.join(Global.Path.config, "cody.jsonc"),
-      path.join(process.cwd(), ".cody", "generated", "cody.jsonc"),
-      path.join(process.cwd(), ".cody", "generated", "cody.json"),
+      path.join(process.cwd(), ".cody", "cody.jsonc"),
+      path.join(process.cwd(), ".cody", "cody.json"),
     ]
     let configFound = false
     for (const cp of configPaths) {

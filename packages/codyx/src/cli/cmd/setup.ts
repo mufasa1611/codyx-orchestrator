@@ -229,7 +229,7 @@ function isRecord(value: unknown): value is JsonRecord {
 }
 
 function generatedConfigDir() {
-  return process.env.CODY_CONFIG_DIR || path.join(process.cwd(), ".cody", "generated")
+  return process.env.CODY_CONFIG_DIR || path.join(process.cwd(), ".cody")
 }
 
 async function readJsoncRecord(filepath: string): Promise<JsonRecord> {
@@ -805,8 +805,8 @@ export const SetupCommand = {
 
     // --- Config generation (if missing) ---
     const configPaths = [
-      path.join(process.cwd(), ".cody", "generated", "cody.jsonc"),
-      path.join(process.cwd(), ".cody", "generated", "cody.json"),
+      path.join(process.cwd(), ".cody", "cody.jsonc"),
+      path.join(process.cwd(), ".cody", "cody.json"),
     ]
     let configMissing = true
     for (const cp of configPaths) {
@@ -820,7 +820,7 @@ export const SetupCommand = {
       const wantConfig = await prompts.select({
         message: "No configuration file found. Generate a default one?",
         options: [
-          { label: "Yes", value: true, hint: "creates .cody/generated/cody.jsonc" },
+          { label: "Yes", value: true, hint: "creates .cody/cody.jsonc" },
           { label: "No", value: false },
         ],
         initialValue: true,
@@ -833,7 +833,7 @@ export const SetupCommand = {
         const spin = prompts.spinner()
         spin.start("Generating default config...")
         const ok = await generateDefaultConfig()
-        if (ok) spin.stop("Default config created at .cody/generated/cody.jsonc")
+        if (ok) spin.stop("Default config created at .cody/cody.jsonc")
         else spin.stop("Failed to generate config", 1)
       }
     }
