@@ -1260,7 +1260,7 @@ const layer: Layer.Layer<
                 attachment: model.attachment ?? existingModel?.capabilities.attachment ?? false,
                 toolcall:
                   model.tool_call ??
-                  (providerID.includes("ollama") ? true : (existingModel?.capabilities.toolcall ?? true)),
+                  (providerID.includes("ollama") ? false : (existingModel?.capabilities.toolcall ?? true)),
                 input: {
                   text: model.modalities?.input?.includes("text") ?? existingModel?.capabilities.input.text ?? true,
                   audio: model.modalities?.input?.includes("audio") ?? existingModel?.capabilities.input.audio ?? false,

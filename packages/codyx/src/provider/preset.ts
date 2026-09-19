@@ -175,7 +175,7 @@ export const presets = {
         installHint: "ollama pull llama3.2:1b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "llama3.2:3b": {
@@ -185,7 +185,7 @@ export const presets = {
         installHint: "ollama pull llama3.2:3b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "llama3.1:8b": {
@@ -195,7 +195,7 @@ export const presets = {
         installHint: "ollama pull llama3.1:8b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "qwen2.5-coder:1.5b": {
@@ -205,7 +205,7 @@ export const presets = {
         installHint: "ollama pull qwen2.5-coder:1.5b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "qwen2.5-coder:3b": {
@@ -215,7 +215,7 @@ export const presets = {
         installHint: "ollama pull qwen2.5-coder:3b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "qwen2.5-coder:7b": {
@@ -225,7 +225,7 @@ export const presets = {
         installHint: "ollama pull qwen2.5-coder:7b",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "deepseek-r1:8b": {
@@ -235,7 +235,7 @@ export const presets = {
         installHint: "ollama pull deepseek-r1:8b",
         reasoning: true,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
     },
@@ -263,7 +263,7 @@ export const presets = {
         installHint: "Start llama-server with --alias local-model and --port 8080.",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
       "llama-local": {
@@ -273,7 +273,7 @@ export const presets = {
         installHint: "Start llama-server with a Llama GGUF file, --alias llama-local, and --port 8080.",
         reasoning: false,
         temperature: true,
-        tool_call: true,
+        tool_call: false,
         limit: { context: 32_768, output: 8_192 },
       },
     },
