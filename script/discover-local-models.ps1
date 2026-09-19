@@ -306,6 +306,7 @@ if ($ggufModels.Count -gt 0) {
 
 $config = [ordered]@{
   '$schema' = "https://cody.dev/config.json"
+  disabled_providers = @("opencode")
   provider = $providers
 }
 

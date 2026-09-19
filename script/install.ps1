@@ -981,6 +981,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/script/installer-verification.ps1",
     "/script/launcher-menu.ps1",
     "/script/launcher.ps1",
+    "/script/repair-model-state.ps1",
     "/script/update-install-marker.ps1",
     "/script/update-progress.ps1",
     "/packages/app/",
@@ -1366,6 +1367,10 @@ if (-not $NoScan) {
 $generatedDir = Join-Path $Root ".cody\generated"
 $null = New-Item -ItemType Directory -Force -Path $generatedDir
 & (Join-Path $Root "script\ensure-default-config.ps1") -Root $Root
+$repairModelState = Join-Path $Root "script\repair-model-state.ps1"
+if (Test-Path -LiteralPath $repairModelState) {
+  & $repairModelState
+}
 
 # Phase 7: Global command
 

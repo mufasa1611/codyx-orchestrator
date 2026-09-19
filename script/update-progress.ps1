@@ -62,6 +62,7 @@ function Get-CodyxSparseCheckoutPaths {
         "/script/installer-verification.ps1",
         "/script/launcher-menu.ps1",
         "/script/launcher.ps1",
+        "/script/repair-model-state.ps1",
         "/script/update-install-marker.ps1",
         "/script/update-progress.ps1",
         "/packages/app/",

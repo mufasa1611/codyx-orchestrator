@@ -263,6 +263,13 @@ ${JSON.stringify(config, null, 2)}
   )
 }
 
+function disableGeneratedProvider(config: JsonRecord, providerID: string) {
+  const existing = Array.isArray(config.disabled_providers)
+    ? config.disabled_providers.filter((item): item is string => typeof item === "string")
+    : []
+  config.disabled_providers = Array.from(new Set([...existing, providerID]))
+}
+
 function bundledProviderCatalog(): PresetRegistry {
   return Object.fromEntries(
     ProviderPreset.providerIDs().map((id) => [id, ProviderPreset.presets[id]]),
@@ -611,6 +618,7 @@ async function setupModels(args: SetupArgs) {
   const providers = isRecord(config.provider) ? config.provider : {}
   config.$schema = typeof config.$schema === "string" ? config.$schema : "https://opencode.ai/schema/cody.jsonc"
   config.model = `${provider.id}/${modelID}`
+  disableGeneratedProvider(config, "opencode")
   config.provider = {
     ...providers,
     [provider.id]: ProviderPreset.providerConfig(provider),
