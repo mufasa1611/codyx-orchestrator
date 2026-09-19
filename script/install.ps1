@@ -237,7 +237,8 @@ function Get-CodyxLocalModelCatalog {
     [pscustomobject]@{ Id = "qwen2.5-coder:1.5b"; Name = "Qwen2.5 Coder 1.5B"; MinMemoryGB = 4; Command = "ollama pull qwen2.5-coder:1.5b" },
     [pscustomobject]@{ Id = "qwen2.5-coder:3b"; Name = "Qwen2.5 Coder 3B"; MinMemoryGB = 8; Command = "ollama pull qwen2.5-coder:3b" },
     [pscustomobject]@{ Id = "qwen2.5-coder:7b"; Name = "Qwen2.5 Coder 7B"; MinMemoryGB = 16; Command = "ollama pull qwen2.5-coder:7b" },
-    [pscustomobject]@{ Id = "deepseek-r1:8b"; Name = "DeepSeek R1 8B"; MinMemoryGB = 16; Command = "ollama pull deepseek-r1:8b" }
+    [pscustomobject]@{ Id = "deepseek-r1:8b"; Name = "DeepSeek R1 8B"; MinMemoryGB = 16; Command = "ollama pull deepseek-r1:8b" },
+    [pscustomobject]@{ Id = "qwen2.5:32b"; Name = "Qwen2.5 32B"; MinMemoryGB = 48; Command = "ollama pull qwen2.5:32b" }
   )
 }
 

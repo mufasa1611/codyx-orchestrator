@@ -94,6 +94,7 @@ function Write-BatchShim($Name) {
 @echo off
 setlocal
 set "CODY_INSTALL_ROOT=$Root"
+set "CODY_CONFIG_DIR=$Root\.cody\generated"
 call "$repoLauncher" %*
 exit /b %errorlevel%
 "@
@@ -108,6 +109,7 @@ function Write-PowerShellShim($Name) {
   $content = @"
 #!/usr/bin/env pwsh
 `$env:CODY_INSTALL_ROOT = "$Root"
+`$env:CODY_CONFIG_DIR = "$Root\.cody\generated"
 & "$repoLauncher" @args
 exit `$LASTEXITCODE
 "@

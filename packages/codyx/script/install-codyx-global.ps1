@@ -69,6 +69,7 @@ $cmdContent = @"
 @echo off
 setlocal
 set "CODY_INSTALL_ROOT=%~dp0..\..\codyx"
+set "CODY_CONFIG_DIR=%~dp0..\..\codyx\.cody\generated"
 "%~dp0..\..\codyx\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "%~dp0..\..\codyx\packages\codyx" src\index.ts %*
 if errorlevel 1 exit /b %errorlevel%
 "@
@@ -84,6 +85,7 @@ $psShim = "$npmDir\codyx.ps1"
 $psContent = @"
 #!/usr/bin/env pwsh
 `$env:CODY_INSTALL_ROOT = "$Root"
+`$env:CODY_CONFIG_DIR = "$Root\.cody\generated"
 & "$Root\packages\codyx\node_modules\.bin\bun.cmd" run --cwd "$Root\packages\codyx" src\index.ts @args
 "@
 [System.IO.File]::WriteAllText($psShim, $psContent, [System.Text.UTF8Encoding]::new($false))
