@@ -163,6 +163,99 @@ function Get-CodyxOllamaCommand {
   return $null
 }
 
+function Get-CodyxLlamaCppCommand {
+  foreach ($name in @("llama-server", "llama-cli")) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+  }
+  return $null
+}
+
+function Get-CodyxCommandVersion {
+  param(
+    [string]$Command,
+    [string[]]$Arguments = @("--version")
+  )
+
+  if (-not $Command) { return "" }
+  try {
+    $output = & $Command @Arguments 2>&1 | Where-Object { $_ } | ForEach-Object { "$_".Trim() }
+    $line = @($output | Where-Object { $_ -match "version" -and $_ -notmatch "could not connect" } | Select-Object -First 1)[0]
+    if (-not $line) { $line = @($output | Select-Object -First 1)[0] }
+    if (-not $line) { return "" }
+    return ($line -replace '^Warning:\s*', '')
+  } catch {
+    return ""
+  }
+}
+
+function Test-CodyxWingetUpdateAvailable {
+  param([string]$PackageId)
+
+  if (-not $PackageId) { return $false }
+  try {
+    $output = & winget list --id $PackageId --exact --source winget 2>$null
+    $line = @($output | Where-Object { "$_" -like "*$PackageId*" } | Select-Object -First 1)[0]
+    if (-not $line) { return $false }
+    $parts = "$line" -split "\s+"
+    $idIndex = [Array]::IndexOf($parts, $PackageId)
+    return ($idIndex -ge 0 -and ($parts.Length - $idIndex) -ge 3)
+  } catch {
+    return $false
+  }
+}
+
+function Update-WithWinget($Id, $Label) {
+  if (-not (Test-Command winget)) {
+    Write-Warn "winget not found. Cannot update $Label automatically."
+    return $null
+  }
+  Write-Step "Updating $Label with winget..."
+  & winget upgrade --id $Id --exact --source winget --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warn "winget update failed for $Label."
+    return $false
+  }
+  Write-Ok "$Label updated via winget."
+  return $true
+}
+
+function Get-CodyxHardwareProfile {
+  $memoryGB = [math]::Max(1, [math]::Floor([double](Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB))
+  $cpuThreads = [Environment]::ProcessorCount
+  return [pscustomobject]@{
+    MemoryGB = $memoryGB
+    CpuThreads = $cpuThreads
+  }
+}
+
+function Get-CodyxLocalModelCatalog {
+  return @(
+    [pscustomobject]@{ Id = "llama3.2:1b"; Name = "Llama 3.2 1B"; MinMemoryGB = 4; Command = "ollama pull llama3.2:1b" },
+    [pscustomobject]@{ Id = "llama3.2:3b"; Name = "Llama 3.2 3B"; MinMemoryGB = 8; Command = "ollama pull llama3.2:3b" },
+    [pscustomobject]@{ Id = "llama3.1:8b"; Name = "Llama 3.1 8B"; MinMemoryGB = 16; Command = "ollama pull llama3.1:8b" },
+    [pscustomobject]@{ Id = "qwen2.5-coder:1.5b"; Name = "Qwen2.5 Coder 1.5B"; MinMemoryGB = 4; Command = "ollama pull qwen2.5-coder:1.5b" },
+    [pscustomobject]@{ Id = "qwen2.5-coder:3b"; Name = "Qwen2.5 Coder 3B"; MinMemoryGB = 8; Command = "ollama pull qwen2.5-coder:3b" },
+    [pscustomobject]@{ Id = "qwen2.5-coder:7b"; Name = "Qwen2.5 Coder 7B"; MinMemoryGB = 16; Command = "ollama pull qwen2.5-coder:7b" },
+    [pscustomobject]@{ Id = "deepseek-r1:8b"; Name = "DeepSeek R1 8B"; MinMemoryGB = 16; Command = "ollama pull deepseek-r1:8b" }
+  )
+}
+
+function Get-CodyxFittingLocalModels {
+  param($Hardware)
+
+  $catalog = Get-CodyxLocalModelCatalog
+  $fitting = @($catalog | Where-Object { $_.MinMemoryGB -le $Hardware.MemoryGB })
+  if ($fitting.Count -gt 0) { return $fitting }
+  return $catalog
+}
+
+function Get-CodyxRecommendedLocalModel {
+  param($Hardware)
+
+  return @(Get-CodyxFittingLocalModels $Hardware | Sort-Object MinMemoryGB -Descending | Select-Object -First 1)[0]
+}
+
 function Test-BunVersion {
   if (-not (Test-Command bun)) { return $false }
   try {
@@ -578,6 +671,154 @@ function Install-WithChoco($Label) {
   }
   Write-Ok "$Label installed via Chocolatey."
   return $true
+}
+
+function Invoke-CodyxLocalModelSetup {
+  param([string]$RootPath)
+
+  $hardware = Get-CodyxHardwareProfile
+  $ranDiscovery = $false
+  Write-Ok "Detected system: $($hardware.MemoryGB) GB RAM, $($hardware.CpuThreads) CPU threads."
+
+  $ollama = Get-CodyxOllamaCommand
+  if ($ollama) {
+    $version = Get-CodyxCommandVersion $ollama
+    $versionSuffix = if ($version) { " ($version)" } else { "" }
+    Write-Ok "Ollama found: $ollama$versionSuffix"
+    if (Test-CodyxWingetUpdateAvailable "Ollama.Ollama") {
+      Write-Warn "Ollama update available."
+      $updateOllama = $Yes
+      if (-not $Yes -and (Test-InteractiveHost)) {
+        $choice = (Read-CodyxInstallerInput "Update Ollama now? [y/N]").Trim().ToLowerInvariant()
+        $updateOllama = $choice -in @("y", "yes")
+      }
+      if ($updateOllama) {
+        $updated = Update-WithWinget "Ollama.Ollama" "Ollama"
+        if ($updated -eq $true) { $ollama = Get-CodyxOllamaCommand }
+      } else {
+        Write-Ok "Ollama update skipped."
+      }
+    }
+  } else {
+    Write-Warn "Ollama not found."
+    $installOllama = $Yes
+    if (-not $Yes -and (Test-InteractiveHost)) {
+      $choice = (Read-CodyxInstallerInput "Install Ollama for local models? [y/N]").Trim().ToLowerInvariant()
+      $installOllama = $choice -in @("y", "yes")
+    }
+    if ($installOllama) {
+      $installed = Install-WithWinget "Ollama.Ollama" "Ollama"
+      if ($installed -eq $true) {
+        Add-CodyxManagedTool "ollama" "winget" "Ollama.Ollama"
+        $ollama = Get-CodyxOllamaCommand
+      }
+    } else {
+      Write-Ok "Ollama install skipped."
+    }
+  }
+
+  $llamaCpp = Get-CodyxLlamaCppCommand
+  if ($llamaCpp) {
+    $version = Get-CodyxCommandVersion $llamaCpp
+    $versionSuffix = if ($version) { " ($version)" } else { "" }
+    Write-Ok "llama.cpp found: $llamaCpp$versionSuffix"
+    if (Test-CodyxWingetUpdateAvailable "ggml.llamacpp") {
+      Write-Warn "llama.cpp update available."
+      $updateLlamaCpp = $Yes
+      if (-not $Yes -and (Test-InteractiveHost)) {
+        $choice = (Read-CodyxInstallerInput "Update llama.cpp now? [y/N]").Trim().ToLowerInvariant()
+        $updateLlamaCpp = $choice -in @("y", "yes")
+      }
+      if ($updateLlamaCpp) {
+        [void](Update-WithWinget "ggml.llamacpp" "llama.cpp")
+      } else {
+        Write-Ok "llama.cpp update skipped."
+      }
+    }
+  } else {
+    Write-Warn "llama.cpp not found."
+    $installLlamaCpp = $false
+    if (-not $Yes -and (Test-InteractiveHost)) {
+      $choice = (Read-CodyxInstallerInput "Install llama.cpp GGUF engine? [y/N]").Trim().ToLowerInvariant()
+      $installLlamaCpp = $choice -in @("y", "yes")
+    }
+    if ($installLlamaCpp) {
+      $installed = Install-WithWinget "ggml.llamacpp" "llama.cpp"
+      if ($installed -eq $true) {
+        Add-CodyxManagedTool "llama.cpp" "winget" "ggml.llamacpp"
+      }
+    } else {
+      Write-Ok "llama.cpp install skipped."
+    }
+  }
+
+  if ($ollama) {
+    $models = @(Get-CodyxFittingLocalModels $hardware)
+    $recommended = Get-CodyxRecommendedLocalModel $hardware
+    Write-Host ""
+    Write-Host "Local Ollama model choices for this PC:" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $models.Count; $i++) {
+      $model = $models[$i]
+      $marker = if ($model.Id -eq $recommended.Id) { " recommended" } else { "" }
+      Write-Host ("  [{0}] {1} - {2} ({3} GB+ RAM){4}" -f ($i + 1), $model.Id, $model.Name, $model.MinMemoryGB, $marker)
+    }
+    Write-Host "  [S] Skip model pull"
+
+    $selected = $recommended
+    $pullModel = $Yes
+    if (-not $Yes -and (Test-InteractiveHost)) {
+      $choice = (Read-CodyxInstallerInput "Choose a model to pull [1-$($models.Count), S] (default: $($recommended.Id))").Trim()
+      if ($choice -match '^[sS]$') {
+        $pullModel = $false
+      } elseif ($choice -match '^\d+$') {
+        $index = [int]$choice - 1
+        if ($index -ge 0 -and $index -lt $models.Count) {
+          $selected = $models[$index]
+          $pullModel = $true
+        } else {
+          Write-Warn "Invalid model choice. Using recommended model $($recommended.Id)."
+          $pullModel = $true
+        }
+      } elseif ($choice) {
+        Write-Warn "Invalid model choice. Using recommended model $($recommended.Id)."
+        $pullModel = $true
+      } else {
+        $pullModel = $true
+      }
+    }
+
+    if ($pullModel) {
+      Write-Step "Pulling Ollama model $($selected.Id)..."
+      & $ollama pull $selected.Id
+      if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Pulled Ollama model $($selected.Id)."
+        Write-Step "Running local model discovery..."
+        & (Join-Path $RootPath "script\discover-local-models.ps1") -Root $RootPath -MaxSeconds 30 -Refresh
+        $ranDiscovery = $true
+        $env:CODY_CONFIG_DIR = Join-Path $RootPath ".cody\generated"
+        Push-Location (Join-Path $RootPath "packages\codyx")
+        try {
+          & bun run --conditions=browser src\index.ts setup models --provider ollama --model $($selected.Id) --yes
+          if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Configured codyx default local model: ollama/$($selected.Id)"
+          } else {
+            Write-Warn "Could not configure codyx default local model automatically."
+          }
+        } finally {
+          Pop-Location
+        }
+      } else {
+        Write-Warn "Ollama model pull failed."
+      }
+    } else {
+      Write-Ok "Ollama model pull skipped."
+    }
+  }
+
+  if (-not $ranDiscovery) {
+    Write-Step "Running local model discovery..."
+    & (Join-Path $RootPath "script\discover-local-models.ps1") -Root $RootPath -MaxSeconds 30 -Refresh
+  }
 }
 
 function Get-PortableGitDownloadUrls($Headers) {
@@ -1114,24 +1355,7 @@ NO_PROXY=localhost,127.0.0.1,::1,192.168.68.68
 Write-Section 6 "Model discovery"
 
 if (-not $NoScan) {
-  $ollama = Get-CodyxOllamaCommand
-  if (-not $ollama) {
-    Write-Ok "Ollama not found. Local Ollama model discovery skipped."
-    Write-Ok "Install Ollama later and run: .\script\discover-local-models.ps1 -Refresh"
-  } elseif ($Yes) {
-    Write-Ok "Ollama found: $ollama"
-    Write-Step "Running model discovery..."
-    & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
-  } else {
-    Write-Ok "Ollama found: $ollama"
-    Write-Host ""
-    $scan = Read-CodyxInstallerInput "Scan local Ollama models now? [y/N]"
-    if ($scan -eq "y") {
-      & (Join-Path $Root "script\discover-local-models.ps1") -Root $Root -MaxSeconds 30
-    } else {
-      Write-Ok "Model discovery skipped. Run later: .\script\discover-local-models.ps1 -Refresh"
-    }
-  }
+  Invoke-CodyxLocalModelSetup -RootPath $Root
 } else {
   Write-Ok "Model discovery skipped (--NoScan)."
 }
