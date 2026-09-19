@@ -35,6 +35,8 @@ type EngineStatus = {
   updateCommand?: string
 }
 
+type PresetRegistry = Record<string, ProviderPreset.PresetProvider>
+
 function checkExecutable(name: string): CheckResult {
   const paths = process.env.PATH?.split(path.delimiter) ?? []
   const isWin = os.platform() === "win32"
@@ -261,13 +263,80 @@ ${JSON.stringify(config, null, 2)}
   )
 }
 
-function printProviderPresets() {
+function bundledProviderCatalog(): PresetRegistry {
+  return Object.fromEntries(
+    ProviderPreset.providerIDs().map((id) => [id, ProviderPreset.presets[id]]),
+  ) as PresetRegistry
+}
+
+function providerPresetCatalogPaths() {
+  const roots = [
+    process.env.CODY_INSTALL_ROOT,
+    process.env.CODYX_INSTALL_ROOT,
+    process.env.CODY_COMPILED_INSTALL_ROOT,
+    path.resolve(process.cwd(), "..", ".."),
+    process.cwd(),
+  ].filter((item): item is string => Boolean(item))
+
+  return [
+    process.env.CODY_PROVIDER_PRESET_PATH,
+    ...roots.map((root) => path.join(root, "release", "catalog", "provider-presets.json")),
+  ].filter((item, index, array): item is string => Boolean(item) && array.indexOf(item) === index)
+}
+
+function isPresetProvider(value: unknown): value is ProviderPreset.PresetProvider {
+  if (!isRecord(value)) return false
+  if (typeof value.id !== "string") return false
+  if (typeof value.name !== "string") return false
+  if (value.mode !== "online" && value.mode !== "local") return false
+  if (!Array.isArray(value.env) || !value.env.every((item) => typeof item === "string")) return false
+  if (typeof value.npm !== "string") return false
+  if (typeof value.setupUrl !== "string") return false
+  if (typeof value.freeTierNote !== "string") return false
+  if (typeof value.defaultModel !== "string") return false
+  if (!isRecord(value.models) || !isRecord(value.models[value.defaultModel])) return false
+  return true
+}
+
+async function readProviderCatalogFile(filepath: string): Promise<PresetRegistry | undefined> {
+  try {
+    const data = JSON.parse(await fs.readFile(filepath, "utf8"))
+    if (!isRecord(data) || !isRecord(data.providers)) return
+
+    const providers: PresetRegistry = {}
+    for (const [id, provider] of Object.entries(data.providers)) {
+      if (!isPresetProvider(provider)) continue
+      providers[id] = provider
+    }
+    return Object.keys(providers).length > 0 ? providers : undefined
+  } catch {
+    return
+  }
+}
+
+async function loadProviderPresetCatalog() {
+  const presets = bundledProviderCatalog()
+  for (const filepath of providerPresetCatalogPaths()) {
+    if (!existsSync(filepath)) continue
+    const external = await readProviderCatalogFile(filepath)
+    if (!external) continue
+    return {
+      presets: { ...presets, ...external },
+      source: filepath,
+    }
+  }
+
+  return { presets }
+}
+
+function printProviderPresets(presets: PresetRegistry, source?: string) {
   const hardware = hardwareProfile()
   UI.println(`System: ${hardware.memoryGB} GB RAM, ${hardware.cpuCount} CPU threads, ${hardware.platform}/${hardware.arch}`)
+  if (source) UI.println(`Catalog: ${source}`)
   UI.empty()
 
-  for (const providerID of ProviderPreset.providerIDs()) {
-    const provider: ProviderPreset.PresetProvider = ProviderPreset.presets[providerID]
+  for (const providerID of Object.keys(presets)) {
+    const provider = presets[providerID]
     UI.println(`${provider.id} - ${provider.name} [${provider.mode}]`)
     if (provider.env.length > 0) UI.println(`  key: ${provider.env.join(", ")}`)
     if (provider.engine) {
@@ -453,19 +522,21 @@ async function setupModels(args: SetupArgs) {
   UI.empty()
   prompts.intro("codyx Model Setup")
 
+  const catalog = await loadProviderPresetCatalog()
+
   if (args.list) {
-    printProviderPresets()
+    printProviderPresets(catalog.presets, catalog.source)
     prompts.outro("Use: codyx setup models --provider <id> --model <model>")
     return
   }
 
-  const presetIDs = ProviderPreset.providerIDs()
+  const presetIDs = Object.keys(catalog.presets)
   const providerID = args.provider
     ? args.provider
     : ((await prompts.select({
         message: "Choose a provider preset",
         options: presetIDs.map((id) => {
-          const provider = ProviderPreset.presets[id]
+          const provider = catalog.presets[id]
           return {
             label: provider.name,
             value: provider.id,
@@ -479,10 +550,10 @@ async function setupModels(args: SetupArgs) {
     return
   }
 
-  const provider = ProviderPreset.get(providerID)
+  const provider = catalog.presets[providerID]
   if (!provider) {
     prompts.log.error(`Unknown provider preset: ${providerID}`)
-    printProviderPresets()
+    printProviderPresets(catalog.presets, catalog.source)
     prompts.outro("No changes made")
     return
   }

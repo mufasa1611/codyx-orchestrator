@@ -973,6 +973,7 @@ function Get-CodyxSparseCheckoutPaths {
   return @(
     "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
     "/patches/",
+    "/release/",
     "/script/discover-local-models.ps1",
     "/script/ensure-default-config.ps1",
     "/script/install-codyx-global.ps1",
