@@ -182,11 +182,12 @@ public sealed class InstallerWindow : Window
 
     releaseChannel.Items.Add(new ComboBoxItem { Content = "Stable release", Tag = "prod" });
     releaseChannel.Items.Add(new ComboBoxItem { Content = "Beta / pre-release", Tag = "beta" });
-    releaseChannel.SelectedIndex = 0;
+    SetReleaseChannel(InitialReleaseChannel());
     releaseChannel.SelectionChanged += (_, _) =>
     {
       if (settingReleaseChannel) return;
       releaseChannelTouched = true;
+      SaveUpdateChannelState(SelectedReleaseChannel());
       lastUpdateCheckUtc = DateTime.MinValue;
       QueueUpdateCheck();
     };
@@ -517,6 +518,7 @@ public sealed class InstallerWindow : Window
     scriptPath = ExtractScripts();
 
     var channel = SelectedReleaseChannel();
+    SaveUpdateChannelState(channel);
     var args = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -AcceptLicense -NoLaunch -Channel {channel}";
     Append(channel == "beta" ? "Using beta/pre-release channel." : "Using stable release channel.");
     var localManifest = LocalManifestPath();
@@ -752,7 +754,7 @@ public sealed class InstallerWindow : Window
     if (!health.Ready) uninstallInProgress = false;
     installed = health.Ready;
     var ready = health.Ready;
-    if (ready && !releaseChannelTouched) SetReleaseChannel(InstalledReleaseChannel());
+    if (ready && !releaseChannelTouched) SetReleaseChannel(InitialReleaseChannel());
     primary.IsEnabled = true;
     primary.Content = health.Ready ? "Check / repair update" : "Agree and install";
     SetInstalledActions(health.Ready && !uninstallInProgress);
@@ -897,7 +899,67 @@ public sealed class InstallerWindow : Window
   static string NormalizeReleaseChannel(string? channel)
   {
     var value = (channel ?? "").Trim().ToLowerInvariant();
-    return value is "beta" or "prerelease" or "pre-release" or "preview" ? "beta" : "prod";
+    return value is "beta" or "prerelease" or "pre-release" or "preview" or "end-user-x" or "dev" ? "beta" : "prod";
+  }
+
+  static string ChannelBranch(string channel)
+  {
+    return NormalizeReleaseChannel(channel) == "beta" ? "end-user-x" : "codyx/end-user";
+  }
+
+  static string UpdateChannelStatePath()
+  {
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    return IOPath.Combine(local, "codyx", "update-channel.json");
+  }
+
+  static string? SavedUpdateChannel()
+  {
+    try
+    {
+      var path = UpdateChannelStatePath();
+      if (!File.Exists(path)) return null;
+      using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+      if (!doc.RootElement.TryGetProperty("channel", out var channel)) return null;
+      return NormalizeReleaseChannel(channel.GetString());
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
+  static void SaveUpdateChannelState(string channel)
+  {
+    try
+    {
+      var normalized = NormalizeReleaseChannel(channel);
+      var path = UpdateChannelStatePath();
+      var dir = IOPath.GetDirectoryName(path);
+      if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+      var json = System.Text.Json.JsonSerializer.Serialize(new
+      {
+        channel = normalized == "beta" ? "beta" : "stable",
+        branch = ChannelBranch(normalized),
+        updatedAt = DateTime.UtcNow.ToString("o"),
+      });
+      File.WriteAllText(path, json);
+    }
+    catch {}
+  }
+
+  static string InitialReleaseChannel()
+  {
+    var saved = SavedUpdateChannel();
+    if (!string.IsNullOrWhiteSpace(saved)) return saved;
+
+    var envChannel = Environment.GetEnvironmentVariable("CODY_RELEASE_CHANNEL");
+    if (!string.IsNullOrWhiteSpace(envChannel)) return NormalizeReleaseChannel(envChannel);
+
+    var installed = InstalledReleaseChannel();
+    if (!string.IsNullOrWhiteSpace(installed)) return installed;
+
+    return "prod";
   }
 
   static bool IsPrereleaseVersion(string? version)

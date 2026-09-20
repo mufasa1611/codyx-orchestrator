@@ -187,8 +187,28 @@ function Invoke-JsonRequest($Url) {
 
 function Normalize-ReleaseChannel($Value) {
   $channelValue = ([string]$Value).Trim().ToLowerInvariant()
-  if ($channelValue -in @("beta", "prerelease", "pre-release", "preview")) { return "beta" }
+  if ($channelValue -in @("beta", "prerelease", "pre-release", "preview", "end-user-x", "dev")) { return "beta" }
   return "prod"
+}
+
+function Get-BranchForReleaseChannel($Value) {
+  if ((Normalize-ReleaseChannel $Value) -eq "beta") { return "end-user-x" }
+  return "codyx/end-user"
+}
+
+function Write-CodyxUpdateChannelState($Value) {
+  try {
+    $normalized = Normalize-ReleaseChannel $Value
+    $local = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath("LocalApplicationData") }
+    $statePath = Join-Path (Join-Path $local "codyx") "update-channel.json"
+    $stateDir = Split-Path -Parent $statePath
+    if ($stateDir) { $null = New-Item -ItemType Directory -Force -Path $stateDir }
+    [pscustomobject]@{
+      channel = if ($normalized -eq "beta") { "beta" } else { "stable" }
+      branch = Get-BranchForReleaseChannel $normalized
+      updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    } | ConvertTo-Json -Compress -Depth 4 | Set-Content -LiteralPath $statePath -Encoding UTF8
+  } catch {}
 }
 
 function Compare-Versions($v1, $v2) {
@@ -325,7 +345,111 @@ function Save-Download($Url, $Path) {
     return
   }
 
-  Invoke-WebRequest -Uri $Url -OutFile $Path -Headers @{ "User-Agent" = "codyx-compiled-installer" } -UseBasicParsing
+  $headers = @{ "User-Agent" = "codyx-compiled-installer" }
+  $maxAttempts = 3
+  $idleTimeoutSeconds = 45
+  $overallTimeoutSeconds = 900
+  $buffer = New-Object byte[] (1024 * 1024)
+
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    if (Test-Path -LiteralPath $Path) {
+      Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    }
+
+    try {
+      Add-Type -AssemblyName System.Net.Http
+      $handler = [System.Net.Http.HttpClientHandler]::new()
+      $handler.AllowAutoRedirect = $true
+      $client = [System.Net.Http.HttpClient]::new($handler)
+      try {
+        $client.Timeout = [TimeSpan]::FromSeconds($overallTimeoutSeconds)
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd("codyx-compiled-installer")
+        $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $Url)
+        $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+          throw "HTTP $([int]$response.StatusCode) $($response.ReasonPhrase)"
+        }
+
+        $total = $response.Content.Headers.ContentLength
+        $input = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $output = [System.IO.File]::Open($Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        try {
+          $downloaded = [int64]0
+          $lastProgress = Get-Date
+          $lastLogMB = -1
+          while ($true) {
+            $readTask = $input.ReadAsync($buffer, 0, $buffer.Length)
+            if (-not $readTask.Wait([TimeSpan]::FromSeconds($idleTimeoutSeconds))) {
+              throw "Download stalled for more than $idleTimeoutSeconds seconds."
+            }
+            $read = $readTask.Result
+            if ($read -le 0) { break }
+
+            $output.Write($buffer, 0, $read)
+            $downloaded += $read
+            $lastProgress = Get-Date
+            $downloadedMB = [math]::Floor($downloaded / 1MB)
+            if ($downloadedMB -ne $lastLogMB -and ($downloadedMB % 10 -eq 0 -or $downloadedMB -lt 10)) {
+              $lastLogMB = $downloadedMB
+              if ($total) {
+                $totalMB = [math]::Round($total / 1MB, 1)
+                Write-Info ("Downloaded {0} MB of {1} MB..." -f $downloadedMB, $totalMB)
+              } else {
+                Write-Info ("Downloaded {0} MB..." -f $downloadedMB)
+              }
+            }
+          }
+        } finally {
+          $output.Dispose()
+          $input.Dispose()
+        }
+
+        $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+        if ($item.Length -le 0) { throw "Downloaded file is empty." }
+        if ($total -and $item.Length -ne $total) {
+          throw "Downloaded $($item.Length) bytes, expected $total bytes."
+        }
+        return
+      } finally {
+        $client.Dispose()
+        $handler.Dispose()
+      }
+    } catch {
+      Write-Warn "Download attempt $attempt/$maxAttempts failed: $($_.Exception.Message)"
+      if (Test-Path -LiteralPath $Path) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+      }
+      if ($attempt -lt $maxAttempts) {
+        Start-Sleep -Seconds ([math]::Min(10, 2 * $attempt))
+      }
+    }
+  }
+
+  try {
+    if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
+      Write-Info "Trying BITS download fallback..."
+      Start-BitsTransfer -Source $Url -Destination $Path -ErrorAction Stop
+      if ((Get-Item -LiteralPath $Path -ErrorAction Stop).Length -gt 0) { return }
+    }
+  } catch {
+    Write-Warn "BITS download fallback failed: $($_.Exception.Message)"
+  }
+
+  try {
+    Write-Info "Trying WebClient download fallback..."
+    $webClient = [System.Net.WebClient]::new()
+    try {
+      foreach ($key in $headers.Keys) { $webClient.Headers.Add($key, $headers[$key]) }
+      $webClient.DownloadFile($Url, $Path)
+      if ((Get-Item -LiteralPath $Path -ErrorAction Stop).Length -gt 0) { return }
+    } finally {
+      $webClient.Dispose()
+    }
+  } catch {
+    Write-Warn "WebClient download fallback failed: $($_.Exception.Message)"
+  }
+
+  throw "Could not download $Url after $maxAttempts attempts and fallback download methods."
 }
 
 function Get-ReleaseManifest($Release) {
@@ -494,16 +618,7 @@ set "CODYX_INSTALL_ROOT=$Root"
 set "CODY_INSTALL_ROOT=$Root"
 set "CODY_RELEASE_REPO=$Repo"
 set "CODY_RELEASE_CHANNEL=$Channel"
-if /I "%~1"=="uninstall" goto codyx_run
-if "%CODYX_SKIP_UPDATE%"=="1" goto codyx_run
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$UpdaterScript" -AcceptLicense -Quiet -NoLaunch
-if errorlevel 1 exit /b %errorlevel%
-:codyx_run
-if /I "%~1"=="uninstall" (
-  if defined TEMP cd /d "%TEMP%"
-)
-set "CODY_DISABLE_AUTOUPDATE=1"
-"$exe" %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1" %*
 exit /b %errorlevel%
 "@
 
@@ -519,7 +634,45 @@ exit /b %errorlevel%
 `$env:CODY_RELEASE_REPO = $repoLiteral
 `$env:CODY_RELEASE_CHANNEL = $channelLiteral
 `$skipUpdate = `$env:CODYX_SKIP_UPDATE -eq "1" -or (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall")
+function Get-CodyxShimBranch {
+  `$branch = `$env:CODY_RELEASE_BRANCH
+  if (-not [string]::IsNullOrWhiteSpace(`$branch)) { return `$branch }
+  `$channel = [string]`$env:CODY_RELEASE_CHANNEL
+  `$channel = `$channel.Trim().ToLowerInvariant()
+  if (`$channel -in @("beta", "prerelease", "pre-release", "preview", "end-user-x", "dev")) { return "end-user-x" }
+  return "codyx/end-user"
+}
+function Update-CodyxInstalledUpdater {
+  param([string]`$UpdaterPath)
+  if (`$env:CODYX_SKIP_UPDATER_REFRESH -eq "1") { return }
+  try {
+    `$updaterDir = Split-Path -Parent `$UpdaterPath
+    if (-not `$updaterDir) { return }
+    `$stamp = Join-Path `$updaterDir ".last-refresh"
+    if (`$env:CODYX_FORCE_UPDATER_REFRESH -ne "1" -and (Test-Path -LiteralPath `$stamp)) {
+      `$age = (Get-Date) - (Get-Item -LiteralPath `$stamp).LastWriteTime
+      if (`$age.TotalHours -lt 6) { return }
+    }
+    `$repo = [string]`$env:CODY_RELEASE_REPO
+    if ([string]::IsNullOrWhiteSpace(`$repo)) { `$repo = "mufasa1611/codyx-orchestrator" }
+    `$branch = Get-CodyxShimBranch
+    `$encodedBranch = [System.Uri]::EscapeDataString(`$branch)
+    `$url = "https://raw.githubusercontent.com/`$repo/`$encodedBranch/script/install-compiled.ps1"
+    `$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("codyx-updater-" + [System.Guid]::NewGuid().ToString("N") + ".ps1")
+    try {
+      Invoke-WebRequest -Uri `$url -OutFile `$tmp -Headers @{ "User-Agent" = "codyx-updater-bootstrap" } -UseBasicParsing -TimeoutSec 30
+      `$download = Get-Item -LiteralPath `$tmp -ErrorAction Stop
+      if (`$download.Length -gt 10000) {
+        Copy-Item -LiteralPath `$tmp -Destination `$UpdaterPath -Force
+      }
+    } finally {
+      if (Test-Path -LiteralPath `$tmp) { Remove-Item -LiteralPath `$tmp -Force -ErrorAction SilentlyContinue }
+      Set-Content -LiteralPath `$stamp -Value ((Get-Date).ToUniversalTime().ToString("o")) -Encoding ASCII -ErrorAction SilentlyContinue
+    }
+  } catch {}
+}
 if (-not `$skipUpdate) {
+  Update-CodyxInstalledUpdater -UpdaterPath $updaterLiteral
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterLiteral -AcceptLicense -Quiet -NoLaunch
   if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
 }
@@ -607,6 +760,10 @@ function Install-CodyxCompiled {
   Confirm-License
 
   $script:Channel = Normalize-ReleaseChannel $Channel
+  if (-not $env:CODY_RELEASE_BRANCH -and ([string]::IsNullOrWhiteSpace($Branch) -or $Branch -eq "dev")) {
+    $Branch = Get-BranchForReleaseChannel $script:Channel
+  }
+  Write-CodyxUpdateChannelState $script:Channel
   if (-not $InstallRoot) { $InstallRoot = Get-DefaultInstallRoot }
   $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
   $currentDir = Join-Path $InstallRoot "current"
