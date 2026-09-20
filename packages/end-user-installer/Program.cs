@@ -292,6 +292,7 @@ public sealed class InstallerWindow : Window
         status.Text = "Checking for installer updates...";
         var updated = await SelfUpdater.CheckAndPerformUpdateAsync(
           "installer.windows-x64",
+          SelectedReleaseChannel(),
           (statText) => Dispatcher.Invoke(() => { status.Text = statText; }),
           (logText) => Dispatcher.Invoke(() => { Append(logText); }));
         if (updated) return;
