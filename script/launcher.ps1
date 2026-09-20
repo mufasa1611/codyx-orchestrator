@@ -12,7 +12,7 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
   [string]$RepoUrl = $(if ($env:CODY_REPO_URL) { $env:CODY_REPO_URL } else { "https://github.com/mufasa1611/codyx-orchestrator.git" }),
-  [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "dev" }),
+  [string]$Branch = $(if ($env:CODY_BRANCH) { $env:CODY_BRANCH } else { "" }),
   [string]$InstallRoot = $(if ($env:CODY_INSTALL_ROOT) { $env:CODY_INSTALL_ROOT } else { "" }),
   [switch]$AcceptLicense,
   [switch]$NoBuild,
@@ -23,6 +23,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 try { $Host.UI.RawUI.WindowTitle = "codyx Launcher" } catch {}
+
+$channelScript = Join-Path $PSScriptRoot "channel.ps1"
+if (Test-Path -LiteralPath $channelScript) {
+  . $channelScript
+}
+if (-not (Get-Command Resolve-CodyxUpdateBranch -ErrorAction SilentlyContinue)) {
+  function Get-CodyxSavedUpdateChannel { return "" }
+  function Get-CodyxChannelForBranch { param([string]$Branch) if ($Branch -eq "end-user-x" -or $Branch -eq "dev") { return "beta" } if ($Branch -eq "codyx/end-user") { return "stable" } return "" }
+  function Resolve-CodyxUpdateBranch { param([string]$RequestedBranch) if ($RequestedBranch) { return $RequestedBranch } if ($env:CODY_BRANCH) { return $env:CODY_BRANCH } return "codyx/end-user" }
+  function Resolve-CodyxUpdateChannel { param([string]$RequestedBranch) if ($RequestedBranch -eq "end-user-x" -or $RequestedBranch -eq "dev") { return "beta" } return "stable" }
+  function Set-CodyxUpdateChannel { param([string]$Channel) return $Channel }
+}
 
 function Write-Info($Message) {
   Write-Host "[codyx] $Message" -ForegroundColor Cyan
@@ -270,6 +282,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
     "/patches/",
     "/release/",
+    "/script/channel.ps1",
     "/script/discover-local-models.ps1",
     "/script/ensure-default-config.ps1",
     "/script/install-codyx-global.ps1",
@@ -277,6 +290,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/script/installer-verification.ps1",
     "/script/launcher-menu.ps1",
     "/script/launcher.ps1",
+    "/script/reinstall-codyx.cmd",
     "/script/repair-model-state.ps1",
     "/script/update-install-marker.ps1",
     "/script/update-progress.ps1",
@@ -592,11 +606,26 @@ function Invoke-Codyx {
 }
 
 $InstallRoot = Resolve-InstallRoot $InstallRoot
+if (-not $Branch -and -not $env:CODY_BRANCH -and -not (Get-CodyxSavedUpdateChannel) -and (Test-Path -LiteralPath (Join-Path $InstallRoot ".git"))) {
+  Push-Location $InstallRoot
+  try {
+    $currentInstallBranch = (& git branch --show-current 2>$null).Trim()
+    if (Get-CodyxChannelForBranch $currentInstallBranch) { $Branch = $currentInstallBranch }
+  } finally {
+    Pop-Location
+  }
+}
+$Branch = Resolve-CodyxUpdateBranch $Branch
+$Channel = Resolve-CodyxUpdateChannel $Branch
+try { $null = Set-CodyxUpdateChannel $Channel } catch {}
+$env:CODY_BRANCH = $Branch
+$env:CODY_RELEASE_CHANNEL = $Channel
 
 Write-Host ""
 Write-Host "  codyx Launcher" -ForegroundColor Cyan
 Write-Host "  Repo:   $RepoUrl" -ForegroundColor DarkGray
 Write-Host "  Branch: $Branch" -ForegroundColor DarkGray
+Write-Host "  Channel: $Channel" -ForegroundColor DarkGray
 Write-Host "  Root:   $InstallRoot" -ForegroundColor DarkGray
 Write-Host "  Mode:   End-user (slim clone)" -ForegroundColor DarkGray
 Write-Host ""

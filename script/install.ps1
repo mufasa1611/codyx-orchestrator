@@ -9,7 +9,7 @@
 .PARAMETER Yes
     Auto-confirm optional installer prompts. Email verification is never bypassed.
 .PARAMETER Branch
-    Git branch to clone/checkout (default: dev).
+    Git branch to clone/checkout. If omitted, the saved Stable/Beta channel decides.
 .PARAMETER NoScan
     Skip local model discovery (Ollama/GGUF scanning).
 .PARAMETER NoProxy
@@ -25,7 +25,8 @@
 #>
 param(
   [switch]$Yes,
-  [string]$Branch = "dev",
+  [string]$Branch = "",
+  [string]$Channel = "",
   [switch]$NoScan,
   [switch]$NoProxy,
   [switch]$NoBuild,
@@ -36,6 +37,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 try { $Host.UI.RawUI.WindowTitle = "codyx Installer" } catch {}
+
+$channelScript = Join-Path $PSScriptRoot "channel.ps1"
+if (Test-Path -LiteralPath $channelScript) {
+  . $channelScript
+}
+if (-not (Get-Command Resolve-CodyxUpdateBranch -ErrorAction SilentlyContinue)) {
+  function Get-CodyxSavedUpdateChannel { return "" }
+  function Get-CodyxChannelForBranch { param([string]$Branch) if ($Branch -eq "end-user-x" -or $Branch -eq "dev") { return "beta" } if ($Branch -eq "codyx/end-user") { return "stable" } return "" }
+  function Resolve-CodyxUpdateBranch { param([string]$RequestedBranch) if ($RequestedBranch) { return $RequestedBranch } if ($env:CODY_BRANCH) { return $env:CODY_BRANCH } return "codyx/end-user" }
+  function Resolve-CodyxUpdateChannel { param([string]$RequestedBranch) if ($RequestedBranch -eq "end-user-x" -or $RequestedBranch -eq "dev") { return "beta" } return "stable" }
+  function Set-CodyxUpdateChannel { param([string]$Channel) return $Channel }
+}
 
 # Version & credits
 $Script:CODY_VERSION = "1.0.0"
@@ -56,6 +69,24 @@ $CreatedRepo = $false
 $InstallerStateDir = Join-Path $env:LOCALAPPDATA "codyx-installer"
 $InstallerMarkerPath = Join-Path $InstallerStateDir "install-marker.json"
 $Script:ManagedTools = @()
+
+if ($Channel) {
+  try { $null = Set-CodyxUpdateChannel $Channel } catch { Write-Host "[warn] $($_.Exception.Message)" -ForegroundColor Yellow }
+}
+if (-not $Branch -and -not $env:CODY_BRANCH -and -not (Get-CodyxSavedUpdateChannel) -and (Test-Path -LiteralPath (Join-Path $Root ".git"))) {
+  Push-Location $Root
+  try {
+    $currentInstallBranch = (& git branch --show-current 2>$null).Trim()
+    if (Get-CodyxChannelForBranch $currentInstallBranch) { $Branch = $currentInstallBranch }
+  } finally {
+    Pop-Location
+  }
+}
+$Branch = Resolve-CodyxUpdateBranch $Branch
+$Channel = Resolve-CodyxUpdateChannel $Branch
+try { $null = Set-CodyxUpdateChannel $Channel } catch {}
+$env:CODY_BRANCH = $Branch
+$env:CODY_RELEASE_CHANNEL = $Channel
 
 # Verbose logging
 $VerbosePref = if ($Verbose) { "Continue" } else { "SilentlyContinue" }
@@ -974,6 +1005,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
     "/patches/",
     "/release/",
+    "/script/channel.ps1",
     "/script/discover-local-models.ps1",
     "/script/ensure-default-config.ps1",
     "/script/install-codyx-global.ps1",
@@ -981,6 +1013,7 @@ function Get-CodyxSparseCheckoutPaths {
     "/script/installer-verification.ps1",
     "/script/launcher-menu.ps1",
     "/script/launcher.ps1",
+    "/script/reinstall-codyx.cmd",
     "/script/repair-model-state.ps1",
     "/script/update-install-marker.ps1",
     "/script/update-progress.ps1",

@@ -233,6 +233,18 @@ call "%BUN%" run --cwd "%ROOT%packages\codyx" --conditions=browser src\index.ts 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%script\launcher-menu.ps1" -Root "%ROOT%"
 set "CODY_CHOICE=%ERRORLEVEL%"
 if "%CODY_CHOICE%"=="255" exit /b 0
+if "%CODY_CHOICE%"=="254" (
+  echo.
+  echo %ESC%[94m[Codyx]%ESC%[0m Stable channel selected. Close and reopen codyx to update.
+  pause >nul
+  exit /b 0
+)
+if "%CODY_CHOICE%"=="253" (
+  echo.
+  echo %ESC%[94m[Codyx]%ESC%[0m Beta channel selected. Close and reopen codyx to update.
+  pause >nul
+  exit /b 0
+)
 
 if "%CODY_CHOICE%"=="1" (
   call :ensure_web_build

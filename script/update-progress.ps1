@@ -1,10 +1,26 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Action,
-    [string]$Branch = "dev"
+    [string]$Branch = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+$channelScript = Join-Path $PSScriptRoot "channel.ps1"
+if (Test-Path -LiteralPath $channelScript) {
+    . $channelScript
+}
+if (-not (Get-Command Resolve-CodyxUpdateBranch -ErrorAction SilentlyContinue)) {
+    function Resolve-CodyxUpdateBranch { param([string]$RequestedBranch) if ($RequestedBranch) { return $RequestedBranch } if ($env:CODY_BRANCH) { return $env:CODY_BRANCH } return "codyx/end-user" }
+    function Resolve-CodyxUpdateChannel { param([string]$RequestedBranch) if ($RequestedBranch -eq "end-user-x" -or $RequestedBranch -eq "dev") { return "beta" } return "stable" }
+    function Set-CodyxUpdateChannel { param([string]$Channel) return $Channel }
+}
+
+$Branch = Resolve-CodyxUpdateBranch $Branch
+$Channel = Resolve-CodyxUpdateChannel $Branch
+try { $null = Set-CodyxUpdateChannel $Channel } catch {}
+$env:CODY_BRANCH = $Branch
+$env:CODY_RELEASE_CHANNEL = $Channel
 
 function Invoke-WithSparklingProgress {
     param(
@@ -55,6 +71,7 @@ function Get-CodyxSparseCheckoutPaths {
         "/package.json", "/bun.lock", "/bunfig.toml", "/codyx.cmd", "/LICENSE",
         "/patches/",
         "/release/",
+        "/script/channel.ps1",
         "/script/discover-local-models.ps1",
         "/script/ensure-default-config.ps1",
         "/script/install-codyx-global.ps1",
@@ -62,6 +79,7 @@ function Get-CodyxSparseCheckoutPaths {
         "/script/installer-verification.ps1",
         "/script/launcher-menu.ps1",
         "/script/launcher.ps1",
+        "/script/reinstall-codyx.cmd",
         "/script/repair-model-state.ps1",
         "/script/update-install-marker.ps1",
         "/script/update-progress.ps1",
