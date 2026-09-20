@@ -17,6 +17,7 @@
   <ItemGroup>
     <EmbeddedResource Include="..\..\script\install-compiled.ps1" Link="Resources\install-compiled.ps1" LogicalName="Codyx.EndUserInstaller.Resources.install-compiled.ps1" />
     <EmbeddedResource Include="..\..\script\installer-verification.ps1" Link="Resources\installer-verification.ps1" LogicalName="Codyx.EndUserInstaller.Resources.installer-verification.ps1" />
+    <EmbeddedResource Include="..\..\script\repair-launcher.ps1" Link="Resources\repair-launcher.ps1" LogicalName="Codyx.EndUserInstaller.Resources.repair-launcher.ps1" />
     <Resource Include="..\launcher\Assets\mufasa.png" Link="Assets\mufasa.png" />
   </ItemGroup>
 </Project>

@@ -1327,6 +1327,7 @@ public sealed class InstallerWindow : Window
     var installer = IOPath.Combine(dir, "install-compiled.ps1");
     ExtractResource("Codyx.EndUserInstaller.Resources.install-compiled.ps1", installer);
     ExtractResource("Codyx.EndUserInstaller.Resources.installer-verification.ps1", IOPath.Combine(dir, "installer-verification.ps1"));
+    ExtractResource("Codyx.EndUserInstaller.Resources.repair-launcher.ps1", IOPath.Combine(dir, "repair-launcher.ps1"));
     return installer;
   }
 

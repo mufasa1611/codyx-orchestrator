@@ -80,6 +80,8 @@ function Get-CodyxSparseCheckoutPaths {
         "/script/launcher-menu.ps1",
         "/script/launcher.ps1",
         "/script/reinstall-codyx.cmd",
+        "/script/repair-codyx.cmd",
+        "/script/repair-launcher.ps1",
         "/script/repair-model-state.ps1",
         "/script/update-install-marker.ps1",
         "/script/update-progress.ps1",

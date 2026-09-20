@@ -609,6 +609,12 @@ function New-Shims($BinDir, $CurrentDir, $Root, $UpdaterScript) {
   $exe = Join-Path $CurrentDir "codyx.exe"
   $cmd = Join-Path $BinDir "codyx.cmd"
   $ps1 = Join-Path $BinDir "codyx.ps1"
+  $launcherCmd = Join-Path $BinDir "codyx-launcher.cmd"
+  $launcherPs1 = Join-Path $BinDir "codyx-launcher.ps1"
+  $repairCmd = Join-Path $BinDir "codyx-repair.cmd"
+  $repairPs1 = Join-Path $BinDir "codyx-repair.ps1"
+  $repairScript = Join-Path (Split-Path -Parent $UpdaterScript) "repair-launcher.ps1"
+  $launcherExe = Join-Path $Root "codyx-installer-launcher.exe"
 
   $cmdContent = @"
 @echo off
@@ -626,6 +632,8 @@ exit /b %errorlevel%
   $repoLiteral = Quote-PowerShellLiteral $Repo
   $channelLiteral = Quote-PowerShellLiteral $Channel
   $updaterLiteral = Quote-PowerShellLiteral $UpdaterScript
+  $repairLiteral = Quote-PowerShellLiteral $repairScript
+  $launcherLiteral = Quote-PowerShellLiteral $launcherExe
   $exeLiteral = Quote-PowerShellLiteral $exe
   $ps1Content = @"
 `$env:CODY_COMPILED_INSTALL_ROOT = $rootLiteral
@@ -672,6 +680,9 @@ function Update-CodyxInstalledUpdater {
   } catch {}
 }
 if (-not `$skipUpdate) {
+  if (Test-Path -LiteralPath $repairLiteral) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $repairLiteral -Quiet -Channel $channelLiteral
+  }
   Update-CodyxInstalledUpdater -UpdaterPath $updaterLiteral
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterLiteral -AcceptLicense -Quiet -NoLaunch
   if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
@@ -684,9 +695,68 @@ if (`$args.Count -gt 0 -and `$args[0] -ieq "uninstall") {
 exit `$LASTEXITCODE
 "@
 
+  $launcherCmdContent = @"
+@echo off
+setlocal
+set "CODY_COMPILED_INSTALL_ROOT=$Root"
+set "CODYX_INSTALL_ROOT=$Root"
+set "CODY_INSTALL_ROOT=$Root"
+set "CODY_RELEASE_REPO=$Repo"
+set "CODY_RELEASE_CHANNEL=$Channel"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcherPs1" %*
+exit /b %errorlevel%
+"@
+
+  $launcherPs1Content = @"
+`$env:CODY_COMPILED_INSTALL_ROOT = $rootLiteral
+`$env:CODYX_INSTALL_ROOT = $rootLiteral
+`$env:CODY_INSTALL_ROOT = $rootLiteral
+`$env:CODY_RELEASE_REPO = $repoLiteral
+`$env:CODY_RELEASE_CHANNEL = $channelLiteral
+if (Test-Path -LiteralPath $repairLiteral) {
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $repairLiteral -Quiet -Channel $channelLiteral
+}
+if (Test-Path -LiteralPath $launcherLiteral) {
+  Start-Process -FilePath $launcherLiteral
+  exit 0
+}
+Write-Host "Cannot find Codyx launcher: $launcherLiteral"
+exit 1
+"@
+
+  $repairCmdContent = @"
+@echo off
+setlocal
+set "CODY_COMPILED_INSTALL_ROOT=$Root"
+set "CODYX_INSTALL_ROOT=$Root"
+set "CODY_INSTALL_ROOT=$Root"
+set "CODY_RELEASE_REPO=$Repo"
+set "CODY_RELEASE_CHANNEL=$Channel"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$repairPs1" %*
+exit /b %errorlevel%
+"@
+
+  $repairPs1Content = @"
+`$env:CODY_COMPILED_INSTALL_ROOT = $rootLiteral
+`$env:CODYX_INSTALL_ROOT = $rootLiteral
+`$env:CODY_INSTALL_ROOT = $rootLiteral
+`$env:CODY_RELEASE_REPO = $repoLiteral
+`$env:CODY_RELEASE_CHANNEL = $channelLiteral
+if (-not (Test-Path -LiteralPath $repairLiteral)) {
+  Write-Host "Cannot find Codyx repair script: $repairLiteral"
+  exit 1
+}
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $repairLiteral -Channel $channelLiteral @args
+exit `$LASTEXITCODE
+"@
+
   Write-TextFile $cmd ($cmdContent.TrimStart() + "`r`n")
   Write-TextFile $ps1 ($ps1Content.TrimStart() + "`r`n")
-  return @($cmd, $ps1)
+  Write-TextFile $launcherCmd ($launcherCmdContent.TrimStart() + "`r`n")
+  Write-TextFile $launcherPs1 ($launcherPs1Content.TrimStart() + "`r`n")
+  Write-TextFile $repairCmd ($repairCmdContent.TrimStart() + "`r`n")
+  Write-TextFile $repairPs1 ($repairPs1Content.TrimStart() + "`r`n")
+  return @($cmd, $ps1, $launcherCmd, $launcherPs1, $repairCmd, $repairPs1)
 }
 
 function New-Shortcut($Path, $Target, $Arguments, $WorkingDirectory) {
@@ -828,6 +898,15 @@ function Install-CodyxCompiled {
         Copy-Item -LiteralPath $verificationSource -Destination $verificationDestination -Force
       }
     }
+    $repairSource = Join-Path $PSScriptRoot "repair-launcher.ps1"
+    if (Test-Path -LiteralPath $repairSource) {
+      $repairDestination = Join-Path $updaterDir "repair-launcher.ps1"
+      $repairSourceFull = [System.IO.Path]::GetFullPath($repairSource)
+      $repairDestinationFull = [System.IO.Path]::GetFullPath($repairDestination)
+      if (-not $repairSourceFull.Equals($repairDestinationFull, [StringComparison]::OrdinalIgnoreCase)) {
+        Copy-Item -LiteralPath $repairSource -Destination $repairDestination -Force
+      }
+    }
 
     Ensure-UserMemo -RootPath $InstallRoot
     if (-not $Quiet) {
@@ -884,8 +963,8 @@ function Install-CodyxCompiled {
       New-Shortcut $cliShortcut $cmdExe "/k `"$($shims[0])`"" $InstallRoot
       New-Shortcut $webShortcut $cmdExe "/k `"$($shims[0])`" web" $InstallRoot
       New-Shortcut $uninstallShortcut $cmdExe "/k `"$($shims[0])`" uninstall" $InstallRoot
-      if ($copiedLauncher) {
-        New-Shortcut $desktopShortcut $launcherDest "" $InstallRoot
+      if ($copiedLauncher -and $shims.Count -ge 3) {
+        New-Shortcut $desktopShortcut $cmdExe "/c `"$($shims[2])`"" $InstallRoot
         Write-Ok "Created desktop shortcut: Codyx Installer Launcher.lnk"
       }
     }
