@@ -272,29 +272,78 @@ Type `/` **inside the TUI chat prompt**, not in CMD or PowerShell. Available ent
 
 ## Architecture
 
-**Different interfaces, a shared agent runtime, and your choice of model provider.** This is a logical overview, not a map of a particular hosted deployment.
+**From interfaces to agents, storage, and integrations.** The connected layers below show the application's logical structure, not a particular user's machine or hosted deployment.
 
 ```mermaid
-flowchart TB
-    UI["YOUR WORKSPACE<br/>Terminal UI · CLI · Web UI"]
-    API["APPLICATION BACKEND<br/>HTTP / WebSocket · account context"]
-    CORE["AGENT RUNTIME<br/>Projects · sessions · permissions · tasks"]
-    MODELS["MODEL CONNECTIONS<br/>Online providers / local engines"]
-    TOOLS["TOOLS & EXTENSIONS<br/>Files · commands · plugins · MCP"]
-    DATA["INSTANCE STORAGE<br/>SQLite sessions · configuration · files"]
-    UI --> API --> CORE
-    CORE --> MODELS
-    CORE --> TOOLS
-    CORE --> DATA
-    classDef interface fill:#0969da,stroke:#0550ae,color:#ffffff
-    classDef backend fill:#0e7490,stroke:#155e75,color:#ffffff
-    classDef runtime fill:#9d174d,stroke:#831843,color:#ffffff
-    classDef service fill:#166534,stroke:#14532d,color:#ffffff
-    class UI interface
-    class API backend
-    class CORE runtime
-    class MODELS,TOOLS,DATA service
+flowchart LR
+    classDef interface fill:#0969da,color:#fff,stroke:#0550ae,stroke-width:2px
+    classDef gateway fill:#0e7490,color:#fff,stroke:#155e75,stroke-width:2px
+    classDef core fill:#9d174d,color:#fff,stroke:#831843,stroke-width:2px
+    classDef data fill:#166534,color:#fff,stroke:#14532d,stroke-width:2px
+    classDef external fill:#92400e,color:#fff,stroke:#78350f,stroke-width:2px,stroke-dasharray:5 3
+    classDef tools fill:#475569,color:#fff,stroke:#334155,stroke-width:2px
+
+    subgraph Interfaces ["USER INTERFACES"]
+        LAUNCH["Windows Launcher<br/>WPF · install · update · repair"]:::interface
+        TUI["Terminal UI<br/>OpenTUI · SolidJS · slash commands"]:::interface
+        CLI["Command Line<br/>Tasks · scripts · session commands"]:::interface
+        WEB["Web UI<br/>SolidJS · Vite · browser workspace"]:::interface
+    end
+
+    subgraph Gateway ["API & COMMUNICATION"]
+        HTTP["HTTP API<br/>Routes · instance context"]:::gateway
+        AUTH["Server Authentication<br/>Accounts · user-scoped access"]:::gateway
+        WS["Events & WebSocket<br/>Session updates · PC connections"]:::gateway
+        ACP["ACP Interface<br/>Compatible agent clients"]:::gateway
+    end
+
+    subgraph Engine ["AGENT & SESSION RUNTIME"]
+        SESS["Sessions<br/>Messages · context · export / import"]:::core
+        PROJ["Projects<br/>Workspaces · files · VCS context"]:::core
+        AGT["Agent System<br/>Build · plan · general · explore"]:::core
+        PERM["Permissions & Tools<br/>Approval rules · tool execution"]:::core
+        PROV["Provider Routing<br/>Model selection · configured fallback"]:::core
+        PLG["Extensions<br/>Plugins · skills · custom tools"]:::core
+    end
+
+    subgraph Data ["DATA LAYER"]
+        DB["SQLite / Drizzle<br/>Persistent session state"]:::data
+        FS["Filesystem<br/>Projects · configuration · state"]:::data
+        CACHE["Cache<br/>Model metadata · downloaded resources"]:::data
+    end
+
+    subgraph External ["PROVIDERS & INTEGRATIONS"]
+        CLOUD["Online AI Providers<br/>OpenRouter · OpenAI · Anthropic<br/>Google · other configured providers"]:::external
+        LOCAL["Local Inference<br/>Ollama · llama.cpp / GGUF<br/>Host-dependent model selection"]:::external
+        MCP["MCP Servers<br/>External tools · data sources"]:::external
+        PC["Connected Computers<br/>Paired connector · authorized files"]:::tools
+        VCS["Version Control<br/>Git · GitHub workflows"]:::tools
+        SEARCH["Code Search<br/>File patterns · text · syntax"]:::tools
+        INFRA["Optional Inspection Tools<br/>SSH · Docker · Proxmox<br/>Windows · systemd · backups"]:::tools
+    end
+
+    LAUNCH --> TUI & WEB
+    TUI & CLI & WEB --> HTTP
+    WEB --> AUTH
+    TUI & WEB --> WS
+    AUTH --> HTTP
+    HTTP --> SESS & PROJ & AGT
+    ACP --> SESS
+    WS --> SESS
+    SESS --> AGT & PROV
+    AGT --> PERM & PLG
+    PROJ --> FS & VCS
+    SESS --> DB
+    PROV --> CACHE
+    PLG --> FS
+    PERM --> FS & SEARCH
+    PROV --> CLOUD & LOCAL
+    PLG -. configured .-> MCP
+    PERM -. configured .-> INFRA
+    WS -. paired .-> PC
 ```
+
+Solid arrows show the main logical connections. Dashed arrows mark configured or paired integrations. Online services, local engines, and optional tools require their own setup and permissions. Use the diagram's expand and zoom controls for a closer view.
 
 | Layer | Technology and responsibility |
 | :--- | :--- |
