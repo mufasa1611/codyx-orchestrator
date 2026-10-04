@@ -30,6 +30,28 @@
 
 ---
 
+## Why Codyx?
+
+**Choose your interface, your model, and how much control to give your agents.**
+
+| Your priority | What Codyx brings |
+| :--- | :--- |
+| **A familiar workspace** | Terminal, command line, and Web UI, with external terminal and browser actions in the Windows launcher. |
+| **Model flexibility** | Online providers alongside Ollama and llama.cpp; local recommendations based on the host computer. |
+| **More than chat** | Agents that can plan, explore a project, and use permitted tools to carry out work. |
+| **Continuity** | Project context, session history, task progress, and export/import tools. |
+| **Personal or shared use** | A local terminal profile or an authenticated multi-user Web UI deployment. |
+| **Room to extend** | Custom agents, skills, plugins, local tools, MCP, and ACP integrations. |
+
+### Find Your Way
+
+| Start here | Work with Codyx | Go deeper |
+| :--- | :--- | :--- |
+| [Install](#get-started) | [CLI commands](#cli-commands) | [Architecture](#architecture) |
+| [SmartScreen guide](#windows-smartscreen-bypass-guide) | [TUI slash commands](#tui-chat-slash-commands) | [Environment variables](#environment-variables) |
+| [Models](#models-and-providers) | [Multi-user server](#multi-user-server) | [Ecosystem](#ecosystem) |
+| [Updates](#updates-and-repair) | [Agents and tools](#agents-and-tools) | [Privacy](#private-by-default) |
+
 ## Get Started
 
 **New to Codyx? Start with the Windows launcher.** It installs compiled application files without requiring a source checkout, Git, or a separate Bun installation.
@@ -56,6 +78,33 @@ You do not need a GitHub account or GitHub token to download or update public re
 
 > [!IMPORTANT]
 > Download the explicitly named **installer** or **CLI** asset. GitHub's automatic **Source code** archives contain public documentation, not the application. The older `codyx-launcher-windows-x64.exe` is a different, source-based launcher; it is not the recommended installer.
+
+### Windows SmartScreen Bypass Guide
+
+**For a download you have verified and trust, not a reason to ignore a security warning.** SmartScreen can warn when a downloaded application has insufficient reputation. See [Microsoft's explanation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+
+1. Download from the [official download page](https://install.kingkung.men/downloads) or this repository's named release assets.
+2. Check that the filename is `codyx-installer-launcher-windows-x64.exe`. Compare its SHA256 with the `installer.windows-x64` entry in the **same release's** `codyx-release-manifest.json`.
+3. If Windows displays an **unrecognized app** warning and you trust the verified download, select **More info**, inspect the application details, then choose **Run anyway** if that option is available.
+4. If Windows reports a specific malware detection, the hash differs, or your organization's policy blocks execution, stop and contact support or your administrator. Do not disable Defender, SmartScreen, or Smart App Control.
+
+<details>
+<summary><strong>Show the two illustrated steps and checksum command</strong></summary>
+
+<p align="center">
+  <img src="readme/step1.png" alt="Step 1: More info in the SmartScreen warning" width="280">
+  <img src="readme/step2.png" alt="Step 2: Run anyway, only after verifying and trusting the download" width="280">
+</p>
+
+These are older illustrative screenshots; their filename and colors can differ from the current installer and your Windows version. Always check the actual file you downloaded.
+
+```powershell
+Get-FileHash "$env:USERPROFILE\Downloads\codyx-installer-launcher-windows-x64.exe" -Algorithm SHA256
+```
+
+A matching checksum confirms the file matches the published asset; it is not a guarantee that software is harmless.
+
+</details>
 
 ## What You Can Do
 
@@ -100,6 +149,28 @@ codyx run "Explain this project's structure. Do not change any files."
 
 **Connecting a computer:** use **Connect PC** in the Web UI and follow the instructions for that server. For a remote server, run the displayed connector command on the computer you want to connect. Use a fresh pairing code from the same server. See [accounts, history, and PC connections](docs/USER_GUIDE.md#accounts-history-and-connected-computers).
 
+## Multi-User Server
+
+**One hosted Web UI, separate user accounts and session histories.** A shared deployment lets users work through their browser while the server runs the application backend.
+
+| Capability | What it means |
+| :--- | :--- |
+| **Account sign-in** | Users authenticate to the selected Web UI server. |
+| **User-scoped history** | Sessions belong to the account and server context, not a shared local TUI profile. |
+| **Connected computers** | Pair an authorized PC to that server to access its available drives and project files. |
+| **Server administration** | Hosted update installation is restricted to the configured update administrator. |
+| **Persistent operation** | The operator manages storage, backups, service availability, and access controls. |
+
+The CLI exposes a headless server entry point:
+
+```bash
+codyx serve --hostname 127.0.0.1 --port 4097
+```
+
+This command alone does **not** configure a secure multi-user deployment. A public deployment needs server-mode authentication, TLS, account isolation, permissions, persistent data, and backups. Keep an unconfigured instance on loopback. A server's local model runs on the server, not automatically on every connected user's PC.
+
+[Accounts, session history, and PC connections](docs/USER_GUIDE.md#accounts-history-and-connected-computers)
+
 ## Models and Providers
 
 **Choose where inference runs.** A local model uses your computer; an online model sends requests to its provider. Changing providers does not make their pricing or privacy policies identical.
@@ -138,6 +209,143 @@ Custom profiles can add specialist workflows such as infrastructure inspection o
 
 Use `/agents` in the TUI or `codyx agent list` to see what is actually available. [Agent and extension guide](docs/USER_GUIDE.md#agents-permissions-and-extensions)
 
+## CLI Commands
+
+Run commands in a terminal. Use `codyx --help` or add `--help` to a command for your installed version's options.
+
+| Command | Purpose |
+| :--- | :--- |
+| `codyx` | Open the interactive TUI. |
+| `codyx run "your task"` | Run a one-shot prompt or task. |
+| `codyx web` | Start the local Web UI. |
+| `codyx serve` | Start a headless HTTP server. |
+| `codyx setup` | Open the setup wizard. |
+| `codyx setup models` | Select a provider and model preset. |
+| `codyx models` | List available model IDs. |
+| `codyx providers login` | Connect an AI provider. |
+| `codyx agent list` / `codyx agent create` | Inspect or create agents. |
+| `codyx session list` | List sessions for the current instance. |
+| `codyx -s SESSION_ID` | Resume an existing session. |
+| `codyx doctor` | Diagnose installation and environment problems. |
+
+<details>
+<summary><strong>More CLI commands: exports, integrations, and maintenance</strong></summary>
+
+| Command | Purpose |
+| :--- | :--- |
+| `codyx export SESSION_ID` | Export session JSON to standard output; inspect it for private content before sharing. |
+| `codyx import session.json` | Import a session file. |
+| `codyx stats` | Inspect recorded local usage. |
+| `codyx mcp --help` | Configure MCP server integrations. |
+| `codyx acp --help` | Inspect Agent Client Protocol options. |
+| `codyx plugin --help` / `codyx plugins` | Install plugins or inspect their health. |
+| `codyx users --help` | Inspect server account management commands. |
+| `codyx github --help` / `codyx pr --help` | Inspect GitHub and pull-request workflows. |
+| `codyx debug --help` | Inspect diagnostic tools. |
+| `codyx upgrade --help` | Review update options; managed Windows installs should normally use the launcher. |
+| `codyx uninstall --help` | Review removal options before uninstalling. |
+
+</details>
+
+```bash
+codyx run --agent plan "Plan the changes needed to add settings validation."
+```
+
+## TUI Chat Slash Commands
+
+Type `/` **inside the TUI chat prompt**, not in CMD or PowerShell. Available entries can depend on the current session and integrations.
+
+| Command | Action |
+| :--- | :--- |
+| `/sessions` | Browse history; aliases: `/resume`, `/continue`. |
+| `/new` | Start a new session without deleting old history; alias: `/clear`. |
+| `/models` | Choose an AI model. |
+| `/agents` | Choose an agent. |
+| `/connect` | Connect an AI provider; this is not Web UI **Connect PC**. |
+| `/mcps` | Manage enabled MCP connections. |
+| `/variants` | Choose a supported model variant. |
+| `/permissions` | Select Restricted, Standard, or Full permission mode. |
+| `/status` | View connection and system status. |
+| `/themes` | Change the terminal theme. |
+| `/help` | Open the terminal help overlay. |
+| `/exit` | Exit Codyx; aliases: `/quit`, `/q`. |
+
+## Architecture
+
+**Different interfaces, a shared agent runtime, and your choice of model provider.** This is a logical overview, not a map of a particular hosted deployment.
+
+```mermaid
+flowchart TB
+    UI["YOUR WORKSPACE<br/>Terminal UI · CLI · Web UI"]
+    API["APPLICATION BACKEND<br/>HTTP / WebSocket · account context"]
+    CORE["AGENT RUNTIME<br/>Projects · sessions · permissions · tasks"]
+    MODELS["MODEL CONNECTIONS<br/>Online providers / local engines"]
+    TOOLS["TOOLS & EXTENSIONS<br/>Files · commands · plugins · MCP"]
+    DATA["INSTANCE STORAGE<br/>SQLite sessions · configuration · files"]
+    UI --> API --> CORE
+    CORE --> MODELS
+    CORE --> TOOLS
+    CORE --> DATA
+    classDef interface fill:#0969da,stroke:#0550ae,color:#ffffff
+    classDef backend fill:#0e7490,stroke:#155e75,color:#ffffff
+    classDef runtime fill:#9d174d,stroke:#831843,color:#ffffff
+    classDef service fill:#166534,stroke:#14532d,color:#ffffff
+    class UI interface
+    class API backend
+    class CORE runtime
+    class MODELS,TOOLS,DATA service
+```
+
+| Layer | Technology and responsibility |
+| :--- | :--- |
+| **Windows launcher** | .NET/WPF shell, embedded browser/terminal, setup and updates. |
+| **Terminal UI** | SolidJS-based OpenTUI interface. |
+| **Web UI** | SolidJS and Vite browser application. |
+| **Runtime** | TypeScript/Bun with Effect-based application services. |
+| **API and events** | HTTP routes and WebSocket communication. |
+| **Persistence** | SQLite via Drizzle, plus configuration and project files. |
+| **Interoperability** | MCP tools, ACP clients, provider adapters, and plugins. |
+
+The compiled Windows installer packages the runtime components it needs. Users do not need to build the development project.
+
+## Environment Variables
+
+**Advanced configuration:** the launcher normally sets its own installation paths. Change these only for a specific purpose; a different configuration or data directory can make models or history appear missing.
+
+| Variable | Purpose |
+| :--- | :--- |
+| `CODY_CONFIG_DIR` | Select an additional configuration directory; managed installations set this to their generated configuration. |
+| `CODY_REFRESH_MODELS=1` | Request fresh discovery through the local discovery/launcher path. |
+| `CODY_SKIP_MODEL_DISCOVERY=1` | Skip discovery in paths that support local discovery. |
+| `XDG_DATA_HOME` | Change the user data root. Back up and plan migration before changing it. |
+| `CODY_DISABLE_AUTOUPDATE=1` | Disable the CLI's built-in update check; does not disable every launcher update mechanism. |
+
+<details>
+<summary><strong>Infrastructure integration settings</strong></summary>
+
+Custom Proxmox inspection tools may use `CODY_PROXMOX_URL`, `CODY_PROXMOX_TOKEN_ID`, and `CODY_PROXMOX_TOKEN_SECRET`. These apply only when the corresponding tool is installed and configured. Use a least-privilege account and keep actual credentials outside public files and logs.
+
+</details>
+
+[Configuration examples and discovery instructions](docs/USER_GUIDE.md#configuration)
+
+## Ecosystem
+
+The wider project contains several components. **A component in the development project is not automatically a separately published product.** Check release assets for what is available to install.
+
+| Component | Role |
+| :--- | :--- |
+| **Codyx CLI / TUI / server** | Main application, sessions, agents, and provider connections. |
+| **Windows installer / launcher** | First-run verification, compiled installation, workspace shell, and release-channel updates. |
+| **Web application** | Browser-based projects, sessions, accounts, and PC connections. |
+| **Shared core and UI** | Common application services and interface components. |
+| **Plugin system and JavaScript SDK** | Extension and integration surfaces. |
+| **Electron desktop wrapper** | Separate desktop packaging work; not the WPF Windows installer. |
+| **Slack integration and editor SDK** | Additional integration components whose availability depends on the distribution. |
+| **Android and container work** | Platform/deployment components; use only explicitly published and supported packages. |
+
+Development source is private. Public documentation and compiled downloads remain available here without source-repository credentials.
+
 ## Updates and Repair
 
 - **Keep your channel:** Stable and Beta are separate choices. A new Beta does not replace the Stable release.
@@ -159,7 +367,18 @@ Supported launcher update paths check release-manifest hashes and can replace th
 
 The Windows launcher is not a Linux, macOS, or Android application. Check the assets for your chosen release; a platform's presence in the development project does not guarantee a published installer.
 
-## Privacy and Control
+## Private by Default
+
+**Control starts with understanding where your work runs.** This does not mean every default model is local or that the application never makes network requests.
+
+| Area | Privacy boundary |
+| :--- | :--- |
+| **Local model inference** | Runs on the configured host; review fallback and tool settings for network access. |
+| **Online inference** | Sends the required prompt and context to the selected provider under its policies. |
+| **Local sessions** | Stored by the local application instance. |
+| **Hosted Web UI** | Uses the server's storage and account controls; trust the server operator. |
+| **Installer verification** | Uses the display name, email, and operational registration information described in the privacy notice. |
+| **Plugins and connected PCs** | Introduce additional access and data flows according to their configuration and permissions. |
 
 **Local and online models have different data boundaries.** Online providers receive the context sent to them. Network tools, plugins, connected computers, and hosted servers introduce their own data flows, even when the selected model is local.
 
