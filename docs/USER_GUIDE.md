@@ -93,6 +93,21 @@ Other commands may appear based on the active session, connected services, or ex
 
 ### Guided Setup
 
+**Windows launcher, rc9 Beta and later:**
+
+1. Finish installation and email verification. The launcher opens **Connect your models**.
+2. For online models, press **Connect OpenRouter in browser**. Sign in or create your OpenRouter account, approve Codyx, then return to the launcher. No API-key copying is needed.
+3. For models already on your PC, press **Find installed models**, select one, and press **Use selected installed model**. Use **Choose existing GGUF file** for another folder.
+4. To download a local model, select a recommendation and press **Set up Ollama** or **Set up llama.cpp**. Confirm the download. Existing engines are reused.
+5. Keep the local-backup checkbox selected for online-first operation, or clear it for local-first operation. Without a tested primary connection, selecting an existing local model makes it primary.
+6. After the chat-and-tool test succeeds, press **Continue to workspace**. Return to **Model connections** later to change or retest connections.
+
+Models that exceed the conservative RAM estimate are excluded from the selection. A listed model is not guaranteed to support agent tools until its test passes. Hosted Ollama cloud entries are not offline models and are excluded. Split GGUF files must remain together; select their first part.
+
+An OpenRouter quota error is not a missing-Ollama error. Wait for the provider allowance to renew or choose a tested local connection. No paid fallback or developer API key is supplied.
+
+**Terminal setup and older launchers:**
+
 1. Run `codyx setup models`.
 2. Choose an online provider or a local engine preset.
 3. For local options, review the detected engine, version, memory, and model recommendations.
