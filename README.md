@@ -68,7 +68,7 @@
 1. Open **`codyx-installer-launcher-windows-x64.exe`**.
 2. Choose **Stable** or **Beta**, review the license, and start installation.
 3. Enter your display name and email, then enter the verification code sent to you.
-4. In **rc9 Beta**, choose **Connect OpenRouter in browser**, sign in and approve the connection. Or choose a local model. Codyx tests chat and agent tools before reporting readiness.
+4. In **v2.0.0.45 and later**, choose **Connect OpenRouter in browser**, sign in and approve the connection. Or choose a local model. Codyx tests chat and agent tools before reporting readiness.
 5. Open the **Terminal** or **Web UI** workspace and select your project.
 
 You do not need a GitHub account or GitHub token to download or update public releases.
@@ -189,7 +189,7 @@ codyx models
 
 Local recommendations consider available hardware; there is no single best local model for every PC. Memory, GPU capacity, model size, context length, and tool support all affect the experience.
 
-**Windows rc9 Beta:** open **Model connections** in the launcher. **Find installed models** discovers existing Ollama models, running llama.cpp models and GGUF files in common folders. Choose and test one, or browse to an existing GGUF. **Set up Ollama** and **Set up llama.cpp** offer fitting downloads when needed. Existing engines and model files are reused.
+**Windows v2.0.0.45 and later:** open **Model connections** in the launcher. **Find installed models** discovers existing Ollama models, running llama.cpp models and GGUF files in common folders. Choose and test one, or browse to an existing GGUF. **Set up Ollama** and **Set up llama.cpp** offer fitting downloads when needed. Existing engines and model files are reused.
 
 The standard OpenRouter order is North Mini Code Free, Laguna S Free, Dots3 Note Free, Nemotron 3 Ultra Free, then OpenRouter Free Router. Space Bunny is no longer the default because it is absent from the current catalog. Your own OpenRouter account is required; no shared API key is bundled.
 

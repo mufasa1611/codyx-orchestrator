@@ -93,7 +93,7 @@ Other commands may appear based on the active session, connected services, or ex
 
 ### Guided Setup
 
-**Windows launcher, rc9 Beta and later:**
+**Windows launcher, v2.0.0.45 and later:**
 
 1. Finish installation and email verification. The launcher opens **Connect your models**.
 2. For online models, press **Connect OpenRouter in browser**. Sign in or create your OpenRouter account, approve Codyx, then return to the launcher. No API-key copying is needed.
