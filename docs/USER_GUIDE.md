@@ -102,6 +102,8 @@ Other commands may appear based on the active session, connected services, or ex
 5. Keep the local-backup checkbox selected for online-first operation, or clear it for local-first operation. Without a tested primary connection, selecting an existing local model makes it primary.
 6. After the chat-and-tool test succeeds, press **Continue to workspace**. Return to **Model connections** later to change or retest connections.
 
+**Signup recovery, v2.0.0.46 and later:** If creating an OpenRouter account leaves you on its dashboard, return to Codyx and press **Continue after sign-in or account creation**. If you already copied a key, paste it into the masked **OpenRouter API key** field and press **Use key and test connection**. This also works while browser authorization is waiting. Codyx checks the key and agent tools before enabling chat. Rejected keys do not replace a saved connection; expired browser attempts can restart from the same page.
+
 Models that exceed the conservative RAM estimate are excluded from the selection. A listed model is not guaranteed to support agent tools until its test passes. Hosted Ollama cloud entries are not offline models and are excluded. Split GGUF files must remain together; select their first part.
 
 An OpenRouter quota error is not a missing-Ollama error. Wait for the provider allowance to renew or choose a tested local connection. No paid fallback or developer API key is supplied.

@@ -71,6 +71,8 @@
 4. In **v2.0.0.45 and later**, choose **Connect OpenRouter in browser**, sign in and approve the connection. Or choose a local model. Codyx tests chat and agent tools before reporting readiness.
 5. Open the **Terminal** or **Web UI** workspace and select your project.
 
+**New OpenRouter account?** In **v2.0.0.46 and later**, if signup leaves you on the OpenRouter dashboard, return to Codyx and choose **Continue after sign-in or account creation**. If you already copied an API key, paste it into the masked key field and choose **Use key and test connection**. You do not need to restart the installer. Never post your key in chat.
+
 You do not need a GitHub account or GitHub token to download or update public releases.
 
 > [!TIP]
