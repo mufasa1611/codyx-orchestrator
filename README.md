@@ -73,6 +73,10 @@
 
 **New OpenRouter account?** In **v2.0.0.46 and later**, if signup leaves you on the OpenRouter dashboard, return to Codyx and choose **Continue after sign-in or account creation**. If you already copied an API key, paste it into the masked key field and choose **Use key and test connection**. You do not need to restart the installer. Never post your key in chat.
 
+**Model status in v2.0.0.47 and later:** the Windows launcher's model connections page separates Ollama from llama.cpp / GGUF. A green indicator means loaded, orange means installed but still needs a successful test, and blue means tested and ready for the current model revision. Missing recommended models have a confirmed Download action; choices respect the PC's RAM budget.
+
+Automatic fallback messages explain which model is being tried. The TUI and local Web UI show the model actually answering once output starts, rather than keeping a failed online model in the footer. Free online models still require your provider connection and are subject to provider limits. A Windows update does not deploy a separately hosted Web UI server.
+
 You do not need a GitHub account or GitHub token to download or update public releases.
 
 > [!TIP]
