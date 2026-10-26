@@ -7,6 +7,10 @@
 <p align="center">Code, explore, and automate with local or online models.<br>Choose a terminal workspace or a browser-based Web UI.</p>
 <p align="center"><sub>Built by M. Farid (Mufasa)</sub></p>
 
+> [!NOTE]
+> **Newest release: [v2.0.0.48-RC3 (Beta)](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.48-RC3).** [Download the Windows installer](https://install.kingkung.men/downloads/windows?channel=beta).
+> Already installed? Select **Beta → Check updates → Install update** in the launcher. [Stable v2.0.0.47](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.47) remains available.
+
 <p align="center">
   <a href="https://install.kingkung.men/downloads"><img src="https://img.shields.io/badge/Download-Windows_launcher-087EA4?style=for-the-badge" alt="Download the Windows launcher"></a>
   <a href="docs/USER_GUIDE.md"><img src="https://img.shields.io/badge/Read-User_guide-16856A?style=for-the-badge" alt="Read the user guide"></a>
@@ -14,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mufasa1611/codyx-orchestrator/releases"><img src="https://img.shields.io/github/v/release/mufasa1611/codyx-orchestrator?include_prereleases&label=newest&color=087EA4" alt="Newest release, including Beta"></a>
+  <a href="https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.48-RC3"><img src="https://img.shields.io/badge/Newest_beta-v2.0.0.48--RC3-087EA4" alt="Newest beta: v2.0.0.48-RC3"></a>
   <a href="https://github.com/mufasa1611/codyx-orchestrator/releases/latest"><img src="https://img.shields.io/github/v/release/mufasa1611/codyx-orchestrator?label=stable&color=16856A" alt="Stable release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-596579" alt="MIT license"></a>
 </p>
