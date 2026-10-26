@@ -9,7 +9,7 @@
 
 > [!NOTE]
 > **Newest release: [v2.0.0.48-RC3 (Beta)](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.48-RC3).** [Download the Windows installer](https://install.kingkung.men/downloads/windows?channel=beta).
-> Already installed? Select **Beta → Check updates → Install update** in the launcher. [Stable v2.0.0.47](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.47) remains available.
+> **Upgrading an older launcher?** [Download RC3 directly](https://downloads.kingkung.men/releases/v2.0.0.48-RC3/dc512bf1120c0b5271959846f4ea68a2c0b9435ccf54edab2dcdb77ba0b62e55/codyx-installer-launcher-windows-x64.exe) before opening the older launcher, then run it over your existing installation. This avoids the old updater's slow first download and keeps your settings and history. No uninstall needed. [Stable v2.0.0.47](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.0.47) remains available.
 
 <p align="center">
   <a href="https://install.kingkung.men/downloads"><img src="https://img.shields.io/badge/Download-Windows_launcher-087EA4?style=for-the-badge" alt="Download the Windows launcher"></a>
