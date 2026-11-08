@@ -1,3 +1,13 @@
+## Latest final release: Codyx Orchestrator 2.0.49 — Compute R16
+
+[Download v2.0.49](https://github.com/mufasa1611/codyx-orchestrator/releases/tag/v2.0.49).
+
+This release integrates Compute R16 with the full Codyx application. Downloads include the Windows installer, Windows x64/ARM64 CLI archives, the portable Codyx application and the separate Compute 0.1.16 MCP/JSONL tools package. The portable application opens the TUI by default; model weights are not included.
+
+R16 adds bounded stroke batches, cropped model observations, current native geometry checks, accepted checklist statuses and task-owned Undo protection. Model-generated geometry still needs review; known limits and build validation are documented in the release notes. The Windows artifacts are unsigned.
+
+---
+
 <p align="center">
   <a href="https://install.kingkung.men/downloads"><img src="readme/logo.png" alt="Codyx Orchestrator" width="375"></a>
 </p>
